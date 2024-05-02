@@ -41,3 +41,12 @@ dist/**/*
 
 # ignore yarn.lock
 yarn.lock
+
+# Yarn Berry with zero-installs
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions

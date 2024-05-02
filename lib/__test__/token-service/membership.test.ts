@@ -1,4 +1,4 @@
-import { RawUserMembership, TenantMembership, parseMembership } from '../../token-service';
+import { RawUserMembership, TenantMembership, parseMembership } from 'lib/token-service';
 
 describe('token membership', () => {
   describe('parse user membership', () => {
