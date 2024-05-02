@@ -1,6 +1,7 @@
+import { AOOTH_CLOUD_URL, APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY, DEFAULT_SCOPES } from 'lib/constants';
+
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import axiosRetry from 'axios-retry';
-import { AOOTH_CLOUD_URL, APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY, DEFAULT_SCOPES } from 'lib/constants';
 
 import { StorageManager } from '../storage-manager';
 import { TokenService, TokenType } from '../token-service';
@@ -56,7 +57,7 @@ export class AxiosClient {
     }
 
     this.instance = axios.create({
-      url: url,
+      baseURL: this.url,
       headers: { ...this.defaultHeaders },
     });
 
@@ -84,9 +85,13 @@ export class AxiosClient {
 
     if (e.response && refreshToken && originalRequest) {
       const status = e.response.status as HttpStatuses;
-      const { error } = e.response.data as AoothResponseError;
+      const errorData = e.response.data as Error;
+      if ('message' in errorData) return Promise.reject(e);
+
+      const { error } = errorData as AoothResponseError;
+
       if (status === HttpStatuses.internalServerError || error.id === 'error.token.blocked') return Promise.reject(e);
-      if (status === HttpStatuses.badRequest || status === HttpStatuses.unauthorized) {
+      if (status === HttpStatuses.badRequest && error.id.includes('token')) {
         const payload = {
           access: accessToken,
           scopes: DEFAULT_SCOPES,
@@ -120,6 +125,7 @@ export class AxiosClient {
       const { error } = e.response.data as AoothResponseError;
       throw new AoothError(error);
     }
+
     throw e;
   }
 

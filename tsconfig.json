@@ -1,19 +1,35 @@
 {
-  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": "./",
-    "outDir": "./dist",
-    "emitDeclarationOnly": true,
+    "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
     "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
     "module": "ESNext",
-    "moduleResolution": "Bundler"
+    "moduleResolution": "Bundler",
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "incremental": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "pretty": true,
+    "skipLibCheck": false,
+    "sourceMap": true,
+    "strict": true,
+    "target": "ES2021",
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "emitDeclarationOnly": true
   },
-  "include": [
-    "lib",
-    "jest.config.cjs"
-  ],
-  "exclude": [
-    "dist",
-    "node_modules"
-  ]
+  "include": ["lib", "jest.config.cjs", ".eslintrc.cjs"],
+  "exclude": ["dist", "node_modules"]
 }

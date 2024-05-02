@@ -1,5 +1,5 @@
-import { StorageManager } from '../../storage-manager';
-import { TokenType } from '../../token-service';
+import { StorageManager } from 'lib/storage-manager';
+import { TokenType } from 'lib/token-service';
 
 import { FakeStorage } from './fake-storage';
 

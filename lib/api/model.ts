@@ -88,11 +88,11 @@ export class AoothError extends Error {
 
   constructor(error: AoothResponseError['error']) {
     super();
-    this.id = error?.id;
-    this.message = error?.message;
-    this.status = error?.status;
-    this.location = error?.location;
-    this.time = error?.time;
+    this.id = error?.id ?? 'unknown';
+    this.message = error?.message ?? error ?? 'Something went wrong';
+    this.status = error?.status ?? 500;
+    this.location = error?.location ?? 'unknown';
+    this.time = error?.time ?? new Date().toISOString();
   }
 }
 

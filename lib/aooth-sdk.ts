@@ -86,14 +86,15 @@ export class Aooth {
       this.storageManager.saveTokens(tokensCache);
       this.setTokensCache(tokensCache);
     }
-    if (urlParams.size > 0)
-      window.history.replaceState({}, document.title, `${window.location.pathname}?${urlParams.toString()}`);
-    else window.history.replaceState({}, document.title, window.location.pathname);
 
     urlParams.delete('access_token');
     urlParams.delete('refresh_token');
     urlParams.delete('id_token');
     urlParams.delete('client_challenge');
+
+    if (urlParams.size > 0)
+      window.history.replaceState({}, document.title, `${window.location.pathname}?${urlParams.toString()}`);
+    else window.history.replaceState({}, document.title, window.location.pathname);
   }
 
   private createFederatedAuthUrl(provider: Providers, redirect_url: string, scopes?: string[]): string {
