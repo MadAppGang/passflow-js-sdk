@@ -1,8 +1,8 @@
 {
-  "name": "@aooth/aooth-sdk-js",
+  "name": "@aooth/aooth-js-sdk",
   "packageManager": "yarn@4.1.1",
-  "description": "Aooth SDK JS",
-  "version": "0.0.19",
+  "description": "Aooth JS SDK",
+  "version": "0.1.1",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
