@@ -1,6 +1,6 @@
 {
   "name": "@aooth/aooth-sdk-js",
-  "packageManager": "yarn@4.0.1",
+  "packageManager": "yarn@4.1.1",
   "description": "Aooth SDK JS",
   "version": "0.0.19",
   "type": "module",

@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": "./",
     "outDir": "./dist",
@@ -8,6 +8,12 @@
     "module": "ESNext",
     "moduleResolution": "Bundler"
   },
-  "include": ["lib", "jest.config.cjs"],
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "lib",
+    "jest.config.cjs"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }
