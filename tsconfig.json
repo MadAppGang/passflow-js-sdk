@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "./",
+    "outDir": "./dist",
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "include": ["lib", "jest.config.cjs"],
+  "exclude": ["dist", "node_modules"]
+}

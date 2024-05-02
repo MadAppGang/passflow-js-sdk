@@ -1,2 +1,5 @@
-# aooth-js-sdk
-Aooth client side JS sdk
+# aooth-sdk-js
+
+## Run tests
+
+`yarn test`
