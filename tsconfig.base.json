@@ -21,10 +21,14 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "pretty": true,
-    "skipLibCheck": true,
+    "skipLibCheck": false,
     "sourceMap": true,
     "strict": true,
     "target": "ES2021",
-    "lib": ["ES2021", "DOM", "DOM.Iterable"]
+    "lib": [
+      "ES2021",
+      "DOM",
+      "DOM.Iterable"
+    ]
   }
 }

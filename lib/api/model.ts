@@ -59,6 +59,8 @@ export enum AoothAdminEndpointPaths {
 export type AoothConfig = {
   url?: string;
   appId?: string;
+  scopes?: string[];
+  createTenantForNewUser?: boolean;
 };
 
 export type AoothAuthorizationResponse = Tokens;
@@ -96,7 +98,7 @@ export class AoothError extends Error {
 
 export type AoothSignInPayload = {
   password: string;
-  scopes: string[];
+  scopes?: string[];
   email?: string;
   phone?: string;
   username?: string;
@@ -138,14 +140,14 @@ export type AoothUserPayload = {
 
 export type AoothSignUpPayload = {
   user: AoothUserPayload;
-  scopes: string[];
+  scopes?: string[];
   create_tenant?: boolean;
   anonymous?: boolean;
   invite?: string;
 };
 
 export type AoothPasswordlessSignInPayload = {
-  scopes: string[];
+  scopes?: string[];
   challenge_type: ChallengeType;
   create_tenant?: boolean;
   email?: string;
@@ -239,7 +241,7 @@ export type AoothPasskeyAuthenticatePayload = AoothPasskeyPayload & {
 };
 
 export type AoothPasskeyAuthenticateStartPayload = {
-  scopes: string[];
+  scopes?: string[];
   relying_party_id: string;
   user_id?: string;
 };

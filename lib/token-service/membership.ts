@@ -1,5 +1,3 @@
-import { DEFAULT_GROUP_NAME } from '../constants';
-
 export type Tenant = {
   id: string;
   name: string;
@@ -7,7 +5,7 @@ export type Tenant = {
 
 export type TenantMembership = {
   tenant: Tenant;
-  tenantMembership?: GroupMembership;
+  tenantRoles?: GroupMembership;
   groups?: GroupMembership[];
 };
 
@@ -24,10 +22,13 @@ export type GroupMembership = {
 export type RawUserMembership = {
   [key: string]: {
     tenant_id: string;
+    tenant_name: string;
+    tenant_roles?: string[];
+    root_group_id: string;
     groups: {
       [key: string]: string[];
     };
-    group_names: { id: string; name: string }[];
+    group_names: { [key: string]: string };
   };
 };
 
@@ -36,7 +37,6 @@ export type UserMembership = {
   tenants: TenantMembership[];
 };
 
-// TODO: test the function
 export const parseMembership = (raw: RawUserMembership): UserMembership => {
   const tenants: TenantMembership[] = [];
   let k: string;
@@ -45,22 +45,13 @@ export const parseMembership = (raw: RawUserMembership): UserMembership => {
     if (v === undefined) {
       continue;
     }
-    const groupNames: {
-      [key: string]: string;
-    } = {};
-
-    v.group_names.forEach((g) => {
-      groupNames[g.id] = g.name;
+    const tnt: TenantMembership = { tenant: { id: v.tenant_id, name: v.tenant_name } };
+    tnt.groups = Object.keys(v.groups).map((gk) => {
+      // v.groups[gk] should always have values, as it is a required field
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      return { group: { id: gk, name: v.group_names[gk] ?? 'unknown' }, roles: v.groups[gk]! };
     });
-    if (v === undefined) {
-      continue;
-    }
-    const tnt: TenantMembership = { tenant: { id: k, name: k }, groups: [] };
-    let gk: string;
-    for (gk in v.groups) {
-      tnt.groups?.push({ group: { id: gk, name: groupNames[gk] ?? 'unknown' }, roles: v.groups[gk] ?? [] });
-    }
-    tnt.tenantMembership = tnt.groups?.find((g) => g.group.name === DEFAULT_GROUP_NAME);
+    tnt.tenantRoles = tnt.groups?.find((g) => g.group.id === v.root_group_id);
     tenants.push(tnt);
   }
   return { raw, tenants };

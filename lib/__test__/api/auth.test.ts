@@ -303,7 +303,7 @@ describe('AuthAPI', () => {
       const refreshToken = 'refreshToken.test.example';
       const scopes = ['id', 'profile', 'offline', 'oidc'];
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
-      const refreshTokenResponse = await authApi.refreshToken(accessToken, refreshToken, scopes);
+      const refreshTokenResponse = await authApi.refreshToken(refreshToken, scopes, accessToken);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(
         AoothEndpointPaths.refresh,
@@ -332,7 +332,7 @@ describe('AuthAPI', () => {
 
     it('Should reset/change password', async () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
-      const resetPasswordResponse = await authApi.resetPassword(resetToken, newPassword, scopes);
+      const resetPasswordResponse = await authApi.resetPassword(newPassword, scopes, resetToken);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(
         AoothEndpointPaths.resetPassword,
@@ -346,7 +346,7 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest
         .spyOn(AxiosClient.prototype, 'post')
         .mockResolvedValue(mockResetPasswordBlockTokenResponse);
-      const resetPasswordResponse = await authApi.resetPassword('blockedToken', newPassword, scopes);
+      const resetPasswordResponse = await authApi.resetPassword(newPassword, scopes, 'blockedToken');
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(
         AoothEndpointPaths.resetPassword,

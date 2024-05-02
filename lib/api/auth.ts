@@ -38,11 +38,7 @@ export class AuthAPI {
     this.axiosClient = new AxiosClient(config);
   }
 
-  async refreshToken(
-    accessToken: string | null,
-    refreshToken: string | null,
-    scopes: string[],
-  ): Promise<AoothAuthorizationResponse> {
+  async refreshToken(refreshToken: string, scopes: string[], accessToken?: string): Promise<AoothAuthorizationResponse> {
     const payload = {
       access: accessToken,
       scopes,
@@ -98,8 +94,8 @@ export class AuthAPI {
     );
   }
 
-  async logOut(deviceId: string | null, refreshToken?: string | null, isAdmin = false): Promise<AoothSuccessResponse> {
-    const payload = !isAdmin ? { refresh_token: refreshToken, device: deviceId } : null;
+  async logOut(deviceId?: string, refreshToken?: string, isAdmin = false): Promise<AoothSuccessResponse> {
+    const payload = !isAdmin ? { refresh_token: refreshToken, device: deviceId } : undefined;
     const endpoint = isAdmin ? AoothAdminEndpointPaths.logout : AoothEndpointPaths.logout;
 
     return this.axiosClient.post<AoothSuccessResponse, typeof payload>(endpoint, payload);
@@ -109,7 +105,7 @@ export class AuthAPI {
     return this.axiosClient.post<AoothSuccessResponse, typeof payload>(AoothEndpointPaths.sendPasswordResetEmail, payload);
   }
 
-  async resetPassword(resetToken: string | null, newPassword: string, scopes: string[]): Promise<AoothAuthorizationResponse> {
+  async resetPassword(newPassword: string, scopes: string[], resetToken?: string): Promise<AoothAuthorizationResponse> {
     const payload = {
       password: newPassword,
       scopes,

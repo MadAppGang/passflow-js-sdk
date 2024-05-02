@@ -16,7 +16,11 @@ export class StorageManager {
   readonly invitationToken = 'aoothInvitationToken';
   readonly previousRedirectUrl = 'aoothPreviousRedirectUrl';
 
-  storage: Storage = localStorage;
+  private storage: Storage;
+
+  constructor(storage?: Storage) {
+    this.storage = storage ?? localStorage;
+  }
 
   saveTokens(tokens: Tokens): void {
     const { id_token, access_token, refresh_token, scopes } = tokens;
@@ -26,13 +30,13 @@ export class StorageManager {
     if (scopes) this.storage.setItem(this.scopes, scopes.join(','));
   }
 
-  getToken(tokenType: TokenType): string | null {
-    return this.storage.getItem(tokenType);
+  getToken(tokenType: TokenType): string | undefined {
+    return this.storage.getItem(tokenType) ?? undefined;
   }
 
-  getTokens(): Tokens | null {
+  getTokens(): Tokens | undefined {
     const access = this.storage.getItem(this.accessToken);
-    if (!access) return null;
+    if (!access) return undefined;
     return {
       access_token: access,
       id_token: this.storage.getItem(this.idToken) ?? undefined,
@@ -52,8 +56,8 @@ export class StorageManager {
     this.storage.removeItem(this.scopes);
   }
 
-  getDeviceId(): string | null {
-    return this.storage.getItem(this.deviceId);
+  getDeviceId(): string | undefined {
+    return this.storage.getItem(this.deviceId) ?? undefined;
   }
 
   setDeviceId(deviceId: string): void {
@@ -68,8 +72,8 @@ export class StorageManager {
     this.storage.setItem(this.invitationToken, token);
   }
 
-  getInvitationToken(): string | null {
-    return this.storage.getItem(this.invitationToken);
+  getInvitationToken(): string | undefined {
+    return this.storage.getItem(this.invitationToken) ?? undefined;
   }
 
   deleteInvitationToken(): void {
@@ -80,8 +84,8 @@ export class StorageManager {
     this.storage.setItem(this.previousRedirectUrl, url);
   }
 
-  getPreviousRedirectUrl(): string | null {
-    return this.storage.getItem(this.previousRedirectUrl);
+  getPreviousRedirectUrl(): string | undefined {
+    return this.storage.getItem(this.previousRedirectUrl) ?? undefined;
   }
 
   deletePreviousRedirectUrl(): void {

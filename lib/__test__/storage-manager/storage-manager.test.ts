@@ -10,9 +10,13 @@ describe('storage manager', () => {
   let removeSpy: jest.SpyInstance<void, [key: string], unknown>;
 
   beforeEach(() => {
+    //@ts-expect-error storageManager.storage is private
     storageManager.storage = new FakeStorage();
+    //@ts-expect-error storageManager.storage is private
     getSpy = jest.spyOn(storageManager.storage, 'getItem');
+    //@ts-expect-error storageManager.storage is private
     setSpy = jest.spyOn(storageManager.storage, 'setItem');
+    //@ts-expect-error storageManager.storage is private
     removeSpy = jest.spyOn(storageManager.storage, 'removeItem');
   });
 
@@ -26,17 +30,17 @@ describe('storage manager', () => {
   describe('managing tokens', () => {
     test('should get null, no tokens exists', () => {
       const token = storageManager.getToken(TokenType.access_token);
-      expect(token).toBeNull();
+      expect(token).toBeUndefined();
       expect(getSpy).toHaveBeenCalledTimes(1);
     });
     test('should get token', () => {
       storageManager.saveTokens({ access_token: 'access' });
       let token = storageManager.getToken(TokenType.access_token);
-      expect(token).not.toBeNull();
+      expect(token).not.toBeUndefined();
       expect(getSpy).toHaveBeenCalledTimes(1);
       expect(setSpy).toHaveBeenCalledTimes(1);
       token = storageManager.getToken(TokenType.refresh_token);
-      expect(token).toBeNull();
+      expect(token).toBeUndefined();
       expect(getSpy).toHaveBeenCalledTimes(2);
       expect(setSpy).toHaveBeenCalledTimes(1);
       token = storageManager.getToken(TokenType.id_token);
@@ -46,7 +50,7 @@ describe('storage manager', () => {
     test('should get null for unsupported token type', () => {
       storageManager.saveTokens({ access_token: 'access' });
       const token = storageManager.getToken(TokenType.reset_token);
-      expect(token).toBeNull();
+      expect(token).toBeUndefined();
       expect(getSpy).toHaveBeenCalledTimes(1);
       expect(setSpy).toHaveBeenCalledTimes(1);
     });
@@ -58,19 +62,19 @@ describe('storage manager', () => {
       });
 
       let token = storageManager.getToken(TokenType.access_token);
-      expect(token).not.toBeNull();
+      expect(token).not.toBeUndefined();
       token = storageManager.getToken(TokenType.id_token);
-      expect(token).not.toBeNull();
+      expect(token).not.toBeUndefined();
       token = storageManager.getToken(TokenType.refresh_token);
-      expect(token).not.toBeNull();
+      expect(token).not.toBeUndefined();
 
       storageManager.deleteTokens();
       token = storageManager.getToken(TokenType.access_token);
-      expect(token).toBeNull();
+      expect(token).toBeUndefined();
       token = storageManager.getToken(TokenType.id_token);
-      expect(token).toBeNull();
+      expect(token).toBeUndefined();
       token = storageManager.getToken(TokenType.refresh_token);
-      expect(token).toBeNull();
+      expect(token).toBeUndefined();
 
       expect(getSpy).toHaveBeenCalledTimes(6);
       expect(setSpy).toHaveBeenCalledTimes(3);
@@ -84,21 +88,21 @@ describe('storage manager', () => {
       });
 
       let token = storageManager.getToken(TokenType.access_token);
-      expect(token).not.toBeNull();
+      expect(token).not.toBeUndefined();
       token = storageManager.getToken(TokenType.id_token);
-      expect(token).not.toBeNull();
+      expect(token).not.toBeUndefined();
       token = storageManager.getToken(TokenType.refresh_token);
-      expect(token).not.toBeNull();
+      expect(token).not.toBeUndefined();
 
       storageManager.deleteToken(TokenType.id_token);
       token = storageManager.getToken(TokenType.access_token);
-      expect(token).not.toBeNull();
+      expect(token).not.toBeUndefined();
       token = storageManager.getToken(TokenType.id_token);
-      expect(token).toBeNull();
+      expect(token).toBeUndefined();
       token = storageManager.getToken(TokenType.refresh_token);
-      expect(token).not.toBeNull();
+      expect(token).not.toBeUndefined();
       token = storageManager.getToken(TokenType.reset_token);
-      expect(token).toBeNull();
+      expect(token).toBeUndefined();
 
       expect(getSpy).toHaveBeenCalledTimes(7);
       expect(setSpy).toHaveBeenCalledTimes(3);
@@ -112,11 +116,11 @@ describe('storage manager', () => {
         scopes: ['scope1', 'scope2'],
       });
       const tokens = storageManager.getTokens();
-      expect(tokens).not.toBeNull();
-      expect(tokens?.access_token).not.toBeNull();
-      expect(tokens?.id_token).not.toBeNull();
-      expect(tokens?.refresh_token).not.toBeNull();
-      expect(tokens?.scopes).not.toBeNull();
+      expect(tokens).not.toBeUndefined();
+      expect(tokens?.access_token).not.toBeUndefined();
+      expect(tokens?.id_token).not.toBeUndefined();
+      expect(tokens?.refresh_token).not.toBeUndefined();
+      expect(tokens?.scopes).not.toBeUndefined();
       expect(getSpy).toHaveBeenCalledTimes(4);
       expect(setSpy).toHaveBeenCalledTimes(4);
       expect(removeSpy).toHaveBeenCalledTimes(0);
@@ -126,20 +130,20 @@ describe('storage manager', () => {
   describe('managing additional storage data', () => {
     test('get device id', () => {
       const did = storageManager.getDeviceId();
-      expect(did).toBeNull();
+      expect(did).toBeUndefined();
       expect(getSpy).toHaveBeenCalledTimes(1);
     });
     test('set device id', () => {
       let did = storageManager.getDeviceId();
-      expect(did).toBeNull();
+      expect(did).toBeUndefined();
 
       storageManager.setDeviceId('device-1234');
       did = storageManager.getDeviceId();
-      expect(did).not.toBeNull();
+      expect(did).not.toBeUndefined();
 
       storageManager.deleteDeviceId();
       did = storageManager.getDeviceId();
-      expect(did).toBeNull();
+      expect(did).toBeUndefined();
 
       expect(getSpy).toHaveBeenCalledTimes(3);
       expect(setSpy).toHaveBeenCalledTimes(1);
@@ -148,15 +152,15 @@ describe('storage manager', () => {
 
     test('persist invitation token', () => {
       let invitation = storageManager.getInvitationToken();
-      expect(invitation).toBeNull();
+      expect(invitation).toBeUndefined();
 
       storageManager.setInvitationToken('invitation-tokne-1234');
       invitation = storageManager.getInvitationToken();
-      expect(invitation).not.toBeNull();
+      expect(invitation).not.toBeUndefined();
 
       storageManager.deleteInvitationToken();
       invitation = storageManager.getInvitationToken();
-      expect(invitation).toBeNull();
+      expect(invitation).toBeUndefined();
 
       expect(getSpy).toHaveBeenCalledTimes(3);
       expect(setSpy).toHaveBeenCalledTimes(1);
@@ -165,15 +169,15 @@ describe('storage manager', () => {
 
     test('persist redirection url', () => {
       let redirectUrl = storageManager.getPreviousRedirectUrl();
-      expect(redirectUrl).toBeNull();
+      expect(redirectUrl).toBeUndefined();
 
       storageManager.setPreviousRedirectUrl('redirect-url-1234');
       redirectUrl = storageManager.getPreviousRedirectUrl();
-      expect(redirectUrl).not.toBeNull();
+      expect(redirectUrl).not.toBeUndefined();
 
       storageManager.deletePreviousRedirectUrl();
       redirectUrl = storageManager.getPreviousRedirectUrl();
-      expect(redirectUrl).toBeNull();
+      expect(redirectUrl).toBeUndefined();
 
       expect(getSpy).toHaveBeenCalledTimes(3);
       expect(setSpy).toHaveBeenCalledTimes(1);
