@@ -15,9 +15,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aooth/aooth-sdk-js@workspace:.":
+"@aooth/aooth-js-sdk@workspace:.":
   version: 0.0.0-use.local
-  resolution: "@aooth/aooth-sdk-js@workspace:."
+  resolution: "@aooth/aooth-js-sdk@workspace:."
   dependencies:
     "@babel/core": "npm:^7.24.5"
     "@eslint/js": "npm:^9.1.1"
