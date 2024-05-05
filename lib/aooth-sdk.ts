@@ -69,32 +69,44 @@ export class Aooth {
     this.checkAndSetTokens();
   }
 
-  private checkAndSetTokens(): void {
+  // handleTokensRedirect - handles tokens from URL params
+  handleTokensRedirect(): Tokens | undefined {
+    //TODO: check challenge ID for PCKE
+    //if we have PCKE - we have to run post request and exchange PCKE challenge for tokens with Post request
+    //instead of getting token from URL
+    return this.checkAndSetTokens();
+  }
+
+  private checkAndSetTokens(): Tokens | undefined {
     const urlParams = new URLSearchParams(window.location.search);
     const access_token = urlParams.get('access_token');
     const refresh_token = urlParams.get('refresh_token');
     const id_token = urlParams.get('id_token');
     const scopes: string[] = urlParams.get('scopes')?.split(',') ?? this.scopes;
+    let tokens: Tokens | undefined = undefined;
 
     if (access_token) {
-      const tokensCache = {
+      tokens = {
         access_token,
         refresh_token: refresh_token ?? undefined,
         id_token: id_token ?? undefined,
         scopes,
       };
-      this.storageManager.saveTokens(tokensCache);
-      this.setTokensCache(tokensCache);
+      this.storageManager.saveTokens(tokens);
+      this.setTokensCache(tokens);
     }
 
     urlParams.delete('access_token');
     urlParams.delete('refresh_token');
     urlParams.delete('id_token');
     urlParams.delete('client_challenge');
+    urlParams.delete('scopes');
 
     if (urlParams.size > 0)
       window.history.replaceState({}, document.title, `${window.location.pathname}?${urlParams.toString()}`);
     else window.history.replaceState({}, document.title, window.location.pathname);
+
+    return tokens;
   }
 
   private createFederatedAuthUrl(provider: Providers, redirect_url: string, scopes?: string[]): string {
