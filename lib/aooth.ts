@@ -30,8 +30,10 @@ import {
 import { AOOTH_CLOUD_URL, DEFAULT_SCOPES } from './constants';
 import { DeviceService } from './device-service';
 import { StorageManager } from './storage-manager';
+import { AoothEvent, AoothStore, AoothSubscriber } from './store';
 import { Providers, TokenService, TokenType, isTokenExpired, parseToken } from './token-service';
 import { ParsedTokens, Tokens } from './types';
+
 export class Aooth {
   private authApi: AuthAPI;
   private appApi: AppAPI;
@@ -40,6 +42,8 @@ export class Aooth {
   private tenantAPI: TenantAPI;
   private scopes: string[];
   private createTenantForNewUser: boolean;
+  private subscribeStore: AoothStore;
+
   deviceService: DeviceService;
   storageManager: StorageManager;
   tokenService: TokenService;
@@ -65,8 +69,19 @@ export class Aooth {
     this.deviceService = new DeviceService();
     this.scopes = scopes ?? DEFAULT_SCOPES;
     this.createTenantForNewUser = config.createTenantForNewUser ?? false;
+    this.subscribeStore = new AoothStore();
 
     this.checkAndSetTokens();
+  }
+
+  // subscribe to authentication events, empty 't' means all event types
+  subscribe(s: AoothSubscriber, t?: AoothEvent[]) {
+    this.subscribeStore.subscribe(s, t);
+  }
+
+  // unsubscribe from  authentication events, empty 't' means all event
+  unsubscribe(s: AoothSubscriber, t?: AoothEvent[]) {
+    this.subscribeStore.unsubscribe(s, t);
   }
 
   // handleTokensRedirect - handles tokens from URL params
@@ -94,6 +109,7 @@ export class Aooth {
       };
       this.storageManager.saveTokens(tokens);
       this.setTokensCache(tokens);
+      this.subscribeStore.notify(this, AoothEvent.SignIn);
     }
 
     urlParams.delete('access_token');
@@ -193,6 +209,7 @@ export class Aooth {
     response.scopes = payload.scopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
+    this.subscribeStore.notify(this, AoothEvent.SignIn);
     return response;
   }
 
@@ -203,6 +220,7 @@ export class Aooth {
     response.scopes = payload.scopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
+    this.subscribeStore.notify(this, AoothEvent.Register);
     return response;
   }
 
@@ -219,6 +237,7 @@ export class Aooth {
     response.scopes = payload.scopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
+    this.subscribeStore.notify(this, AoothEvent.SignIn);
     return response;
   }
 
@@ -227,10 +246,14 @@ export class Aooth {
     const deviceId = this.storageManager.getDeviceId();
 
     const status = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
-    if (status.result === 'ok') {
-      this.storageManager.deleteTokens();
-      this.setTokensCache(undefined);
+    //event if we have signout error, we could not keep forcefully user authenticated
+    if (status.result !== 'ok') {
+      this.subscribeStore.notify(this, AoothEvent.Error);
     }
+    // handle error here?
+    this.storageManager.deleteTokens();
+    this.setTokensCache(undefined);
+    this.subscribeStore.notify(this, AoothEvent.SignOut);
     return status;
   }
 
@@ -258,8 +281,8 @@ export class Aooth {
           };
           this.storageManager.saveTokens(tokensData);
           this.setTokensCache(tokensData);
+          this.subscribeStore.notify(this, AoothEvent.SignIn);
           window.location.href = `${this.origin}`;
-
           clearInterval(checkInterval);
           popupWindow.close();
         }
@@ -284,6 +307,7 @@ export class Aooth {
     response.scopes = oldScopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
+    this.subscribeStore.notify(this, AoothEvent.Refresh);
     return response;
   }
 
@@ -300,6 +324,7 @@ export class Aooth {
     response.scopes = sscopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
+    this.subscribeStore.notify(this, AoothEvent.SignIn);
     return response;
   }
 
@@ -336,6 +361,7 @@ export class Aooth {
       responseRegisterComplete.scopes = payload.scopes;
       this.storageManager.saveTokens(responseRegisterComplete);
       this.setTokensCache(responseRegisterComplete);
+      this.subscribeStore.notify(this, AoothEvent.Register);
     }
 
     return responseRegisterComplete;
@@ -361,6 +387,7 @@ export class Aooth {
       responseAuthenticateComplete.scopes = payload.scopes;
       this.storageManager.saveTokens(responseAuthenticateComplete);
       this.setTokensCache(responseAuthenticateComplete);
+      this.subscribeStore.notify(this, AoothEvent.SignIn);
     }
 
     return responseAuthenticateComplete;
@@ -385,6 +412,7 @@ export class Aooth {
     const response = await this.authApi.loginInsecure(payload);
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
+    this.subscribeStore.notify(this, AoothEvent.SignIn);
     return response;
   }
 
@@ -423,6 +451,7 @@ export class Aooth {
       responseCreateComplete.scopes = scopes;
       this.storageManager.saveTokens(responseCreateComplete);
       this.setTokensCache(responseCreateComplete);
+      this.subscribeStore.notify(this, AoothEvent.Register);
     }
 
     return responseCreateComplete;

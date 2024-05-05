@@ -7,7 +7,7 @@
     "declaration": true,
     "declarationMap": true,
     "esModuleInterop": true,
-    "module": "ESNext",
+    // "module": "ESNext",
     "moduleResolution": "Bundler",
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
@@ -24,12 +24,23 @@
     "skipLibCheck": false,
     "sourceMap": true,
     "strict": true,
-    "target": "ES2021",
-    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+    "target": "ES6",
+    "lib": [
+      "ES2021",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "outDir": "./dist",
     "baseUrl": "./",
     "emitDeclarationOnly": true
   },
-  "include": ["lib", "jest.config.cjs", ".eslintrc.cjs"],
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "lib",
+    "jest.config.cjs",
+    ".eslintrc.cjs"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }

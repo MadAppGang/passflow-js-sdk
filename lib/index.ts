@@ -1,4 +1,4 @@
-export * from './aooth-sdk';
+export * from './aooth';
 export * from './types';
 export * from './api/model';
 export * from './token-service';
