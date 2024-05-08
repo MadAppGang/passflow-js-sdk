@@ -5,6 +5,7 @@ import {
   AoothAuthorizationResponse,
   AoothConfig,
   AoothEndpointPaths,
+  AoothError,
   AoothInsecureLoginPayload,
   AoothInviteResponse,
   AoothPasskeyAuthenticateStartPayload,
@@ -14,7 +15,6 @@ import {
   AoothPasswordPolicySettings,
   AoothPasswordlessSignInCompletePayload,
   AoothPasswordlessSignInPayload,
-  AoothResponseError,
   AoothSendPasswordResetEmailPayload,
   AoothSettingsAll,
   AoothSignInPayload,
@@ -326,16 +326,9 @@ export class Aooth {
       this.subscribeStore.notify(this, AoothEvent.Refresh);
       return response;
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        if (error.response?.status >= 400 && error.response?.status < 500) {
-          //if we have error message from server, let's extract specific error
-          if (error.response.data) {
-            const e: Partial<AoothResponseError> = error.response.data as Partial<AoothResponseError>;
-            if (e.error) {
-              this.reset(e.error.message);
-            }
-          }
-        }
+      if (error instanceof AoothError) {
+        this.reset(error.message);
+      } else if (axios.isAxiosError(error) && error.response && error.response?.status >= 400 && error.response?.status < 500) {
         this.reset(`Getting unknown error message from server with code:${error.response.status}`);
       } else {
         // this error means we have some network or other error
