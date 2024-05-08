@@ -20,6 +20,7 @@ import {
   AoothSignInPayload,
   AoothSignUpPayload,
   AoothSuccessResponse,
+  AoothTenantResponse,
   AoothUserPasskey,
   AppAPI,
   AppSettings,
@@ -491,5 +492,13 @@ export class Aooth {
   async joinInvitation(token: string, scopes?: string[]): Promise<AoothInviteResponse> {
     const sscopes = scopes ?? this.scopes;
     return this.tenantAPI.joinInvitation(token, sscopes);
+  }
+
+  async createTenant(name: string, refreshToken?: boolean): Promise<AoothTenantResponse> {
+    const tenant = this.tenantAPI.createTenant(name);
+    if (refreshToken) {
+      await this.refreshToken();
+    }
+    return tenant;
   }
 }

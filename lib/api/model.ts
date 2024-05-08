@@ -44,6 +44,7 @@ export enum AoothEndpointPaths {
   addUserPasskey = `${AoothEndpointPaths.userPasskey}/add/start`,
   completeAddUserPasskey = `${AoothEndpointPaths.userPasskey}/add/complete`,
   joinInvitation = '/user/tenant/join',
+  tenantPath = '/user/tenant',
 }
 
 export enum AoothAdminEndpointPaths {
@@ -350,3 +351,15 @@ export type AoothInvitePayload = {
   invite: string;
   scopes: string[];
 };
+
+export type AoothTenantResponse = {
+  tenant_id: string;
+  tenant_name: string;
+  // add groups and tenants here
+};
+
+export type AoothCreateTenantPayload = {
+  name: string;
+};
+
+export type AoothCreateTokenResponse = AoothTenantResponse;

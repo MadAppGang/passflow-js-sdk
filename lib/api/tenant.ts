@@ -1,5 +1,12 @@
 import { AxiosClient } from './axios-client';
-import { AoothConfig, AoothEndpointPaths, AoothInvitePayload, AoothInviteResponse } from './model';
+import {
+  AoothConfig,
+  AoothCreateTenantPayload,
+  AoothEndpointPaths,
+  AoothInvitePayload,
+  AoothInviteResponse,
+  AoothTenantResponse,
+} from './model';
 
 export class TenantAPI {
   protected axiosClient: AxiosClient;
@@ -15,5 +22,12 @@ export class TenantAPI {
     };
 
     return this.axiosClient.post<AoothInviteResponse, AoothInvitePayload>(AoothEndpointPaths.joinInvitation, payload);
+  }
+
+  async createTenant(name: string): Promise<AoothTenantResponse> {
+    const payload = {
+      name,
+    };
+    return this.axiosClient.post<AoothTenantResponse, AoothCreateTenantPayload>(AoothEndpointPaths.tenantPath, payload);
   }
 }
