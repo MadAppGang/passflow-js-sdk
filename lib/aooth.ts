@@ -1,3 +1,4 @@
+/* eslint-disable complexity */
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 
 import {
@@ -13,6 +14,7 @@ import {
   AoothPasswordPolicySettings,
   AoothPasswordlessSignInCompletePayload,
   AoothPasswordlessSignInPayload,
+  AoothResponseError,
   AoothSendPasswordResetEmailPayload,
   AoothSettingsAll,
   AoothSignInPayload,
@@ -33,6 +35,7 @@ import { StorageManager } from './storage-manager';
 import { AoothEvent, AoothStore, AoothSubscriber } from './store';
 import { Providers, TokenService, TokenType, isTokenExpired, parseToken } from './token-service';
 import { ParsedTokens, Tokens } from './types';
+import axios from 'axios';
 
 export class Aooth {
   private authApi: AuthAPI;
@@ -296,19 +299,54 @@ export class Aooth {
     window.location.href = aoothURL;
   }
 
+  reset(error?: string) {
+    this.storageManager.deleteTokens();
+    this.setTokensCache(undefined);
+    this.subscribeStore.notify(this, AoothEvent.SignOut);
+    if (error) {
+      this.subscribeStore.notify(this, AoothEvent.Error);
+      throw new Error(error);
+    }
+  }
+
   async refreshToken(): Promise<AoothAuthorizationResponse> {
     const tokens = this.storageManager.getTokens();
-    if (!tokens) throw new Error('No tokens found');
-    if (!tokens.refresh_token) throw new Error('No refresh token found');
+    if (!tokens) {
+      this.reset('No tokens found'); //throws
+    } else if (!tokens?.refresh_token) {
+      this.reset('No refresh token found'); //throws
+    }
 
-    // refresh with the same scopes we requested before
-    const oldScopes = tokens.scopes ?? this.scopes;
-    const response = await this.authApi.refreshToken(tokens.refresh_token, oldScopes, tokens.access_token);
-    response.scopes = oldScopes;
-    this.storageManager.saveTokens(response);
-    this.setTokensCache(response);
-    this.subscribeStore.notify(this, AoothEvent.Refresh);
-    return response;
+    const oldScopes = tokens?.scopes ?? this.scopes;
+    try {
+      const response = await this.authApi.refreshToken(tokens?.refresh_token ?? '', oldScopes, tokens?.access_token);
+      response.scopes = oldScopes;
+      this.storageManager.saveTokens(response);
+      this.setTokensCache(response);
+      this.subscribeStore.notify(this, AoothEvent.Refresh);
+      return response;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        if (error.response?.status >= 400 && error.response?.status < 500) {
+          //if we have error message from server, let's extract specific error
+          if (error.response.data) {
+            const e: Partial<AoothResponseError> = error.response.data as Partial<AoothResponseError>;
+            if (e.error) {
+              this.reset(e.error.message);
+            }
+          }
+        }
+        this.reset(`Getting unknown error message from server with code:${error.response.status}`);
+      } else {
+        // this error means we have some network or other error
+        // we don't need to reset state
+        // let's just notify subscribers and rethrow the error
+        this.subscribeStore.notify(this, AoothEvent.Error);
+        throw error;
+      }
+    }
+    // we should not be there ....
+    throw new Error('Unexpected behavior');
   }
 
   async sendPasswordResetEmail(payload: AoothSendPasswordResetEmailPayload): Promise<AoothSuccessResponse> {
