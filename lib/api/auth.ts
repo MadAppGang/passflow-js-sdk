@@ -19,6 +19,7 @@ import {
   AoothPasskeyRegisterStartExtendedPayload,
   AoothPasskeyRegisterStartPayload,
   AoothPasskeyStart,
+  AoothPasswordlessResponse,
   AoothPasswordlessSignInCompletePayload,
   AoothPasswordlessSignInExtendedPayload,
   AoothPasswordlessSignInPayload,
@@ -74,7 +75,11 @@ export class AuthAPI {
     return this.axiosClient.post<AoothAuthorizationResponse, AoothSignUpPayload>(AoothEndpointPaths.signup, defaultPayload);
   }
 
-  async passwordlessSignIn(payload: AoothPasswordlessSignInPayload, deviceId: string, os: OS): Promise<AoothSuccessResponse> {
+  async passwordlessSignIn(
+    payload: AoothPasswordlessSignInPayload,
+    deviceId: string,
+    os: OS,
+  ): Promise<AoothPasswordlessResponse> {
     const { create_tenant } = payload;
     const defaultPayload: AoothPasswordlessSignInExtendedPayload = {
       ...payload,
@@ -82,7 +87,7 @@ export class AuthAPI {
       device: deviceId,
       os,
     };
-    return this.axiosClient.post<AoothSuccessResponse, AoothPasswordlessSignInExtendedPayload>(
+    return this.axiosClient.post<AoothPasswordlessResponse, AoothPasswordlessSignInExtendedPayload>(
       AoothEndpointPaths.passwordless,
       defaultPayload,
     );
