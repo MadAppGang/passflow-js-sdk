@@ -429,10 +429,10 @@ export class Aooth {
 
   // TODO: Question, why do we need validate passkey with otp?
   // TODO: and if we need, how to get scopes here?
-  async passkeyValidate(otp: string, challengeId: string): Promise<AoothAuthorizationResponse> {
+  async passkeyValidate(otp: string, challengeId: string, appId?: string): Promise<AoothAuthorizationResponse> {
     const deviceId = this.deviceService.getDeviceId();
 
-    const responseValidate = await this.authApi.passkeyValidate(otp, deviceId, challengeId, !this.appId);
+    const responseValidate = await this.authApi.passkeyValidate(otp, deviceId, challengeId, !this.appId, appId);
 
     if ('access_token' in responseValidate) {
       this.storageManager.saveTokens(responseValidate);
