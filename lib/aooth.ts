@@ -1,5 +1,6 @@
 /* eslint-disable complexity */
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
+import axios from 'axios';
 
 import {
   AoothAuthorizationResponse,
@@ -13,6 +14,7 @@ import {
   AoothPasskeyRegisterStartPayload,
   AoothPasskeySettings,
   AoothPasswordPolicySettings,
+  AoothPasswordlessResponse,
   AoothPasswordlessSignInCompletePayload,
   AoothPasswordlessSignInPayload,
   AoothSendPasswordResetEmailPayload,
@@ -36,7 +38,6 @@ import { StorageManager } from './storage-manager';
 import { AoothEvent, AoothStore, AoothSubscriber } from './store';
 import { Providers, TokenService, TokenType, isTokenExpired, parseToken } from './token-service';
 import { ParsedTokens, Tokens } from './types';
-import axios from 'axios';
 
 export class Aooth {
   private authApi: AuthAPI;
@@ -228,7 +229,7 @@ export class Aooth {
     return response;
   }
 
-  async passwordlessSignIn(payload: AoothPasswordlessSignInPayload): Promise<AoothSuccessResponse> {
+  async passwordlessSignIn(payload: AoothPasswordlessSignInPayload): Promise<AoothPasswordlessResponse> {
     payload.scopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
@@ -237,6 +238,7 @@ export class Aooth {
 
   async passwordlessSignInComplete(payload: AoothPasswordlessSignInCompletePayload): Promise<AoothAuthorizationResponse> {
     payload.scopes = payload.scopes ?? this.scopes;
+    payload.device = this.deviceService.getDeviceId();
     const response = await this.authApi.passwordlessSignInComplete(payload);
     response.scopes = payload.scopes;
     this.storageManager.saveTokens(response);

@@ -257,10 +257,11 @@ describe('AuthAPI', () => {
   describe('passwordlessSignIn - Complete', () => {
     it('Should passwordless with scopes and otp', async () => {
       const payloadWithScopes: AoothPasswordlessSignInCompletePayload = {
-        email: payload.email,
+        challenge_id: 'challengeId',
         otp: '1234',
         challenge_type: 'magic_link',
         scopes: ['id', 'profile', 'offline', 'oidc'],
+        device: deviceId,
       };
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
       const passwordlessCompleteResponse = await authApi.passwordlessSignInComplete(payloadWithScopes);
@@ -271,10 +272,11 @@ describe('AuthAPI', () => {
 
     it('Should sign up with empty array scopes and otp', async () => {
       const payloadWithEmptyScopes: AoothPasswordlessSignInCompletePayload = {
-        phone: '+33333333333',
+        challenge_id: 'challengeId',
         challenge_type: 'otp',
         otp: '1234',
         scopes: [],
+        device: deviceId,
       };
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInOnlyAccessTokenResponse);
       const passwordlessCompleteResponse = await authApi.passwordlessSignInComplete(payloadWithEmptyScopes);

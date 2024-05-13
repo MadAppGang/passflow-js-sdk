@@ -155,13 +155,22 @@ export type AoothPasswordlessSignInPayload = {
   phone?: string;
 } & ({ email: string } | { phone: string });
 
+export type AoothPasswordlessResponse = {
+  challenge_id: string;
+  expires_at: Date | string;
+};
+
 export type AoothPasswordlessSignInExtendedPayload = AoothPasswordlessSignInPayload & {
   device: string;
   os: OS;
 };
 
-export type AoothPasswordlessSignInCompletePayload = AoothPasswordlessSignInPayload & {
+export type AoothPasswordlessSignInCompletePayload = {
+  challenge_id: string;
   otp: string;
+  device?: string;
+  scopes?: string[];
+  challenge_type?: ChallengeType;
 };
 
 export type FirstFactorFim = {
@@ -188,13 +197,16 @@ export type AppSettings = {
   offline: boolean;
   type: string;
   redirect_urls: string[];
+  origins: string[];
   login_app_settings: unknown;
   custom_email_templates: boolean;
   auth_strategies: AuthStrategies[];
+  pkce_enabled: boolean;
   custom_sms_messages: unknown;
   registration_allowed: boolean;
   passwordless_registration_allowed: string | boolean;
   anonymous_registration_allowed: boolean;
+  create_tenant_on_registration: string;
   fim_merge_by_email_allowed: boolean;
   debug_otp_code_allowed: boolean;
   debug_otp_code_for_registration: string;
