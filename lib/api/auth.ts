@@ -1,4 +1,4 @@
-import { AUTHORIZATION_HEADER_KEY } from 'lib/constants';
+import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY } from 'lib/constants';
 
 import { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/types';
 
@@ -120,6 +120,7 @@ export class AuthAPI {
     return this.axiosClient.post<AoothAuthorizationResponse, typeof payload>(AoothEndpointPaths.resetPassword, payload, {
       headers: {
         [AUTHORIZATION_HEADER_KEY]: `Bearer ${resetToken}`,
+        [APP_ID_HEADER_KEY]: undefined,
       },
     });
   }
@@ -202,6 +203,7 @@ export class AuthAPI {
     deviceId: string,
     challengeId: string,
     isAdmin = false,
+    appId?: string,
   ): Promise<AoothAuthorizationResponse> {
     const payload: AoothValidatePayload = {
       otp,
@@ -209,9 +211,15 @@ export class AuthAPI {
       challenge_id: challengeId,
     };
 
-    const endpoint = isAdmin ? AoothAdminEndpointPaths.passkeyValidate : AoothEndpointPaths.passkeyValidate;
+    let endpoint: AoothEndpointPaths.passkeyValidate | AoothAdminEndpointPaths.passkeyValidate =
+      AoothEndpointPaths.passkeyValidate;
+    if (!appId && isAdmin) {
+      endpoint = AoothAdminEndpointPaths.passkeyValidate;
+    }
 
-    return this.axiosClient.post<AoothAuthorizationResponse, AoothValidatePayload>(endpoint, payload);
+    const headers = appId ? { [APP_ID_HEADER_KEY]: appId } : {};
+
+    return this.axiosClient.post<AoothAuthorizationResponse, AoothValidatePayload>(endpoint, payload, { headers });
   }
 
   async loginInsecure(payload: AoothInsecureLoginPayload): Promise<AoothAuthorizationResponse> {
