@@ -211,7 +211,11 @@ export class AuthAPI {
       challenge_id: challengeId,
     };
 
-    const endpoint = isAdmin ? AoothAdminEndpointPaths.passkeyValidate : AoothEndpointPaths.passkeyValidate;
+    let endpoint: AoothEndpointPaths.passkeyValidate | AoothAdminEndpointPaths.passkeyValidate =
+      AoothEndpointPaths.passkeyValidate;
+    if (!appId && isAdmin) {
+      endpoint = AoothAdminEndpointPaths.passkeyValidate;
+    }
 
     const headers = appId ? { [APP_ID_HEADER_KEY]: appId } : {};
 

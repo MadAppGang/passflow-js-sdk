@@ -2,7 +2,7 @@
   "name": "@aooth/aooth-js-sdk",
   "packageManager": "yarn@4.2.1",
   "description": "Aooth JS SDK",
-  "version": "0.1.10",
+  "version": "0.1.12",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
