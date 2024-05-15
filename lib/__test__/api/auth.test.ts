@@ -205,6 +205,7 @@ describe('AuthAPI', () => {
         challenge_type: 'magic_link',
         scopes: ['id', 'profile', 'offline', 'oidc'],
         create_tenant: true,
+        redirect_url: 'https://test-redirect-url.com',
       };
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
       const passwordlessStartResponse = await authApi.passwordlessSignIn(payloadWithScopes, deviceId, os);
@@ -223,6 +224,7 @@ describe('AuthAPI', () => {
         challenge_type: 'otp',
         scopes: [],
         create_tenant: true,
+        redirect_url: 'https://test-redirect-url.com',
       };
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
       const passwordlessStartResponse = await authApi.passwordlessSignIn(payloadWithEmptyScopes, deviceId, os);
@@ -241,6 +243,7 @@ describe('AuthAPI', () => {
         challenge_type: 'magic_link',
         scopes: ['id', 'profile', 'offline', 'oidc'],
         create_tenant: true,
+        redirect_url: 'https://test-redirect-url.com',
       };
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignUpErrorTakenResponse);
       const signInResponse = await authApi.passwordlessSignIn(payloadWithTakenData, deviceId, os);

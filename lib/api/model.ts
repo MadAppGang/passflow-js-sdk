@@ -66,6 +66,10 @@ export type AoothConfig = {
 
 export type AoothAuthorizationResponse = Tokens;
 
+export type AoothValidationResponse = Tokens & {
+  redirect_url: string;
+};
+
 export type AoothSuccessResponse = {
   result: 'ok';
 };
@@ -148,8 +152,9 @@ export type AoothSignUpPayload = {
 };
 
 export type AoothPasswordlessSignInPayload = {
-  scopes?: string[];
   challenge_type: ChallengeType;
+  redirect_url: string;
+  scopes?: string[];
   create_tenant?: boolean;
   email?: string;
   phone?: string;
@@ -218,6 +223,7 @@ export enum OS {
 
 export type AoothPasskeyRegisterStartPayload = {
   scopes: string[];
+  redirect_url: string;
   relying_party_id: string;
   create_tenant?: boolean;
   phone?: string;
@@ -254,8 +260,9 @@ export type AoothPasskeyAuthenticatePayload = AoothPasskeyPayload & {
 };
 
 export type AoothPasskeyAuthenticateStartPayload = {
-  scopes?: string[];
   relying_party_id: string;
+  redirect_url: string;
+  scopes?: string[];
   user_id?: string;
 };
 
