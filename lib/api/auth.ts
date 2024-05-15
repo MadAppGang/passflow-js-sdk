@@ -29,6 +29,7 @@ import {
   AoothSignUpPayload,
   AoothSuccessResponse,
   AoothValidatePayload,
+  AoothValidationResponse,
   OS,
 } from './model';
 
@@ -93,8 +94,8 @@ export class AuthAPI {
     );
   }
 
-  async passwordlessSignInComplete(payload: AoothPasswordlessSignInCompletePayload): Promise<AoothAuthorizationResponse> {
-    return this.axiosClient.post<AoothAuthorizationResponse, AoothPasswordlessSignInCompletePayload>(
+  async passwordlessSignInComplete(payload: AoothPasswordlessSignInCompletePayload): Promise<AoothValidationResponse> {
+    return this.axiosClient.post<AoothValidationResponse, AoothPasswordlessSignInCompletePayload>(
       AoothEndpointPaths.passwordlessComplete,
       payload,
     );
@@ -204,7 +205,7 @@ export class AuthAPI {
     challengeId: string,
     isAdmin = false,
     appId?: string,
-  ): Promise<AoothAuthorizationResponse> {
+  ): Promise<AoothValidationResponse> {
     const payload: AoothValidatePayload = {
       otp,
       device: deviceId,
@@ -219,7 +220,7 @@ export class AuthAPI {
 
     const headers = appId ? { [APP_ID_HEADER_KEY]: appId } : {};
 
-    return this.axiosClient.post<AoothAuthorizationResponse, AoothValidatePayload>(endpoint, payload, { headers });
+    return this.axiosClient.post<AoothValidationResponse, AoothValidatePayload>(endpoint, payload, { headers });
   }
 
   async loginInsecure(payload: AoothInsecureLoginPayload): Promise<AoothAuthorizationResponse> {
