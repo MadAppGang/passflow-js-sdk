@@ -14,7 +14,8 @@ import {
   AoothPasskeyAuthenticatePayload,
   AoothPasskeyAuthenticateStartExtendedPayload,
   AoothPasskeyAuthenticateStartPayload,
-  AoothPasskeyRegisterCompleteMessage,
+  AoothPasskeyCompleteMessage,
+  AoothPasskeyCompleteMessageWithTokens,
   AoothPasskeyRegisterPayload,
   AoothPasskeyRegisterStartExtendedPayload,
   AoothPasskeyRegisterStartPayload,
@@ -150,7 +151,7 @@ export class AuthAPI {
     deviceId: string,
     challengeId: string,
     isAdmin = false,
-  ): Promise<AoothAuthorizationResponse | AoothPasskeyRegisterCompleteMessage> {
+  ): Promise<AoothAuthorizationResponse | AoothPasskeyCompleteMessageWithTokens | AoothPasskeyCompleteMessage> {
     const payload: AoothPasskeyRegisterPayload = {
       challenge_id: challengeId,
       device: deviceId,

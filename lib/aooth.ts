@@ -10,7 +10,8 @@ import {
   AoothInsecureLoginPayload,
   AoothInviteResponse,
   AoothPasskeyAuthenticateStartPayload,
-  AoothPasskeyRegisterCompleteMessage,
+  AoothPasskeyCompleteMessage,
+  AoothPasskeyCompleteMessageWithTokens,
   AoothPasskeyRegisterStartPayload,
   AoothPasskeySettings,
   AoothPasswordPolicySettings,
@@ -381,7 +382,7 @@ export class Aooth {
 
   async passkeyRegister(
     payload: AoothPasskeyRegisterStartPayload,
-  ): Promise<AoothAuthorizationResponse | AoothPasskeyRegisterCompleteMessage> {
+  ): Promise<AoothAuthorizationResponse | AoothPasskeyCompleteMessageWithTokens | AoothPasskeyCompleteMessage> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
@@ -402,7 +403,9 @@ export class Aooth {
     return responseRegisterComplete;
   }
 
-  async passkeyAuthenticate(payload: AoothPasskeyAuthenticateStartPayload): Promise<AoothAuthorizationResponse> {
+  async passkeyAuthenticate(
+    payload: AoothPasskeyAuthenticateStartPayload,
+  ): Promise<AoothAuthorizationResponse | AoothPasskeyCompleteMessage> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
@@ -466,7 +469,7 @@ export class Aooth {
   async createUserPasskey(
     relyingPartyId: string,
     scopes: string[] = this.scopes,
-  ): Promise<AoothAuthorizationResponse | AoothPasskeyRegisterCompleteMessage> {
+  ): Promise<AoothAuthorizationResponse | AoothPasskeyCompleteMessage> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
 

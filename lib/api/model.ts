@@ -241,10 +241,12 @@ export type AoothPasskeyStart = {
   publicKey: PublicKeyCredentialCreationOptionsJSON;
 };
 
-export type AoothPasskeyRegisterCompleteMessage = {
+export type AoothPasskeyCompleteMessage = {
   challenge_id: string;
   message: string;
 };
+
+export type AoothPasskeyCompleteMessageWithTokens = Tokens & AoothPasskeyCompleteMessage;
 
 export type AoothPasskeyPayload = {
   device: string;
