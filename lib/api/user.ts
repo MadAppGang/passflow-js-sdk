@@ -5,7 +5,7 @@ import {
   AoothAuthorizationResponse,
   AoothConfig,
   AoothEndpointPaths,
-  AoothPasskeyRegisterCompleteMessage,
+  AoothPasskeyCompleteMessage,
   AoothPasskeyRegisterPayload,
   AoothPasskeyStart,
   AoothSuccessResponse,
@@ -58,7 +58,7 @@ export class UserAPI {
     passkeyData: RegistrationResponseJSON,
     deviceId: string,
     challengeId: string,
-  ): Promise<AoothAuthorizationResponse | AoothPasskeyRegisterCompleteMessage> {
+  ): Promise<AoothAuthorizationResponse | AoothPasskeyCompleteMessage> {
     const payload: AoothPasskeyRegisterPayload = {
       challenge_id: challengeId,
       device: deviceId,
