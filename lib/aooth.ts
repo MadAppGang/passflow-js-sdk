@@ -79,6 +79,7 @@ export class Aooth {
     this.subscribeStore = new AoothStore();
 
     this.checkAndSetTokens();
+    this.setTokensToCacheFromLocalStorage();
   }
 
   // subscribe to authentication events, empty 't' means all event types
@@ -130,6 +131,13 @@ export class Aooth {
     else window.history.replaceState({}, document.title, window.location.pathname);
 
     return tokens;
+  }
+
+  private setTokensToCacheFromLocalStorage(): void {
+    const tokens = this.storageManager.getTokens();
+    if (tokens) {
+      this.setTokensCache(tokens);
+    }
   }
 
   private createFederatedAuthUrl(provider: Providers, redirect_url: string, scopes?: string[]): string {
