@@ -1,22 +1,28 @@
 import { AxiosClient } from './axios-client';
-import { AoothConfig, AoothEndpointPaths, AoothPasskeySettings, AoothPasswordPolicySettings, AoothSettingsAll } from './model';
+import {
+  PassflowConfig,
+  PassflowEndpointPaths,
+  PassflowPasskeySettings,
+  PassflowPasswordPolicySettings,
+  PassflowSettingsAll,
+} from './model';
 
 export class SettingAPI {
   protected axiosClient: AxiosClient;
 
-  constructor(config: AoothConfig) {
+  constructor(config: PassflowConfig) {
     this.axiosClient = new AxiosClient(config);
   }
 
-  async getSettingsAll(): Promise<AoothSettingsAll> {
-    return this.axiosClient.get<AoothSettingsAll>(AoothEndpointPaths.settingsAll);
+  async getSettingsAll(): Promise<PassflowSettingsAll> {
+    return this.axiosClient.get<PassflowSettingsAll>(PassflowEndpointPaths.settingsAll);
   }
 
-  async getPasswordPolicySettings(): Promise<AoothPasswordPolicySettings> {
-    return this.axiosClient.get<AoothPasswordPolicySettings>(AoothEndpointPaths.settingsPasswordPolicy);
+  async getPasswordPolicySettings(): Promise<PassflowPasswordPolicySettings> {
+    return this.axiosClient.get<PassflowPasswordPolicySettings>(PassflowEndpointPaths.settingsPasswordPolicy);
   }
 
-  async getPasskeySettings(): Promise<AoothPasskeySettings> {
-    return this.axiosClient.get<AoothPasskeySettings>(AoothEndpointPaths.settingsPasskey);
+  async getPasskeySettings(): Promise<PassflowPasskeySettings> {
+    return this.axiosClient.get<PassflowPasskeySettings>(PassflowEndpointPaths.settingsPasskey);
   }
 }

@@ -1,4 +1,4 @@
-import { AoothConfig, AoothEndpointPaths, AppAPI } from 'lib/api';
+import { AppAPI, PassflowConfig, PassflowEndpointPaths } from 'lib/api';
 import { AxiosClient } from 'lib/api/axios-client';
 
 const mockAppSettings = {
@@ -69,7 +69,7 @@ describe('AppAPI', () => {
   let appAPI: AppAPI;
 
   beforeAll(() => {
-    const mockConfig: AoothConfig = {
+    const mockConfig: PassflowConfig = {
       appId: 'test-app-id',
       url: 'https://test-base-url.com',
     };
@@ -82,7 +82,7 @@ describe('AppAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockAppSettings);
       const appSettings = await appAPI.getAppSettings();
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.appSettings);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.appSettings);
       expect(appSettings).toEqual(mockAppSettings);
     });
 
@@ -90,7 +90,7 @@ describe('AppAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockAppSettingsError);
       const appSettings = await appAPI.getAppSettings();
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.appSettings);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.appSettings);
       expect(appSettings).toEqual(mockAppSettingsError);
     });
   });

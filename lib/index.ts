@@ -1,4 +1,4 @@
-export * from './aooth';
+export * from './passflow';
 export * from './store';
 export * from './types';
 export * from './api/model';

@@ -1,7 +1,7 @@
 {
-  "name": "@aooth/aooth-js-sdk",
+  "name": "@passflow/passflow-js-sdk",
   "packageManager": "yarn@4.2.2",
-  "description": "Aooth JS SDK",
+  "description": "Passflow JS SDK",
   "version": "0.1.16",
   "type": "module",
   "main": "./dist/index.js",
@@ -83,7 +83,7 @@
     "access": "public"
   },
   "keywords": [
-    "aooth",
+    "passflow",
     "auth",
     "authentication",
     "passwordless",

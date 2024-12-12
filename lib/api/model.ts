@@ -21,7 +21,7 @@ export enum RequestMethod {
   DELETE = 'delete',
 }
 
-export enum AoothEndpointPaths {
+export enum PassflowEndpointPaths {
   signin = '/auth/login',
   signup = '/auth/register',
   signInWithProvider = '/auth/federated/start/',
@@ -41,13 +41,13 @@ export enum AoothEndpointPaths {
   settingsPasswordPolicy = '/settings/password',
   settingsPasskey = '/settings/passkey',
   userPasskey = '/user/passkey',
-  addUserPasskey = `${AoothEndpointPaths.userPasskey}/add/start`,
-  completeAddUserPasskey = `${AoothEndpointPaths.userPasskey}/add/complete`,
+  addUserPasskey = `${PassflowEndpointPaths.userPasskey}/add/start`,
+  completeAddUserPasskey = `${PassflowEndpointPaths.userPasskey}/add/complete`,
   joinInvitation = '/user/tenant/join',
   tenantPath = '/user/tenant',
 }
 
-export enum AoothAdminEndpointPaths {
+export enum PassflowAdminEndpointPaths {
   passkeyRegisterStart = '/admin/auth/passkey/register/start',
   passkeyRegisterComplete = '/admin/auth/passkey/register/complete',
   passkeyAuthenticateStart = '/admin/auth/passkey/authenticate/start',
@@ -57,24 +57,24 @@ export enum AoothAdminEndpointPaths {
   logout = '/admin/auth/logout',
 }
 
-export type AoothConfig = {
+export type PassflowConfig = {
   url?: string;
   appId?: string;
   scopes?: string[];
   createTenantForNewUser?: boolean;
 };
 
-export type AoothAuthorizationResponse = Tokens;
+export type PassflowAuthorizationResponse = Tokens;
 
-export type AoothValidationResponse = Tokens & {
+export type PassflowValidationResponse = Tokens & {
   redirect_url: string;
 };
 
-export type AoothSuccessResponse = {
+export type PassflowSuccessResponse = {
   result: 'ok';
 };
 
-export type AoothResponseError = {
+export type PassflowResponseError = {
   error: {
     id: string;
     message: string;
@@ -84,14 +84,14 @@ export type AoothResponseError = {
   };
 };
 
-export class AoothError extends Error {
+export class PassflowError extends Error {
   id: string;
   message: string;
   status: number;
   location: string;
   time: string;
 
-  constructor(error: AoothResponseError['error']) {
+  constructor(error: PassflowResponseError['error']) {
     super();
     this.id = error?.id ?? 'unknown';
     this.message = error?.message ?? error ?? 'Something went wrong';
@@ -101,7 +101,7 @@ export class AoothError extends Error {
   }
 }
 
-export type AoothSignInPayload = {
+export type PassflowSignInPayload = {
   password: string;
   scopes?: string[];
   email?: string;
@@ -109,12 +109,12 @@ export type AoothSignInPayload = {
   username?: string;
 } & ({ email: string } | { phone: string } | { username: string });
 
-export type AoothSignInExtendedPayload = AoothSignInPayload & {
+export type PassflowSignInExtendedPayload = PassflowSignInPayload & {
   device: string;
   os: OS;
 };
 
-export type AoothAddressPayload = {
+export type PassflowAddressPayload = {
   formatted?: string;
   street_address?: string;
   locality?: string;
@@ -123,7 +123,7 @@ export type AoothAddressPayload = {
   country?: string;
 };
 
-export type AoothUserPayload = {
+export type PassflowUserPayload = {
   password: string;
   username?: string;
   email?: string;
@@ -140,18 +140,18 @@ export type AoothUserPayload = {
   birthday?: Date;
   timezone?: string;
   locale?: string;
-  addresses?: AoothAddressPayload;
+  addresses?: PassflowAddressPayload;
 } & ({ email: string } | { phone_number: string });
 
-export type AoothSignUpPayload = {
-  user: AoothUserPayload;
+export type PassflowSignUpPayload = {
+  user: PassflowUserPayload;
   scopes?: string[];
   create_tenant?: boolean;
   anonymous?: boolean;
   invite?: string;
 };
 
-export type AoothPasswordlessSignInPayload = {
+export type PassflowPasswordlessSignInPayload = {
   challenge_type: ChallengeType;
   redirect_url: string;
   scopes?: string[];
@@ -160,17 +160,17 @@ export type AoothPasswordlessSignInPayload = {
   phone?: string;
 } & ({ email: string } | { phone: string });
 
-export type AoothPasswordlessResponse = {
+export type PassflowPasswordlessResponse = {
   challenge_id: string;
   expires_at: Date | string;
 };
 
-export type AoothPasswordlessSignInExtendedPayload = AoothPasswordlessSignInPayload & {
+export type PassflowPasswordlessSignInExtendedPayload = PassflowPasswordlessSignInPayload & {
   device: string;
   os: OS;
 };
 
-export type AoothPasswordlessSignInCompletePayload = {
+export type PassflowPasswordlessSignInCompletePayload = {
   challenge_id: string;
   otp: string;
   device?: string;
@@ -221,7 +221,7 @@ export enum OS {
   web = 'web',
 }
 
-export type AoothPasskeyRegisterStartPayload = {
+export type PassflowPasskeyRegisterStartPayload = {
   scopes: string[];
   redirect_url: string;
   relying_party_id: string;
@@ -231,68 +231,68 @@ export type AoothPasskeyRegisterStartPayload = {
   username?: string;
 } & ({ email: string } | { phone: string } | { username: string });
 
-export type AoothPasskeyRegisterStartExtendedPayload = AoothPasskeyRegisterStartPayload & {
+export type PassflowPasskeyRegisterStartExtendedPayload = PassflowPasskeyRegisterStartPayload & {
   device: string;
   os: OS;
 };
 
-export type AoothPasskeyStart = {
+export type PassflowPasskeyStart = {
   challenge_id: string;
   publicKey: PublicKeyCredentialCreationOptionsJSON;
 };
 
-export type AoothPasskeyCompleteMessage = {
+export type PassflowPasskeyCompleteMessage = {
   challenge_id: string;
   message: string;
 };
 
-export type AoothPasskeyCompleteMessageWithTokens = Tokens & AoothPasskeyCompleteMessage;
+export type PassflowPasskeyCompleteMessageWithTokens = Tokens & PassflowPasskeyCompleteMessage;
 
-export type AoothPasskeyPayload = {
+export type PassflowPasskeyPayload = {
   device: string;
   challenge_id: string;
 };
 
-export type AoothPasskeyRegisterPayload = AoothPasskeyPayload & {
+export type PassflowPasskeyRegisterPayload = PassflowPasskeyPayload & {
   passkey_data: RegistrationResponseJSON;
 };
 
-export type AoothPasskeyAuthenticatePayload = AoothPasskeyPayload & {
+export type PassflowPasskeyAuthenticatePayload = PassflowPasskeyPayload & {
   passkey_data: AuthenticationResponseJSON;
 };
 
-export type AoothPasskeyAuthenticateStartPayload = {
+export type PassflowPasskeyAuthenticateStartPayload = {
   relying_party_id: string;
   redirect_url: string;
   scopes?: string[];
   user_id?: string;
 };
 
-export type AoothPasskeyAuthenticateStartExtendedPayload = AoothPasskeyAuthenticateStartPayload & {
+export type PassflowPasskeyAuthenticateStartExtendedPayload = PassflowPasskeyAuthenticateStartPayload & {
   device: string;
   os: OS;
 };
 
-export type AoothValidatePayload = {
+export type PassflowValidatePayload = {
   otp: string;
   device: string;
   challenge_id: string;
 };
 
-export type AoothInsecureLoginPayload = {
+export type PassflowInsecureLoginPayload = {
   email: string;
   password: string;
 };
 
 // SETTINGS
-export type AoothPasskeyProviderOption = 'none' | 'required' | 'preferred' | 'discouraged';
+export type PassflowPasskeyProviderOption = 'none' | 'required' | 'preferred' | 'discouraged';
 
-export type AoothSettingsAll = {
-  password_policy: AoothPasswordPolicySettings;
-  passkey_provider: AoothPasskeySettings;
+export type PassflowSettingsAll = {
+  password_policy: PassflowPasswordPolicySettings;
+  passkey_provider: PassflowPasskeySettings;
 };
 
-export type AoothPasswordPolicySettings = {
+export type PassflowPasswordPolicySettings = {
   restrict_min_password_length: boolean;
   min_password_length: number;
   reject_compromised: boolean;
@@ -303,40 +303,40 @@ export type AoothPasswordPolicySettings = {
   require_symbol: boolean;
 };
 
-export type AoothPasskeySettings = {
+export type PassflowPasskeySettings = {
   name: string;
   display_name: string;
   id_field: 'email' | 'phone' | 'username';
   validation: ChallengeType;
   registration?: {
-    user_verification: AoothPasskeyProviderOption;
+    user_verification: PassflowPasskeyProviderOption;
     authenticator_attachment: 'platform' | 'cross-platform' | 'any';
-    discoverable_key: AoothPasskeyProviderOption;
-    attestation_metadata: AoothPasskeyProviderOption;
+    discoverable_key: PassflowPasskeyProviderOption;
+    attestation_metadata: PassflowPasskeyProviderOption;
     extensions: unknown;
   };
   authentication?: {
-    user_verification: AoothPasskeyProviderOption;
-    attestation_metadata: AoothPasskeyProviderOption;
+    user_verification: PassflowPasskeyProviderOption;
+    attestation_metadata: PassflowPasskeyProviderOption;
     extensions: unknown;
   };
 };
 
-type AoothCredentialFlags = {
+type PassflowCredentialFlags = {
   user_present: boolean;
   user_verified: boolean;
   backup_eligible: boolean;
   backup_state: boolean;
 };
 
-type AoothEnrolmentAuthenticator = {
+type PassflowEnrolmentAuthenticator = {
   aaguid: string;
   sign_count: number;
   clone_warning: boolean;
   attachment: 'platform' | 'cross-platform';
 };
 
-export type AoothUserPasskey = {
+export type PassflowUserPasskey = {
   id: string;
   user_id: string;
   name: string;
@@ -350,37 +350,37 @@ export type AoothUserPasskey = {
   public_key: string;
   attestation_type: string;
   transport: string[];
-  flags: AoothCredentialFlags;
-  authenticator: AoothEnrolmentAuthenticator;
+  flags: PassflowCredentialFlags;
+  authenticator: PassflowEnrolmentAuthenticator;
   archived: boolean;
   archived_at: Date | string;
   count?: number;
   enrolled_with_app_id?: string;
 };
 
-export type AoothSendPasswordResetEmailPayload = {
+export type PassflowSendPasswordResetEmailPayload = {
   email?: string;
   phone?: string;
   username?: string;
 } & ({ email: string } | { phone: string } | { username: string });
 
-export type AoothInviteResponse = {
+export type PassflowInviteResponse = {
   link: string;
 };
 
-export type AoothInvitePayload = {
+export type PassflowInvitePayload = {
   invite: string;
   scopes: string[];
 };
 
-export type AoothTenantResponse = {
+export type PassflowTenantResponse = {
   tenant_id: string;
   tenant_name: string;
   // add groups and tenants here
 };
 
-export type AoothCreateTenantPayload = {
+export type PassflowCreateTenantPayload = {
   name: string;
 };
 
-export type AoothCreateTokenResponse = AoothTenantResponse;
+export type PassflowCreateTokenResponse = PassflowTenantResponse;

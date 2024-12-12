@@ -1,12 +1,12 @@
 import {
-  AoothConfig,
-  AoothEndpointPaths,
-  AoothPasswordlessSignInCompletePayload,
-  AoothPasswordlessSignInPayload,
-  AoothSignInPayload,
-  AoothSignUpPayload,
   AuthAPI,
   OS,
+  PassflowConfig,
+  PassflowEndpointPaths,
+  PassflowPasswordlessSignInCompletePayload,
+  PassflowPasswordlessSignInPayload,
+  PassflowSignInPayload,
+  PassflowSignUpPayload,
 } from 'lib/api';
 import { AxiosClient } from 'lib/api/axios-client';
 
@@ -76,7 +76,7 @@ describe('AuthAPI', () => {
   let authApi: AuthAPI;
 
   beforeEach(() => {
-    const mockConfig: AoothConfig = {
+    const mockConfig: PassflowConfig = {
       appId: 'test-app-id',
       url: 'https://test-base-url.com',
     };
@@ -86,11 +86,11 @@ describe('AuthAPI', () => {
 
   describe('signIn', () => {
     it('Should sign in with scopes', async () => {
-      const payloadWithScopes: AoothSignInPayload = { ...payload, scopes: ['id', 'profile', 'offline', 'oidc'] };
+      const payloadWithScopes: PassflowSignInPayload = { ...payload, scopes: ['id', 'profile', 'offline', 'oidc'] };
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
       const signInResponse = await authApi.signIn(payloadWithScopes, deviceId, os);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.signin, {
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signin, {
         ...payloadWithScopes,
         device: deviceId,
         os,
@@ -99,11 +99,11 @@ describe('AuthAPI', () => {
     });
 
     it('Should sign in with empty array scopes', async () => {
-      const payloadWithEmptyScopes: AoothSignInPayload = { ...payload, scopes: [] };
+      const payloadWithEmptyScopes: PassflowSignInPayload = { ...payload, scopes: [] };
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInOnlyAccessTokenResponse);
       const signInResponse = await authApi.signIn(payloadWithEmptyScopes, deviceId, os);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.signin, {
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signin, {
         ...payloadWithEmptyScopes,
         device: deviceId,
         os,
@@ -112,7 +112,7 @@ describe('AuthAPI', () => {
     });
 
     it('Should sign in with wrong payload (email, phone, username)', async () => {
-      const payloadWithWrongData: AoothSignInPayload = {
+      const payloadWithWrongData: PassflowSignInPayload = {
         ...payload,
         email: 'wrong@mail.com',
         phone: '+33333333333',
@@ -122,7 +122,7 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInErrorNotFoundResponse);
       const signInResponse = await authApi.signIn(payloadWithWrongData, deviceId, os);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.signin, {
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signin, {
         ...payloadWithWrongData,
         device: deviceId,
         os,
@@ -131,7 +131,7 @@ describe('AuthAPI', () => {
     });
 
     it('Should sign in with wrong password', async () => {
-      const payloadWithWrongData: AoothSignInPayload = {
+      const payloadWithWrongData: PassflowSignInPayload = {
         ...payload,
         password: 'wrongPassword',
         scopes: ['id', 'profile', 'offline', 'oidc'],
@@ -141,7 +141,7 @@ describe('AuthAPI', () => {
         .mockResolvedValue(mockSignInErrorIncorrectPasOrUsernameResponse);
       const signInResponse = await authApi.signIn(payloadWithWrongData, deviceId, os);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.signin, {
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signin, {
         ...payloadWithWrongData,
         device: deviceId,
         os,
@@ -152,7 +152,7 @@ describe('AuthAPI', () => {
 
   describe('signUp', () => {
     it('Should sign up with scopes', async () => {
-      const payloadWithScopes: AoothSignUpPayload = {
+      const payloadWithScopes: PassflowSignUpPayload = {
         user: { ...payload },
         scopes: ['id', 'profile', 'offline', 'oidc'],
         create_tenant: false,
@@ -161,12 +161,12 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
       const signUpResponse = await authApi.signUp(payloadWithScopes);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.signup, payloadWithScopes);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signup, payloadWithScopes);
       expect(signUpResponse).toEqual(mockResponse);
     });
 
     it('Should sign up with empty array scopes', async () => {
-      const payloadWithEmptyScopes: AoothSignUpPayload = {
+      const payloadWithEmptyScopes: PassflowSignUpPayload = {
         user: { ...payload },
         scopes: [],
         create_tenant: false,
@@ -175,12 +175,12 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInOnlyAccessTokenResponse);
       const signUpResponse = await authApi.signUp(payloadWithEmptyScopes);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.signup, payloadWithEmptyScopes);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signup, payloadWithEmptyScopes);
       expect(signUpResponse).toEqual(mockSignInOnlyAccessTokenResponse);
     });
 
     it('Should sign up with identity (email, phone, username) is taken', async () => {
-      const payloadWithTakenData: AoothSignUpPayload = {
+      const payloadWithTakenData: PassflowSignUpPayload = {
         user: {
           ...payload,
           email: 'taken@email.com',
@@ -193,14 +193,14 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignUpErrorTakenResponse);
       const signUpResponse = await authApi.signUp(payloadWithTakenData);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.signup, payloadWithTakenData);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signup, payloadWithTakenData);
       expect(signUpResponse).toEqual(mockSignUpErrorTakenResponse);
     });
   });
 
   describe('passwordlessSignIn - Start', () => {
     it('Should passwordless with scopes, email, magic_link', async () => {
-      const payloadWithScopes: AoothPasswordlessSignInPayload = {
+      const payloadWithScopes: PassflowPasswordlessSignInPayload = {
         email: payload.email,
         challenge_type: 'magic_link',
         scopes: ['id', 'profile', 'offline', 'oidc'],
@@ -210,7 +210,7 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
       const passwordlessStartResponse = await authApi.passwordlessSignIn(payloadWithScopes, deviceId, os);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.passwordless, {
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.passwordless, {
         ...payloadWithScopes,
         device: deviceId,
         os,
@@ -219,7 +219,7 @@ describe('AuthAPI', () => {
     });
 
     it('Should sign up with empty array scopes and phone, otp', async () => {
-      const payloadWithEmptyScopes: AoothPasswordlessSignInPayload = {
+      const payloadWithEmptyScopes: PassflowPasswordlessSignInPayload = {
         phone: '+33333333333',
         challenge_type: 'otp',
         scopes: [],
@@ -229,7 +229,7 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
       const passwordlessStartResponse = await authApi.passwordlessSignIn(payloadWithEmptyScopes, deviceId, os);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.passwordless, {
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.passwordless, {
         ...payloadWithEmptyScopes,
         device: deviceId,
         os,
@@ -238,7 +238,7 @@ describe('AuthAPI', () => {
     });
 
     it('Should passwordless with identity (email, phone, username) is taken', async () => {
-      const payloadWithTakenData: AoothPasswordlessSignInPayload = {
+      const payloadWithTakenData: PassflowPasswordlessSignInPayload = {
         email: payload.email,
         challenge_type: 'magic_link',
         scopes: ['id', 'profile', 'offline', 'oidc'],
@@ -248,7 +248,7 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignUpErrorTakenResponse);
       const signInResponse = await authApi.passwordlessSignIn(payloadWithTakenData, deviceId, os);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.passwordless, {
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.passwordless, {
         ...payloadWithTakenData,
         device: deviceId,
         os,
@@ -259,7 +259,7 @@ describe('AuthAPI', () => {
 
   describe('passwordlessSignIn - Complete', () => {
     it('Should passwordless with scopes and otp', async () => {
-      const payloadWithScopes: AoothPasswordlessSignInCompletePayload = {
+      const payloadWithScopes: PassflowPasswordlessSignInCompletePayload = {
         challenge_id: 'challengeId',
         otp: '1234',
         challenge_type: 'magic_link',
@@ -269,12 +269,12 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
       const passwordlessCompleteResponse = await authApi.passwordlessSignInComplete(payloadWithScopes);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.passwordlessComplete, payloadWithScopes);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.passwordlessComplete, payloadWithScopes);
       expect(passwordlessCompleteResponse).toEqual(mockResponse);
     });
 
     it('Should sign up with empty array scopes and otp', async () => {
-      const payloadWithEmptyScopes: AoothPasswordlessSignInCompletePayload = {
+      const payloadWithEmptyScopes: PassflowPasswordlessSignInCompletePayload = {
         challenge_id: 'challengeId',
         challenge_type: 'otp',
         otp: '1234',
@@ -284,7 +284,7 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInOnlyAccessTokenResponse);
       const passwordlessCompleteResponse = await authApi.passwordlessSignInComplete(payloadWithEmptyScopes);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.passwordlessComplete, payloadWithEmptyScopes);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.passwordlessComplete, payloadWithEmptyScopes);
       expect(passwordlessCompleteResponse).toEqual(mockSignInOnlyAccessTokenResponse);
     });
   });
@@ -294,7 +294,7 @@ describe('AuthAPI', () => {
       const refreshToken = 'refreshToken.test.example';
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
       const logoutResponse = await authApi.logOut(deviceId, refreshToken);
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.logout, {
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.logout, {
         device: deviceId,
         refresh_token: refreshToken,
       });
@@ -311,7 +311,7 @@ describe('AuthAPI', () => {
       const refreshTokenResponse = await authApi.refreshToken(refreshToken, scopes, accessToken);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(
-        AoothEndpointPaths.refresh,
+        PassflowEndpointPaths.refresh,
         { access: accessToken, scopes },
         { headers: { Authorization: `Bearer ${refreshToken}` } },
       );
@@ -325,7 +325,7 @@ describe('AuthAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
       const sendPasswordResetEmailResponse = await authApi.sendPasswordResetEmail(sendPasswordResetPayload);
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.sendPasswordResetEmail, sendPasswordResetPayload);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.sendPasswordResetEmail, sendPasswordResetPayload);
       expect(sendPasswordResetEmailResponse).toEqual(mockSuccessResponse);
     });
   });
@@ -340,7 +340,7 @@ describe('AuthAPI', () => {
       const resetPasswordResponse = await authApi.resetPassword(newPassword, scopes, resetToken);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(
-        AoothEndpointPaths.resetPassword,
+        PassflowEndpointPaths.resetPassword,
         { password: newPassword, scopes },
         { headers: { Authorization: `Bearer ${resetToken}` } },
       );
@@ -354,7 +354,7 @@ describe('AuthAPI', () => {
       const resetPasswordResponse = await authApi.resetPassword(newPassword, scopes, 'blockedToken');
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(
-        AoothEndpointPaths.resetPassword,
+        PassflowEndpointPaths.resetPassword,
         { password: newPassword, scopes },
         { headers: { Authorization: `Bearer ${resetToken}` } },
       );

@@ -1,4 +1,4 @@
-# aooth-sdk-js
+# passflow-js-sdk
 
 ## Run tests
 

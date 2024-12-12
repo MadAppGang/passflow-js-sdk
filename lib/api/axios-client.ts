@@ -1,4 +1,4 @@
-import { AOOTH_CLOUD_URL, APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY, DEFAULT_SCOPES } from 'lib/constants';
+import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY, DEFAULT_SCOPES, PASSFLOW_CLOUD_URL } from 'lib/constants';
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import axiosRetry from 'axios-retry';
@@ -7,11 +7,11 @@ import { StorageManager } from '../storage-manager';
 import { TokenService, TokenType } from '../token-service';
 
 import {
-  AoothAuthorizationResponse,
-  AoothConfig,
-  AoothEndpointPaths,
-  AoothError,
-  AoothResponseError,
+  PassflowAuthorizationResponse,
+  PassflowConfig,
+  PassflowEndpointPaths,
+  PassflowError,
+  PassflowResponseError,
   RequestMethod,
   RequestOptions,
 } from './model';
@@ -39,10 +39,10 @@ export class AxiosClient {
     'Content-Type': 'application/json',
   };
 
-  constructor(config: AoothConfig) {
+  constructor(config: PassflowConfig) {
     const { url, appId } = config;
 
-    this.url = url || AOOTH_CLOUD_URL;
+    this.url = url || PASSFLOW_CLOUD_URL;
 
     this.storageManager = new StorageManager();
     this.tokenService = new TokenService();
@@ -78,7 +78,7 @@ export class AxiosClient {
 
   // eslint-disable-next-line complexity
   private async handleAxiosError(e: AxiosError): Promise<unknown> {
-    /* Aooth returns 400 error if token has expired */
+    /* Passflow returns 400 error if token has expired */
     const originalRequest = e.config;
     const accessToken = this.storageManager.getToken(TokenType.access_token);
     const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
@@ -88,7 +88,7 @@ export class AxiosClient {
       const errorData = e.response.data as Error;
       if ('message' in errorData) return Promise.reject(e);
 
-      const { error } = errorData as AoothResponseError;
+      const { error } = errorData as PassflowResponseError;
 
       if (status === HttpStatuses.internalServerError || error.id === 'error.token.blocked') return Promise.reject(e);
       if (status === HttpStatuses.badRequest && error.id.includes('token')) {
@@ -97,7 +97,7 @@ export class AxiosClient {
           scopes: DEFAULT_SCOPES,
         };
 
-        const tokens = await this.post<AoothAuthorizationResponse, typeof payload>(AoothEndpointPaths.refresh, payload, {
+        const tokens = await this.post<PassflowAuthorizationResponse, typeof payload>(PassflowEndpointPaths.refresh, payload, {
           headers: {
             [AUTHORIZATION_HEADER_KEY]: `Bearer ${refreshToken}`,
           },
@@ -122,8 +122,8 @@ export class AxiosClient {
 
   private handleError(e: unknown): never {
     if (axios.isAxiosError(e) && e.response) {
-      const { error } = e.response.data as AoothResponseError;
-      throw new AoothError(error);
+      const { error } = e.response.data as PassflowResponseError;
+      throw new PassflowError(error);
     }
 
     throw e;
