@@ -1,4 +1,4 @@
-import { AoothConfig, AoothEndpointPaths, SettingAPI } from 'lib/api';
+import { PassflowConfig, PassflowEndpointPaths, SettingAPI } from 'lib/api';
 import { AxiosClient } from 'lib/api/axios-client';
 
 const mockSettingsAll = {
@@ -31,7 +31,7 @@ describe('AppAPI', () => {
   let settingAPI: SettingAPI;
 
   beforeEach(() => {
-    const mockConfig: AoothConfig = {
+    const mockConfig: PassflowConfig = {
       appId: 'test-app-id',
       url: 'https://test-base-url.com',
     };
@@ -44,7 +44,7 @@ describe('AppAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockSettingsAll);
       const settings = await settingAPI.getSettingsAll();
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.settingsAll);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.settingsAll);
       expect(settings).toEqual(mockSettingsAll);
     });
   });
@@ -54,7 +54,7 @@ describe('AppAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockSettingsAll.password_policy);
       const settings = await settingAPI.getPasswordPolicySettings();
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.settingsPasswordPolicy);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.settingsPasswordPolicy);
       expect(settings).toEqual(mockSettingsAll.password_policy);
     });
   });
@@ -64,7 +64,7 @@ describe('AppAPI', () => {
       const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockSettingsAll.passkey_provider);
       const settings = await settingAPI.getPasskeySettings();
 
-      expect(axiosClientGetMock).toHaveBeenCalledWith(AoothEndpointPaths.settingsPasskey);
+      expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.settingsPasskey);
       expect(settings).toEqual(mockSettingsAll.passkey_provider);
     });
   });

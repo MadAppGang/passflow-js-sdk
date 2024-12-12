@@ -6,120 +6,126 @@ import { StorageManager } from '../storage-manager';
 
 import { AxiosClient } from './axios-client';
 import {
-  AoothAdminEndpointPaths,
-  AoothAuthorizationResponse,
-  AoothConfig,
-  AoothEndpointPaths,
-  AoothInsecureLoginPayload,
-  AoothPasskeyAuthenticatePayload,
-  AoothPasskeyAuthenticateStartExtendedPayload,
-  AoothPasskeyAuthenticateStartPayload,
-  AoothPasskeyCompleteMessage,
-  AoothPasskeyCompleteMessageWithTokens,
-  AoothPasskeyRegisterPayload,
-  AoothPasskeyRegisterStartExtendedPayload,
-  AoothPasskeyRegisterStartPayload,
-  AoothPasskeyStart,
-  AoothPasswordlessResponse,
-  AoothPasswordlessSignInCompletePayload,
-  AoothPasswordlessSignInExtendedPayload,
-  AoothPasswordlessSignInPayload,
-  AoothSendPasswordResetEmailPayload,
-  AoothSignInExtendedPayload,
-  AoothSignInPayload,
-  AoothSignUpPayload,
-  AoothSuccessResponse,
-  AoothValidatePayload,
-  AoothValidationResponse,
   OS,
+  PassflowAdminEndpointPaths,
+  PassflowAuthorizationResponse,
+  PassflowConfig,
+  PassflowEndpointPaths,
+  PassflowInsecureLoginPayload,
+  PassflowPasskeyAuthenticatePayload,
+  PassflowPasskeyAuthenticateStartExtendedPayload,
+  PassflowPasskeyAuthenticateStartPayload,
+  PassflowPasskeyCompleteMessage,
+  PassflowPasskeyCompleteMessageWithTokens,
+  PassflowPasskeyRegisterPayload,
+  PassflowPasskeyRegisterStartExtendedPayload,
+  PassflowPasskeyRegisterStartPayload,
+  PassflowPasskeyStart,
+  PassflowPasswordlessResponse,
+  PassflowPasswordlessSignInCompletePayload,
+  PassflowPasswordlessSignInExtendedPayload,
+  PassflowPasswordlessSignInPayload,
+  PassflowSendPasswordResetEmailPayload,
+  PassflowSignInExtendedPayload,
+  PassflowSignInPayload,
+  PassflowSignUpPayload,
+  PassflowSuccessResponse,
+  PassflowValidatePayload,
+  PassflowValidationResponse,
 } from './model';
 
 export class AuthAPI {
   protected axiosClient: AxiosClient;
   protected storageManager = new StorageManager();
 
-  constructor(config: AoothConfig) {
+  constructor(config: PassflowConfig) {
     this.axiosClient = new AxiosClient(config);
   }
 
-  async refreshToken(refreshToken: string, scopes: string[], accessToken?: string): Promise<AoothAuthorizationResponse> {
+  async refreshToken(refreshToken: string, scopes: string[], accessToken?: string): Promise<PassflowAuthorizationResponse> {
     const payload = {
       access: accessToken,
       scopes,
     };
 
-    return this.axiosClient.post<AoothAuthorizationResponse, typeof payload>(AoothEndpointPaths.refresh, payload, {
+    return this.axiosClient.post<PassflowAuthorizationResponse, typeof payload>(PassflowEndpointPaths.refresh, payload, {
       headers: {
         [AUTHORIZATION_HEADER_KEY]: `Bearer ${refreshToken}`,
       },
     });
   }
 
-  async signIn(payload: AoothSignInPayload, deviceId: string, os: OS): Promise<AoothAuthorizationResponse> {
-    const defaultPayload: AoothSignInExtendedPayload = {
+  async signIn(payload: PassflowSignInPayload, deviceId: string, os: OS): Promise<PassflowAuthorizationResponse> {
+    const defaultPayload: PassflowSignInExtendedPayload = {
       ...payload,
       device: deviceId,
       os,
     };
-    return this.axiosClient.post<AoothAuthorizationResponse, AoothSignInExtendedPayload>(
-      AoothEndpointPaths.signin,
+    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowSignInExtendedPayload>(
+      PassflowEndpointPaths.signin,
       defaultPayload,
     );
   }
 
-  async signUp(payload: AoothSignUpPayload): Promise<AoothAuthorizationResponse> {
+  async signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
     const { create_tenant, anonymous } = payload;
-    const defaultPayload: AoothSignUpPayload = {
+    const defaultPayload: PassflowSignUpPayload = {
       ...payload,
       create_tenant: create_tenant ?? false,
       anonymous: anonymous ?? false,
     };
-    return this.axiosClient.post<AoothAuthorizationResponse, AoothSignUpPayload>(AoothEndpointPaths.signup, defaultPayload);
+    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowSignUpPayload>(
+      PassflowEndpointPaths.signup,
+      defaultPayload,
+    );
   }
 
   async passwordlessSignIn(
-    payload: AoothPasswordlessSignInPayload,
+    payload: PassflowPasswordlessSignInPayload,
     deviceId: string,
     os: OS,
-  ): Promise<AoothPasswordlessResponse> {
+  ): Promise<PassflowPasswordlessResponse> {
     const { create_tenant } = payload;
-    const defaultPayload: AoothPasswordlessSignInExtendedPayload = {
+    const defaultPayload: PassflowPasswordlessSignInExtendedPayload = {
       ...payload,
       create_tenant: create_tenant ?? false,
       device: deviceId,
       os,
     };
-    return this.axiosClient.post<AoothPasswordlessResponse, AoothPasswordlessSignInExtendedPayload>(
-      AoothEndpointPaths.passwordless,
+    return this.axiosClient.post<PassflowPasswordlessResponse, PassflowPasswordlessSignInExtendedPayload>(
+      PassflowEndpointPaths.passwordless,
       defaultPayload,
     );
   }
 
-  async passwordlessSignInComplete(payload: AoothPasswordlessSignInCompletePayload): Promise<AoothValidationResponse> {
-    return this.axiosClient.post<AoothValidationResponse, AoothPasswordlessSignInCompletePayload>(
-      AoothEndpointPaths.passwordlessComplete,
+  async passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
+    return this.axiosClient.post<PassflowValidationResponse, PassflowPasswordlessSignInCompletePayload>(
+      PassflowEndpointPaths.passwordlessComplete,
       payload,
     );
   }
 
-  async logOut(deviceId?: string, refreshToken?: string, isAdmin = false): Promise<AoothSuccessResponse> {
+  async logOut(deviceId?: string, refreshToken?: string, isAdmin = false): Promise<PassflowSuccessResponse> {
     const payload = !isAdmin ? { refresh_token: refreshToken, device: deviceId } : undefined;
-    const endpoint = isAdmin ? AoothAdminEndpointPaths.logout : AoothEndpointPaths.logout;
+    const endpoint = isAdmin ? PassflowAdminEndpointPaths.logout : PassflowEndpointPaths.logout;
 
-    return this.axiosClient.post<AoothSuccessResponse, typeof payload>(endpoint, payload);
+    return this.axiosClient.post<PassflowSuccessResponse, typeof payload>(endpoint, payload);
   }
 
-  async sendPasswordResetEmail(payload: AoothSendPasswordResetEmailPayload): Promise<AoothSuccessResponse> {
-    return this.axiosClient.post<AoothSuccessResponse, typeof payload>(AoothEndpointPaths.sendPasswordResetEmail, payload);
+  async sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {
+    return this.axiosClient.post<PassflowSuccessResponse, typeof payload>(
+      PassflowEndpointPaths.sendPasswordResetEmail,
+      payload,
+    );
   }
 
-  async resetPassword(newPassword: string, scopes: string[], resetToken?: string): Promise<AoothAuthorizationResponse> {
+  async resetPassword(newPassword: string, scopes: string[], resetToken?: string): Promise<PassflowAuthorizationResponse> {
     const payload = {
       password: newPassword,
       scopes,
     };
 
-    return this.axiosClient.post<AoothAuthorizationResponse, typeof payload>(AoothEndpointPaths.resetPassword, payload, {
+    return this.axiosClient.post<PassflowAuthorizationResponse, typeof payload>(PassflowEndpointPaths.resetPassword, payload, {
       headers: {
         [AUTHORIZATION_HEADER_KEY]: `Bearer ${resetToken}`,
         [APP_ID_HEADER_KEY]: undefined,
@@ -128,22 +134,22 @@ export class AuthAPI {
   }
 
   async passkeyRegisterStart(
-    payload: AoothPasskeyRegisterStartPayload,
+    payload: PassflowPasskeyRegisterStartPayload,
     deviceId: string,
     os: OS,
     isAdmin = false,
-  ): Promise<AoothPasskeyStart> {
+  ): Promise<PassflowPasskeyStart> {
     const { create_tenant } = payload;
-    const defaultPayload: AoothPasskeyRegisterStartExtendedPayload = {
+    const defaultPayload: PassflowPasskeyRegisterStartExtendedPayload = {
       ...payload,
       create_tenant: create_tenant ?? false,
       device: deviceId,
       os,
     };
 
-    const endpoint = isAdmin ? AoothAdminEndpointPaths.passkeyRegisterStart : AoothEndpointPaths.passkeyRegisterStart;
+    const endpoint = isAdmin ? PassflowAdminEndpointPaths.passkeyRegisterStart : PassflowEndpointPaths.passkeyRegisterStart;
 
-    return this.axiosClient.post<AoothPasskeyStart, AoothPasskeyRegisterStartExtendedPayload>(endpoint, defaultPayload);
+    return this.axiosClient.post<PassflowPasskeyStart, PassflowPasskeyRegisterStartExtendedPayload>(endpoint, defaultPayload);
   }
 
   async passkeyRegisterComplete(
@@ -151,34 +157,41 @@ export class AuthAPI {
     deviceId: string,
     challengeId: string,
     isAdmin = false,
-  ): Promise<AoothAuthorizationResponse | AoothPasskeyCompleteMessageWithTokens | AoothPasskeyCompleteMessage> {
-    const payload: AoothPasskeyRegisterPayload = {
+  ): Promise<PassflowAuthorizationResponse | PassflowPasskeyCompleteMessageWithTokens | PassflowPasskeyCompleteMessage> {
+    const payload: PassflowPasskeyRegisterPayload = {
       challenge_id: challengeId,
       device: deviceId,
       passkey_data: passkeyData,
     };
 
-    const endpoint = isAdmin ? AoothAdminEndpointPaths.passkeyRegisterComplete : AoothEndpointPaths.passkeyRegisterComplete;
+    const endpoint = isAdmin
+      ? PassflowAdminEndpointPaths.passkeyRegisterComplete
+      : PassflowEndpointPaths.passkeyRegisterComplete;
 
-    return this.axiosClient.post<AoothAuthorizationResponse, AoothPasskeyRegisterPayload>(endpoint, payload);
+    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowPasskeyRegisterPayload>(endpoint, payload);
   }
 
   async passkeyAuthenticateStart(
-    payload: AoothPasskeyAuthenticateStartPayload,
+    payload: PassflowPasskeyAuthenticateStartPayload,
     deviceId: string,
     os: OS,
     isAdmin = false,
-  ): Promise<AoothPasskeyStart> {
-    const defaultPayload: AoothPasskeyAuthenticateStartExtendedPayload = {
+  ): Promise<PassflowPasskeyStart> {
+    const defaultPayload: PassflowPasskeyAuthenticateStartExtendedPayload = {
       ...payload,
       user_id: payload.user_id ?? '',
       device: deviceId,
       os,
     };
 
-    const endpoint = isAdmin ? AoothAdminEndpointPaths.passkeyAuthenticateStart : AoothEndpointPaths.passkeyAuthenticateStart;
+    const endpoint = isAdmin
+      ? PassflowAdminEndpointPaths.passkeyAuthenticateStart
+      : PassflowEndpointPaths.passkeyAuthenticateStart;
 
-    return this.axiosClient.post<AoothPasskeyStart, AoothPasskeyAuthenticateStartExtendedPayload>(endpoint, defaultPayload);
+    return this.axiosClient.post<PassflowPasskeyStart, PassflowPasskeyAuthenticateStartExtendedPayload>(
+      endpoint,
+      defaultPayload,
+    );
   }
 
   async passkeyAuthenticateComplete(
@@ -186,18 +199,18 @@ export class AuthAPI {
     deviceId: string,
     challengeId: string,
     isAdmin = false,
-  ): Promise<AoothAuthorizationResponse> {
-    const payload: AoothPasskeyAuthenticatePayload = {
+  ): Promise<PassflowAuthorizationResponse> {
+    const payload: PassflowPasskeyAuthenticatePayload = {
       challenge_id: challengeId,
       device: deviceId,
       passkey_data: passkeyData,
     };
 
     const endpoint = isAdmin
-      ? AoothAdminEndpointPaths.passkeyAuthenticateComplete
-      : AoothEndpointPaths.passkeyAuthenticateComplete;
+      ? PassflowAdminEndpointPaths.passkeyAuthenticateComplete
+      : PassflowEndpointPaths.passkeyAuthenticateComplete;
 
-    return this.axiosClient.post<AoothAuthorizationResponse, AoothPasskeyAuthenticatePayload>(endpoint, payload);
+    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowPasskeyAuthenticatePayload>(endpoint, payload);
   }
 
   async passkeyValidate(
@@ -206,27 +219,27 @@ export class AuthAPI {
     challengeId: string,
     isAdmin = false,
     appId?: string,
-  ): Promise<AoothValidationResponse> {
-    const payload: AoothValidatePayload = {
+  ): Promise<PassflowValidationResponse> {
+    const payload: PassflowValidatePayload = {
       otp,
       device: deviceId,
       challenge_id: challengeId,
     };
 
-    let endpoint: AoothEndpointPaths.passkeyValidate | AoothAdminEndpointPaths.passkeyValidate =
-      AoothEndpointPaths.passkeyValidate;
+    let endpoint: PassflowEndpointPaths.passkeyValidate | PassflowAdminEndpointPaths.passkeyValidate =
+      PassflowEndpointPaths.passkeyValidate;
     if (!appId && isAdmin) {
-      endpoint = AoothAdminEndpointPaths.passkeyValidate;
+      endpoint = PassflowAdminEndpointPaths.passkeyValidate;
     }
 
     const headers = appId ? { [APP_ID_HEADER_KEY]: appId } : {};
 
-    return this.axiosClient.post<AoothValidationResponse, AoothValidatePayload>(endpoint, payload, { headers });
+    return this.axiosClient.post<PassflowValidationResponse, PassflowValidatePayload>(endpoint, payload, { headers });
   }
 
-  async loginInsecure(payload: AoothInsecureLoginPayload): Promise<AoothAuthorizationResponse> {
-    return this.axiosClient.post<AoothAuthorizationResponse, AoothInsecureLoginPayload>(
-      AoothAdminEndpointPaths.loginInsecure,
+  async loginInsecure(payload: PassflowInsecureLoginPayload): Promise<PassflowAuthorizationResponse> {
+    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowInsecureLoginPayload>(
+      PassflowAdminEndpointPaths.loginInsecure,
       payload,
     );
   }

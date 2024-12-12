@@ -12,9 +12,9 @@ export class StorageManager {
   readonly accessToken = TokenType.access_token;
   readonly refreshToken = TokenType.refresh_token;
   readonly scopes = 'tokens_scopes';
-  readonly deviceId = 'aoothDeviceId';
-  readonly invitationToken = 'aoothInvitationToken';
-  readonly previousRedirectUrl = 'aoothPreviousRedirectUrl';
+  readonly deviceId = 'passflowDeviceId';
+  readonly invitationToken = 'passflowInvitationToken';
+  readonly previousRedirectUrl = 'passflowPreviousRedirectUrl';
 
   private storage: Storage;
 

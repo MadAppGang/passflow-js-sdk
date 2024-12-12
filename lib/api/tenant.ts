@@ -1,33 +1,36 @@
 import { AxiosClient } from './axios-client';
 import {
-  AoothConfig,
-  AoothCreateTenantPayload,
-  AoothEndpointPaths,
-  AoothInvitePayload,
-  AoothInviteResponse,
-  AoothTenantResponse,
+  PassflowConfig,
+  PassflowCreateTenantPayload,
+  PassflowEndpointPaths,
+  PassflowInvitePayload,
+  PassflowInviteResponse,
+  PassflowTenantResponse,
 } from './model';
 
 export class TenantAPI {
   protected axiosClient: AxiosClient;
 
-  constructor(config: AoothConfig) {
+  constructor(config: PassflowConfig) {
     this.axiosClient = new AxiosClient(config);
   }
 
-  async joinInvitation(token: string, scopes: string[]): Promise<AoothInviteResponse> {
+  async joinInvitation(token: string, scopes: string[]): Promise<PassflowInviteResponse> {
     const payload = {
       invite: token,
       scopes,
     };
 
-    return this.axiosClient.post<AoothInviteResponse, AoothInvitePayload>(AoothEndpointPaths.joinInvitation, payload);
+    return this.axiosClient.post<PassflowInviteResponse, PassflowInvitePayload>(PassflowEndpointPaths.joinInvitation, payload);
   }
 
-  async createTenant(name: string): Promise<AoothTenantResponse> {
+  async createTenant(name: string): Promise<PassflowTenantResponse> {
     const payload = {
       name,
     };
-    return this.axiosClient.post<AoothTenantResponse, AoothCreateTenantPayload>(AoothEndpointPaths.tenantPath, payload);
+    return this.axiosClient.post<PassflowTenantResponse, PassflowCreateTenantPayload>(
+      PassflowEndpointPaths.tenantPath,
+      payload,
+    );
   }
 }

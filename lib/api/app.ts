@@ -1,14 +1,14 @@
 import { AxiosClient } from './axios-client';
-import { AoothConfig, AoothEndpointPaths, AppSettings } from './model';
+import { AppSettings, PassflowConfig, PassflowEndpointPaths } from './model';
 
 export class AppAPI {
   protected axiosClient: AxiosClient;
 
-  constructor(config: AoothConfig) {
+  constructor(config: PassflowConfig) {
     this.axiosClient = new AxiosClient(config);
   }
 
   async getAppSettings(): Promise<AppSettings> {
-    return this.axiosClient.get<AppSettings>(AoothEndpointPaths.appSettings);
+    return this.axiosClient.get<AppSettings>(PassflowEndpointPaths.appSettings);
   }
 }

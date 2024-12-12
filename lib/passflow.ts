@@ -3,45 +3,45 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import axios from 'axios';
 
 import {
-  AoothAuthorizationResponse,
-  AoothConfig,
-  AoothEndpointPaths,
-  AoothError,
-  AoothInsecureLoginPayload,
-  AoothInviteResponse,
-  AoothPasskeyAuthenticateStartPayload,
-  AoothPasskeyCompleteMessage,
-  AoothPasskeyCompleteMessageWithTokens,
-  AoothPasskeyRegisterStartPayload,
-  AoothPasskeySettings,
-  AoothPasswordPolicySettings,
-  AoothPasswordlessResponse,
-  AoothPasswordlessSignInCompletePayload,
-  AoothPasswordlessSignInPayload,
-  AoothSendPasswordResetEmailPayload,
-  AoothSettingsAll,
-  AoothSignInPayload,
-  AoothSignUpPayload,
-  AoothSuccessResponse,
-  AoothTenantResponse,
-  AoothUserPasskey,
-  AoothValidationResponse,
   AppAPI,
   AppSettings,
   AuthAPI,
   OS,
+  PassflowAuthorizationResponse,
+  PassflowConfig,
+  PassflowEndpointPaths,
+  PassflowError,
+  PassflowInsecureLoginPayload,
+  PassflowInviteResponse,
+  PassflowPasskeyAuthenticateStartPayload,
+  PassflowPasskeyCompleteMessage,
+  PassflowPasskeyCompleteMessageWithTokens,
+  PassflowPasskeyRegisterStartPayload,
+  PassflowPasskeySettings,
+  PassflowPasswordPolicySettings,
+  PassflowPasswordlessResponse,
+  PassflowPasswordlessSignInCompletePayload,
+  PassflowPasswordlessSignInPayload,
+  PassflowSendPasswordResetEmailPayload,
+  PassflowSettingsAll,
+  PassflowSignInPayload,
+  PassflowSignUpPayload,
+  PassflowSuccessResponse,
+  PassflowTenantResponse,
+  PassflowUserPasskey,
+  PassflowValidationResponse,
   SettingAPI,
   TenantAPI,
   UserAPI,
 } from './api';
-import { AOOTH_CLOUD_URL, DEFAULT_SCOPES } from './constants';
+import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL } from './constants';
 import { DeviceService } from './device-service';
 import { StorageManager } from './storage-manager';
-import { AoothEvent, AoothStore, AoothSubscriber } from './store';
+import { PassflowEvent, PassflowStore, PassflowSubscriber } from './store';
 import { Providers, TokenService, TokenType, isTokenExpired, parseToken } from './token-service';
 import { ParsedTokens, Tokens } from './types';
 
-export class Aooth {
+export class Passflow {
   private authApi: AuthAPI;
   private appApi: AppAPI;
   private userApi: UserAPI;
@@ -49,7 +49,7 @@ export class Aooth {
   private tenantAPI: TenantAPI;
   private scopes: string[];
   private createTenantForNewUser: boolean;
-  private subscribeStore: AoothStore;
+  private subscribeStore: PassflowStore;
 
   deviceService: DeviceService;
   storageManager: StorageManager;
@@ -61,9 +61,9 @@ export class Aooth {
   url: string;
   appId?: string;
 
-  constructor(config: AoothConfig) {
+  constructor(config: PassflowConfig) {
     const { url, appId, scopes } = config;
-    this.url = url || AOOTH_CLOUD_URL;
+    this.url = url || PASSFLOW_CLOUD_URL;
     this.appId = appId;
 
     this.authApi = new AuthAPI(config);
@@ -76,19 +76,19 @@ export class Aooth {
     this.deviceService = new DeviceService();
     this.scopes = scopes ?? DEFAULT_SCOPES;
     this.createTenantForNewUser = config.createTenantForNewUser ?? false;
-    this.subscribeStore = new AoothStore();
+    this.subscribeStore = new PassflowStore();
 
     this.checkAndSetTokens();
     this.setTokensToCacheFromLocalStorage();
   }
 
   // subscribe to authentication events, empty 't' means all event types
-  subscribe(s: AoothSubscriber, t?: AoothEvent[]) {
+  subscribe(s: PassflowSubscriber, t?: PassflowEvent[]) {
     this.subscribeStore.subscribe(s, t);
   }
 
   // unsubscribe from  authentication events, empty 't' means all event
-  unsubscribe(s: AoothSubscriber, t?: AoothEvent[]) {
+  unsubscribe(s: PassflowSubscriber, t?: PassflowEvent[]) {
     this.subscribeStore.unsubscribe(s, t);
   }
 
@@ -117,7 +117,7 @@ export class Aooth {
       };
       this.storageManager.saveTokens(tokens);
       this.setTokensCache(tokens);
-      this.subscribeStore.notify(this, AoothEvent.SignIn);
+      this.subscribeStore.notify(this, PassflowEvent.SignIn);
     }
 
     urlParams.delete('access_token');
@@ -141,7 +141,7 @@ export class Aooth {
   }
 
   private createFederatedAuthUrl(provider: Providers, redirect_url: string, scopes?: string[]): string {
-    const aoothPathWithProvider = `${AoothEndpointPaths.signInWithProvider}${provider}`;
+    const passflowPathWithProvider = `${PassflowEndpointPaths.signInWithProvider}${provider}`;
 
     if (!this.appId) throw new Error('AppId is required for federated auth');
     const sscopes = scopes ?? this.scopes;
@@ -152,7 +152,7 @@ export class Aooth {
       appId: this.appId,
     };
 
-    const url = new URL(aoothPathWithProvider, this.url);
+    const url = new URL(passflowPathWithProvider, this.url);
     const queryParams = new URLSearchParams(params);
     url.search = queryParams.toString();
 
@@ -216,7 +216,7 @@ export class Aooth {
     return this.parsedTokensCache;
   }
 
-  async signIn(payload: AoothSignInPayload): Promise<AoothAuthorizationResponse> {
+  async signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
@@ -224,60 +224,60 @@ export class Aooth {
     response.scopes = payload.scopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
-    this.subscribeStore.notify(this, AoothEvent.SignIn);
+    this.subscribeStore.notify(this, PassflowEvent.SignIn);
     return response;
   }
 
-  async signUp(payload: AoothSignUpPayload): Promise<AoothAuthorizationResponse> {
+  async signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
     payload.scopes = payload.scopes ?? this.scopes;
     payload.create_tenant = this.createTenantForNewUser;
     const response = await this.authApi.signUp(payload);
     response.scopes = payload.scopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
-    this.subscribeStore.notify(this, AoothEvent.Register);
+    this.subscribeStore.notify(this, PassflowEvent.Register);
     return response;
   }
 
-  async passwordlessSignIn(payload: AoothPasswordlessSignInPayload): Promise<AoothPasswordlessResponse> {
+  async passwordlessSignIn(payload: PassflowPasswordlessSignInPayload): Promise<PassflowPasswordlessResponse> {
     payload.scopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     return this.authApi.passwordlessSignIn(payload, deviceId, os);
   }
 
-  async passwordlessSignInComplete(payload: AoothPasswordlessSignInCompletePayload): Promise<AoothValidationResponse> {
+  async passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
     payload.scopes = payload.scopes ?? this.scopes;
     payload.device = this.deviceService.getDeviceId();
     const response = await this.authApi.passwordlessSignInComplete(payload);
     response.scopes = payload.scopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
-    this.subscribeStore.notify(this, AoothEvent.SignIn);
+    this.subscribeStore.notify(this, PassflowEvent.SignIn);
     return response;
   }
 
-  async logOut(): Promise<AoothSuccessResponse> {
+  async logOut(): Promise<PassflowSuccessResponse> {
     const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
     const deviceId = this.storageManager.getDeviceId();
 
     const status = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
     //event if we have signout error, we could not keep forcefully user authenticated
     if (status.result !== 'ok') {
-      this.subscribeStore.notify(this, AoothEvent.Error);
+      this.subscribeStore.notify(this, PassflowEvent.Error);
     }
     // handle error here?
     this.storageManager.deleteTokens();
     this.setTokensCache(undefined);
-    this.subscribeStore.notify(this, AoothEvent.SignOut);
+    this.subscribeStore.notify(this, PassflowEvent.SignOut);
     return status;
   }
 
   federatedAuthWithPopup(provider: Providers, redirect_url: string, scopes?: string[]): void {
     const sscopes = scopes ?? this.scopes;
-    const aoothURL = this.createFederatedAuthUrl(provider, redirect_url, sscopes);
+    const passflowURL = this.createFederatedAuthUrl(provider, redirect_url, sscopes);
 
-    const popupWindow = window.open(aoothURL, '_blank', 'width=500,height=500');
+    const popupWindow = window.open(passflowURL, '_blank', 'width=500,height=500');
 
     if (!popupWindow) {
       this.federatedAuthWithRedirect(provider, redirect_url, sscopes);
@@ -297,7 +297,7 @@ export class Aooth {
           };
           this.storageManager.saveTokens(tokensData);
           this.setTokensCache(tokensData);
-          this.subscribeStore.notify(this, AoothEvent.SignIn);
+          this.subscribeStore.notify(this, PassflowEvent.SignIn);
           window.location.href = `${this.origin}`;
           clearInterval(checkInterval);
           popupWindow.close();
@@ -308,21 +308,21 @@ export class Aooth {
 
   federatedAuthWithRedirect(provider: Providers, redirect_url: string, scopes?: string[]): void {
     const sscopes = scopes ?? this.scopes;
-    const aoothURL = this.createFederatedAuthUrl(provider, redirect_url, sscopes);
-    window.location.href = aoothURL;
+    const passflowURL = this.createFederatedAuthUrl(provider, redirect_url, sscopes);
+    window.location.href = passflowURL;
   }
 
   reset(error?: string) {
     this.storageManager.deleteTokens();
     this.setTokensCache(undefined);
-    this.subscribeStore.notify(this, AoothEvent.SignOut);
+    this.subscribeStore.notify(this, PassflowEvent.SignOut);
     if (error) {
-      this.subscribeStore.notify(this, AoothEvent.Error);
+      this.subscribeStore.notify(this, PassflowEvent.Error);
       throw new Error(error);
     }
   }
 
-  async refreshToken(): Promise<AoothAuthorizationResponse> {
+  async refreshToken(): Promise<PassflowAuthorizationResponse> {
     const tokens = this.storageManager.getTokens();
     if (!tokens) {
       this.reset('No tokens found'); //throws
@@ -336,10 +336,10 @@ export class Aooth {
       response.scopes = oldScopes;
       this.storageManager.saveTokens(response);
       this.setTokensCache(response);
-      this.subscribeStore.notify(this, AoothEvent.Refresh);
+      this.subscribeStore.notify(this, PassflowEvent.Refresh);
       return response;
     } catch (error) {
-      if (error instanceof AoothError) {
+      if (error instanceof PassflowError) {
         this.reset(error.message);
       } else if (axios.isAxiosError(error) && error.response && error.response?.status >= 400 && error.response?.status < 500) {
         this.reset(`Getting unknown error message from server with code:${error.response.status}`);
@@ -347,7 +347,7 @@ export class Aooth {
         // this error means we have some network or other error
         // we don't need to reset state
         // let's just notify subscribers and rethrow the error
-        this.subscribeStore.notify(this, AoothEvent.Error);
+        this.subscribeStore.notify(this, PassflowEvent.Error);
         throw error;
       }
     }
@@ -355,11 +355,11 @@ export class Aooth {
     throw new Error('Unexpected behavior');
   }
 
-  async sendPasswordResetEmail(payload: AoothSendPasswordResetEmailPayload): Promise<AoothSuccessResponse> {
+  async sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {
     return this.authApi.sendPasswordResetEmail(payload);
   }
 
-  async resetPassword(newPassword: string, scopes?: string[]): Promise<AoothAuthorizationResponse> {
+  async resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
     const urlParams = new URLSearchParams(window.location.search);
     const resetToken = urlParams.get('token') ?? undefined;
     const sscopes = scopes ?? this.scopes;
@@ -368,7 +368,7 @@ export class Aooth {
     response.scopes = sscopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
-    this.subscribeStore.notify(this, AoothEvent.SignIn);
+    this.subscribeStore.notify(this, PassflowEvent.SignIn);
     return response;
   }
 
@@ -376,21 +376,21 @@ export class Aooth {
     return this.appApi.getAppSettings();
   }
 
-  async getSettingsAll(): Promise<AoothSettingsAll> {
+  async getSettingsAll(): Promise<PassflowSettingsAll> {
     return this.settingApi.getSettingsAll();
   }
 
-  async getPasswordPolicySettings(): Promise<AoothPasswordPolicySettings> {
+  async getPasswordPolicySettings(): Promise<PassflowPasswordPolicySettings> {
     return this.settingApi.getPasswordPolicySettings();
   }
 
-  async getPasskeySettings(): Promise<AoothPasskeySettings> {
+  async getPasskeySettings(): Promise<PassflowPasskeySettings> {
     return this.settingApi.getPasskeySettings();
   }
 
   async passkeyRegister(
-    payload: AoothPasskeyRegisterStartPayload,
-  ): Promise<AoothAuthorizationResponse | AoothPasskeyCompleteMessageWithTokens | AoothPasskeyCompleteMessage> {
+    payload: PassflowPasskeyRegisterStartPayload,
+  ): Promise<PassflowAuthorizationResponse | PassflowPasskeyCompleteMessageWithTokens | PassflowPasskeyCompleteMessage> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
@@ -405,15 +405,15 @@ export class Aooth {
       responseRegisterComplete.scopes = payload.scopes;
       this.storageManager.saveTokens(responseRegisterComplete);
       this.setTokensCache(responseRegisterComplete);
-      this.subscribeStore.notify(this, AoothEvent.Register);
+      this.subscribeStore.notify(this, PassflowEvent.Register);
     }
 
     return responseRegisterComplete;
   }
 
   async passkeyAuthenticate(
-    payload: AoothPasskeyAuthenticateStartPayload,
-  ): Promise<AoothAuthorizationResponse | AoothPasskeyCompleteMessage> {
+    payload: PassflowPasskeyAuthenticateStartPayload,
+  ): Promise<PassflowAuthorizationResponse | PassflowPasskeyCompleteMessage> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
@@ -433,7 +433,7 @@ export class Aooth {
       responseAuthenticateComplete.scopes = payload.scopes;
       this.storageManager.saveTokens(responseAuthenticateComplete);
       this.setTokensCache(responseAuthenticateComplete);
-      this.subscribeStore.notify(this, AoothEvent.SignIn);
+      this.subscribeStore.notify(this, PassflowEvent.SignIn);
     }
 
     return responseAuthenticateComplete;
@@ -441,7 +441,7 @@ export class Aooth {
 
   // TODO: Question, why do we need validate passkey with otp?
   // TODO: and if we need, how to get scopes here?
-  async passkeyValidate(otp: string, challengeId: string, appId?: string): Promise<AoothValidationResponse> {
+  async passkeyValidate(otp: string, challengeId: string, appId?: string): Promise<PassflowValidationResponse> {
     const deviceId = this.deviceService.getDeviceId();
 
     const responseValidate = await this.authApi.passkeyValidate(otp, deviceId, challengeId, !this.appId, appId);
@@ -454,30 +454,30 @@ export class Aooth {
     return responseValidate;
   }
 
-  async loginInsecure(payload: AoothInsecureLoginPayload): Promise<AoothAuthorizationResponse> {
+  async loginInsecure(payload: PassflowInsecureLoginPayload): Promise<PassflowAuthorizationResponse> {
     const response = await this.authApi.loginInsecure(payload);
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
-    this.subscribeStore.notify(this, AoothEvent.SignIn);
+    this.subscribeStore.notify(this, PassflowEvent.SignIn);
     return response;
   }
 
-  async getUserPasskeys(): Promise<AoothUserPasskey> {
+  async getUserPasskeys(): Promise<PassflowUserPasskey> {
     return this.userApi.getUserPasskeys();
   }
 
-  async renameUserPasskey(name: string, passkeyId: string): Promise<AoothSuccessResponse> {
+  async renameUserPasskey(name: string, passkeyId: string): Promise<PassflowSuccessResponse> {
     return this.userApi.renameUserPasskey(name, passkeyId);
   }
 
-  async deleteUserPasskey(passkeyId: string): Promise<AoothSuccessResponse> {
+  async deleteUserPasskey(passkeyId: string): Promise<PassflowSuccessResponse> {
     return this.userApi.deleteUserPasskey(passkeyId);
   }
 
   async createUserPasskey(
     relyingPartyId: string,
     scopes: string[] = this.scopes,
-  ): Promise<AoothAuthorizationResponse | AoothPasskeyCompleteMessage> {
+  ): Promise<PassflowAuthorizationResponse | PassflowPasskeyCompleteMessage> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
 
@@ -497,18 +497,18 @@ export class Aooth {
       responseCreateComplete.scopes = scopes;
       this.storageManager.saveTokens(responseCreateComplete);
       this.setTokensCache(responseCreateComplete);
-      this.subscribeStore.notify(this, AoothEvent.Register);
+      this.subscribeStore.notify(this, PassflowEvent.Register);
     }
 
     return responseCreateComplete;
   }
 
-  async joinInvitation(token: string, scopes?: string[]): Promise<AoothInviteResponse> {
+  async joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {
     const sscopes = scopes ?? this.scopes;
     return this.tenantAPI.joinInvitation(token, sscopes);
   }
 
-  async createTenant(name: string, refreshToken?: boolean): Promise<AoothTenantResponse> {
+  async createTenant(name: string, refreshToken?: boolean): Promise<PassflowTenantResponse> {
     const tenant = this.tenantAPI.createTenant(name);
     if (refreshToken) {
       await this.refreshToken();

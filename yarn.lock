@@ -15,39 +15,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aooth/aooth-js-sdk@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "@aooth/aooth-js-sdk@workspace:."
-  dependencies:
-    "@babel/core": "npm:^7.24.5"
-    "@eslint/js": "npm:^9.1.1"
-    "@simplewebauthn/browser": "npm:^10.0.0"
-    "@simplewebauthn/types": "npm:^10.0.0"
-    "@types/jest": "npm:^29.5.12"
-    "@types/sinon": "npm:^17.0.3"
-    "@types/uuid": "npm:^9.0.8"
-    "@typescript-eslint/eslint-plugin": "npm:^7.8.0"
-    "@typescript-eslint/parser": "npm:^7.8.0"
-    axios: "npm:^1.6.8"
-    axios-retry: "npm:^4.1.0"
-    babel-jest: "npm:^29.7.0"
-    dayjs: "npm:^1.11.11"
-    esbuild: "npm:^0.20.2"
-    eslint: "npm:8.56.0"
-    eslint-config-prettier: "npm:^9.1.0"
-    eslint-plugin-import: "npm:^2.29.1"
-    eslint-plugin-prettier: "npm:^5.1.3"
-    jest: "npm:^29.7.0"
-    jest-environment-jsdom: "npm:^29.7.0"
-    prettier: "npm:^3.2.5"
-    sinon: "npm:^17.0.1"
-    ts-jest: "npm:^29.1.2"
-    typescript: "npm:5.2.2"
-    typescript-eslint: "npm:^7.8.0"
-    uuid: "npm:^9.0.1"
-  languageName: unknown
-  linkType: soft
-
 "@babel/code-frame@npm:^7.0.0, @babel/code-frame@npm:^7.12.13, @babel/code-frame@npm:^7.23.5, @babel/code-frame@npm:^7.24.2":
   version: 7.24.2
   resolution: "@babel/code-frame@npm:7.24.2"
@@ -1031,6 +998,39 @@ __metadata:
   checksum: 10/f3a7ab3a31de65e42aeb6ed03ed035ef123d2de7af4deb9d4a003d27acc8618b57d9fb9d259fe6c28ca538032a028f37337264388ba27d26d37fff7dde22476e
   languageName: node
   linkType: hard
+
+"@passflow/passflow-js-sdk@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "@passflow/passflow-js-sdk@workspace:."
+  dependencies:
+    "@babel/core": "npm:^7.24.5"
+    "@eslint/js": "npm:^9.1.1"
+    "@simplewebauthn/browser": "npm:^10.0.0"
+    "@simplewebauthn/types": "npm:^10.0.0"
+    "@types/jest": "npm:^29.5.12"
+    "@types/sinon": "npm:^17.0.3"
+    "@types/uuid": "npm:^9.0.8"
+    "@typescript-eslint/eslint-plugin": "npm:^7.8.0"
+    "@typescript-eslint/parser": "npm:^7.8.0"
+    axios: "npm:^1.6.8"
+    axios-retry: "npm:^4.1.0"
+    babel-jest: "npm:^29.7.0"
+    dayjs: "npm:^1.11.11"
+    esbuild: "npm:^0.20.2"
+    eslint: "npm:8.56.0"
+    eslint-config-prettier: "npm:^9.1.0"
+    eslint-plugin-import: "npm:^2.29.1"
+    eslint-plugin-prettier: "npm:^5.1.3"
+    jest: "npm:^29.7.0"
+    jest-environment-jsdom: "npm:^29.7.0"
+    prettier: "npm:^3.2.5"
+    sinon: "npm:^17.0.1"
+    ts-jest: "npm:^29.1.2"
+    typescript: "npm:5.2.2"
+    typescript-eslint: "npm:^7.8.0"
+    uuid: "npm:^9.0.1"
+  languageName: unknown
+  linkType: soft
 
 "@pkgjs/parseargs@npm:^0.11.0":
   version: 0.11.0
