@@ -2,7 +2,7 @@
   "name": "@passflow/passflow-js-sdk",
   "packageManager": "yarn@4.2.2",
   "description": "Passflow JS SDK",
-  "version": "0.1.16",
+  "version": "0.1.18",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
