@@ -13,3 +13,9 @@ export type ParsedTokens = {
   refresh_token?: Token;
   scopes?: string[];
 };
+
+export type SessionParams = {
+  createSession?: (tokens?: Tokens) => void;
+  expiredSession?: () => void;
+  doRefresh?: boolean;
+};

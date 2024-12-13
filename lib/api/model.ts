@@ -362,6 +362,8 @@ export type PassflowSendPasswordResetEmailPayload = {
   email?: string;
   phone?: string;
   username?: string;
+  reset_page_url?: string;
+  redirect_url?: string;
 } & ({ email: string } | { phone: string } | { username: string });
 
 export type PassflowInviteResponse = {

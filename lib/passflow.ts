@@ -39,7 +39,7 @@ import { DeviceService } from './device-service';
 import { StorageManager } from './storage-manager';
 import { PassflowEvent, PassflowStore, PassflowSubscriber } from './store';
 import { Providers, TokenService, TokenType, isTokenExpired, parseToken } from './token-service';
-import { ParsedTokens, Tokens } from './types';
+import { ParsedTokens, SessionParams, Tokens } from './types';
 
 export class Passflow {
   private authApi: AuthAPI;
@@ -50,6 +50,34 @@ export class Passflow {
   private scopes: string[];
   private createTenantForNewUser: boolean;
   private subscribeStore: PassflowStore;
+
+  private doRefreshTokens: boolean = false;
+  private createSessionCallback?: (tokens?: Tokens) => void;
+  private expiredSessionCallback?: () => void;
+
+  session: ({ createSession, expiredSession, doRefresh }: SessionParams) => void = async ({
+    createSession,
+    expiredSession,
+    doRefresh = false,
+  }) => {
+    this.createSessionCallback = createSession;
+    this.expiredSessionCallback = expiredSession;
+    this.doRefreshTokens = doRefresh;
+
+    await this.submitSessionCheck();
+  };
+
+  private async submitSessionCheck() {
+    const tokens = await this.getTokens(this.doRefreshTokens);
+
+    if (tokens && this.createSessionCallback) {
+      this.createSessionCallback(this.tokensCache);
+    }
+
+    if (!tokens && this.expiredSessionCallback) {
+      this.expiredSessionCallback();
+    }
+  }
 
   deviceService: DeviceService;
   storageManager: StorageManager;
@@ -118,13 +146,13 @@ export class Passflow {
       this.storageManager.saveTokens(tokens);
       this.setTokensCache(tokens);
       this.subscribeStore.notify(this, PassflowEvent.SignIn);
+      void this.submitSessionCheck();
     }
 
     urlParams.delete('access_token');
     urlParams.delete('refresh_token');
     urlParams.delete('id_token');
     urlParams.delete('client_challenge');
-    urlParams.delete('scopes');
 
     if (urlParams.size > 0)
       window.history.replaceState({}, document.title, `${window.location.pathname}?${urlParams.toString()}`);
@@ -186,8 +214,12 @@ export class Passflow {
 
     const access = parseToken(tokens.access_token);
 
-    if (isTokenExpired(access) && doRefresh) {
-      return this.refreshToken();
+    if (isTokenExpired(access)) {
+      // we have expired token and we need to refresh it or throw error if it's not possible
+      if (doRefresh) return this.refreshToken();
+
+      // we need return undefined here, because we have expired token and we no need to refresh it
+      return undefined;
     } else {
       this.setTokensCache(tokens);
       return tokens;
@@ -225,6 +257,7 @@ export class Passflow {
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
     this.subscribeStore.notify(this, PassflowEvent.SignIn);
+    await this.submitSessionCheck();
     return response;
   }
 
@@ -236,6 +269,7 @@ export class Passflow {
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
     this.subscribeStore.notify(this, PassflowEvent.Register);
+    await this.submitSessionCheck();
     return response;
   }
 
@@ -254,6 +288,7 @@ export class Passflow {
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
     this.subscribeStore.notify(this, PassflowEvent.SignIn);
+    await this.submitSessionCheck();
     return response;
   }
 
@@ -270,6 +305,7 @@ export class Passflow {
     this.storageManager.deleteTokens();
     this.setTokensCache(undefined);
     this.subscribeStore.notify(this, PassflowEvent.SignOut);
+    await this.submitSessionCheck();
     return status;
   }
 
@@ -369,6 +405,7 @@ export class Passflow {
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
     this.subscribeStore.notify(this, PassflowEvent.SignIn);
+    await this.submitSessionCheck();
     return response;
   }
 
@@ -406,6 +443,7 @@ export class Passflow {
       this.storageManager.saveTokens(responseRegisterComplete);
       this.setTokensCache(responseRegisterComplete);
       this.subscribeStore.notify(this, PassflowEvent.Register);
+      await this.submitSessionCheck();
     }
 
     return responseRegisterComplete;
@@ -434,6 +472,7 @@ export class Passflow {
       this.storageManager.saveTokens(responseAuthenticateComplete);
       this.setTokensCache(responseAuthenticateComplete);
       this.subscribeStore.notify(this, PassflowEvent.SignIn);
+      await this.submitSessionCheck();
     }
 
     return responseAuthenticateComplete;
@@ -459,6 +498,7 @@ export class Passflow {
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
     this.subscribeStore.notify(this, PassflowEvent.SignIn);
+    await this.submitSessionCheck();
     return response;
   }
 
