@@ -72,12 +72,12 @@
   ],
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/MadAppGang/aooth-js/issues"
+    "url": "https://github.com/MadAppGang/passflow-js-sdk/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MadAppGang/aooth-js.git",
-    "directory": "packages/aooth-sdk-js"
+    "url": "git+https://github.com/MadAppGang/passflow-js-sdk.git",
+    "directory": "packages/passflow-js-sdk"
   },
   "publishConfig": {
     "access": "public"
