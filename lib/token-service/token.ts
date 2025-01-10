@@ -33,10 +33,3 @@ export enum TokenType {
   signin = 'signin',
   actor = 'actor',
 }
-
-export enum Providers {
-  google = 'google',
-  facebook = 'facebook',
-}
-
-export type ChallengeType = 'none' | 'password' | 'magic_link' | 'otp' | 'recovery_codes' | 'guardian' | 'passkey';

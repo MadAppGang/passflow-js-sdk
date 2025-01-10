@@ -5,7 +5,6 @@ import {
 } from '@simplewebauthn/types';
 import { AxiosRequestConfig } from 'axios';
 
-import { ChallengeType, Providers } from '../token-service';
 import { Tokens } from '../types';
 
 export type RequestOptions<D> = {
@@ -152,7 +151,7 @@ export type PassflowSignUpPayload = {
 };
 
 export type PassflowPasswordlessSignInPayload = {
-  challenge_type: ChallengeType;
+  challenge_type: InternalStrategyChallenge;
   redirect_url: string;
   scopes?: string[];
   create_tenant?: boolean;
@@ -175,23 +174,38 @@ export type PassflowPasswordlessSignInCompletePayload = {
   otp: string;
   device?: string;
   scopes?: string[];
-  challenge_type?: ChallengeType;
+  challenge_type?: InternalStrategyChallenge;
 };
 
-export type FirstFactorFim = {
+export enum Providers {
+  google = 'google',
+  facebook = 'facebook',
+}
+
+export type FimStrategy = {
   fim_type: Providers;
 };
 
-export type FirstFactorInternal = {
-  identity: string;
-  challenge: string;
-  transport: string;
+export type InternalStrategyIdentity = 'id' | 'email' | 'phone' | 'username' | 'anonymous' | 'none';
+export type InternalStrategyChallenge = 'password' | 'otp' | 'magic_link' | 'recovery_codes' | 'guardian' | 'none';
+export type InternalStrategyTransport = 'email' | 'sms' | 'push' | 'socket' | 'authenticator' | 'none';
+
+export type InternalStrategy = {
+  identity: InternalStrategyIdentity;
+  challenge: InternalStrategyChallenge;
+  transport: InternalStrategyTransport;
 };
 
-export type AuthStrategies = {
-  strategy: FirstFactorFim | FirstFactorInternal;
-  type: string;
-};
+export type OtherStrategy = Record<string, never>;
+
+export type AuthTypeStrategy = 'internal' | 'passkey' | 'webauthn' | 'fim' | 'pkce' | 'anonymous';
+
+export type AuthStrategies =
+  | { type: Extract<AuthTypeStrategy, 'internal'>; strategy: InternalStrategy }
+  | { type: Extract<AuthTypeStrategy, 'fim'>; strategy: FimStrategy }
+  | { type: Exclude<AuthTypeStrategy, 'internal' | 'fim'>; strategy: OtherStrategy };
+
+export type AppType = 'web' | 'android' | 'ios' | 'desktop' | 'other';
 
 export type AppSettings = {
   id: string;
@@ -200,21 +214,24 @@ export type AppSettings = {
   name: string;
   description: string;
   offline: boolean;
-  type: string;
+  type: AppType;
   redirect_urls: string[];
   origins: string[];
-  login_app_settings: unknown;
   custom_email_templates: boolean;
   auth_strategies: AuthStrategies[];
+  force_passwordless_login: boolean;
   pkce_enabled: boolean;
-  custom_sms_messages: unknown;
+  custom_sms_messages: boolean;
   registration_allowed: boolean;
-  passwordless_registration_allowed: string | boolean;
+  invite_only_registration: boolean;
+  passwordless_registration_allowed: boolean;
   anonymous_registration_allowed: boolean;
-  create_tenant_on_registration: string;
+  create_tenant_on_registration: 'never' | 'always' | 'optional';
   fim_merge_by_email_allowed: boolean;
   debug_otp_code_allowed: boolean;
   debug_otp_code_for_registration: string;
+
+  login_app_settings?: unknown;
 };
 
 export enum OS {
@@ -223,15 +240,18 @@ export enum OS {
 
 export type PassflowPasskeyRegisterStartPayload = {
   scopes: string[];
-  redirect_url: string;
   relying_party_id: string;
+  key_description?: string;
   create_tenant?: boolean;
+  redirect_url: string;
   phone?: string;
   email?: string;
   username?: string;
-} & ({ email: string } | { phone: string } | { username: string });
+};
 
 export type PassflowPasskeyRegisterStartExtendedPayload = PassflowPasskeyRegisterStartPayload & {
+  challenge_type: 'passkey';
+  intention: 'register';
   device: string;
   os: OS;
 };
@@ -263,7 +283,6 @@ export type PassflowPasskeyAuthenticatePayload = PassflowPasskeyPayload & {
 
 export type PassflowPasskeyAuthenticateStartPayload = {
   relying_party_id: string;
-  redirect_url: string;
   scopes?: string[];
   user_id?: string;
 };
@@ -304,10 +323,11 @@ export type PassflowPasswordPolicySettings = {
 };
 
 export type PassflowPasskeySettings = {
-  name: string;
+  // name: string;
+  id: string;
   display_name: string;
-  id_field: 'email' | 'phone' | 'username';
-  validation: ChallengeType;
+  // id_field: 'email' | 'phone' | 'username';
+  // validation: InternalStrategyChallenge;
   registration?: {
     user_verification: PassflowPasskeyProviderOption;
     authenticator_attachment: 'platform' | 'cross-platform' | 'any';
@@ -340,8 +360,8 @@ export type PassflowUserPasskey = {
   id: string;
   user_id: string;
   name: string;
-  strategy: FirstFactorInternal;
-  challenge_type: ChallengeType;
+  strategy: InternalStrategy;
+  challenge_type: InternalStrategyChallenge;
   strategy_hash: string;
   enrolled_at: Date | string;
   enrollment_challenge_id: string;

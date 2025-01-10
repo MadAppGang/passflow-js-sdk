@@ -143,6 +143,8 @@ export class AuthAPI {
     const defaultPayload: PassflowPasskeyRegisterStartExtendedPayload = {
       ...payload,
       create_tenant: create_tenant ?? false,
+      intention: 'register',
+      challenge_type: 'passkey',
       device: deviceId,
       os,
     };
