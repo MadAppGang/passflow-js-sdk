@@ -30,6 +30,7 @@ import {
   PassflowTenantResponse,
   PassflowUserPasskey,
   PassflowValidationResponse,
+  Providers,
   SettingAPI,
   TenantAPI,
   UserAPI,
@@ -38,7 +39,7 @@ import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL } from './constants';
 import { DeviceService } from './device-service';
 import { StorageManager } from './storage-manager';
 import { PassflowEvent, PassflowStore, PassflowSubscriber } from './store';
-import { Providers, TokenService, TokenType, isTokenExpired, parseToken } from './token-service';
+import { TokenService, TokenType, isTokenExpired, parseToken } from './token-service';
 import { ParsedTokens, SessionParams, Tokens } from './types';
 
 export class Passflow {
