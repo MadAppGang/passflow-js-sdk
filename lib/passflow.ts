@@ -4,33 +4,33 @@ import axios from 'axios';
 
 import {
   AppAPI,
-  AppSettings,
+  type AppSettings,
   AuthAPI,
   OS,
-  PassflowAuthorizationResponse,
-  PassflowConfig,
+  type PassflowAuthorizationResponse,
+  type PassflowConfig,
   PassflowEndpointPaths,
   PassflowError,
-  PassflowInsecureLoginPayload,
-  PassflowInviteResponse,
-  PassflowPasskeyAuthenticateStartPayload,
-  PassflowPasskeyCompleteMessage,
-  PassflowPasskeyCompleteMessageWithTokens,
-  PassflowPasskeyRegisterStartPayload,
-  PassflowPasskeySettings,
-  PassflowPasswordPolicySettings,
-  PassflowPasswordlessResponse,
-  PassflowPasswordlessSignInCompletePayload,
-  PassflowPasswordlessSignInPayload,
-  PassflowSendPasswordResetEmailPayload,
-  PassflowSettingsAll,
-  PassflowSignInPayload,
-  PassflowSignUpPayload,
-  PassflowSuccessResponse,
-  PassflowTenantResponse,
-  PassflowUserPasskey,
-  PassflowValidationResponse,
-  Providers,
+  type PassflowInsecureLoginPayload,
+  type PassflowInviteResponse,
+  type PassflowPasskeyAuthenticateStartPayload,
+  type PassflowPasskeyCompleteMessage,
+  type PassflowPasskeyCompleteMessageWithTokens,
+  type PassflowPasskeyRegisterStartPayload,
+  type PassflowPasskeySettings,
+  type PassflowPasswordPolicySettings,
+  type PassflowPasswordlessResponse,
+  type PassflowPasswordlessSignInCompletePayload,
+  type PassflowPasswordlessSignInPayload,
+  type PassflowSendPasswordResetEmailPayload,
+  type PassflowSettingsAll,
+  type PassflowSignInPayload,
+  type PassflowSignUpPayload,
+  type PassflowSuccessResponse,
+  type PassflowTenantResponse,
+  type PassflowUserPasskey,
+  type PassflowValidationResponse,
+  type Providers,
   SettingAPI,
   TenantAPI,
   UserAPI,
@@ -38,9 +38,10 @@ import {
 import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL } from './constants';
 import { DeviceService } from './device-service';
 import { StorageManager } from './storage-manager';
-import { PassflowEvent, PassflowStore, PassflowSubscriber } from './store';
+import { PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
 import { TokenService, TokenType, isTokenExpired, parseToken } from './token-service';
-import { ParsedTokens, SessionParams, Tokens } from './types';
+
+import type { ParsedTokens, SessionParams, Tokens } from './types';
 
 export class Passflow {
   private authApi: AuthAPI;
@@ -52,7 +53,7 @@ export class Passflow {
   private createTenantForNewUser: boolean;
   private subscribeStore: PassflowStore;
 
-  private doRefreshTokens: boolean = false;
+  private doRefreshTokens = false;
   private createSessionCallback?: (tokens?: Tokens) => void;
   private expiredSessionCallback?: () => void;
 
@@ -426,9 +427,7 @@ export class Passflow {
     return this.settingApi.getPasskeySettings();
   }
 
-  async passkeyRegister(
-    payload: PassflowPasskeyRegisterStartPayload,
-  ): Promise<PassflowAuthorizationResponse | PassflowPasskeyCompleteMessageWithTokens | PassflowPasskeyCompleteMessage> {
+  async passkeyRegister(payload: PassflowPasskeyRegisterStartPayload): Promise<PassflowAuthorizationResponse> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
@@ -439,15 +438,11 @@ export class Passflow {
 
     const responseRegisterComplete = await this.authApi.passkeyRegisterComplete(webauthn, deviceId, challenge_id, !this.appId);
 
-    if ('access_token' in responseRegisterComplete) {
-      responseRegisterComplete.scopes = payload.scopes;
-      this.storageManager.saveTokens(responseRegisterComplete);
-      this.setTokensCache(responseRegisterComplete);
-      this.subscribeStore.notify(this, PassflowEvent.Register);
-      await this.submitSessionCheck();
-    }
-
-    return responseRegisterComplete;
+    responseRegisterComplete.scopes = payload.scopes;
+    this.storageManager.saveTokens(responseRegisterComplete);
+    this.setTokensCache(responseRegisterComplete);
+    this.subscribeStore.notify(this, PassflowEvent.Register);
+    await this.submitSessionCheck();
   }
 
   async passkeyAuthenticate(

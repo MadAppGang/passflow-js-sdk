@@ -239,19 +239,18 @@ export enum OS {
 }
 
 export type PassflowPasskeyRegisterStartPayload = {
+  passkey_display_name?: string;
+  passkey_username?: string;
+  invite?: string;
+
   scopes: string[];
-  relying_party_id: string;
-  key_description?: string;
   create_tenant?: boolean;
+
+  relying_party_id: string;
   redirect_url: string;
-  phone?: string;
-  email?: string;
-  username?: string;
 };
 
 export type PassflowPasskeyRegisterStartExtendedPayload = PassflowPasskeyRegisterStartPayload & {
-  challenge_type: 'passkey';
-  intention: 'register';
   device: string;
   os: OS;
 };
