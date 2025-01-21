@@ -1,6 +1,5 @@
-import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY } from 'lib/constants';
-
 import { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/types';
+import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY } from 'lib/constants';
 
 import { StorageManager } from '../storage-manager';
 
@@ -143,8 +142,6 @@ export class AuthAPI {
     const defaultPayload: PassflowPasskeyRegisterStartExtendedPayload = {
       ...payload,
       create_tenant: create_tenant ?? false,
-      intention: 'register',
-      challenge_type: 'passkey',
       device: deviceId,
       os,
     };
@@ -159,7 +156,7 @@ export class AuthAPI {
     deviceId: string,
     challengeId: string,
     isAdmin = false,
-  ): Promise<PassflowAuthorizationResponse | PassflowPasskeyCompleteMessageWithTokens | PassflowPasskeyCompleteMessage> {
+  ): Promise<PassflowAuthorizationResponse> {
     const payload: PassflowPasskeyRegisterPayload = {
       challenge_id: challengeId,
       device: deviceId,
