@@ -1,5 +1,5 @@
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config'; // Import from 'vitest/config'
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
@@ -20,5 +20,10 @@ export default defineConfig({
     },
     sourcemap: true,
     target: 'es2020',
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom', // or 'node' based on your needs
+    setupFiles: './vitest-setup.ts',
   },
 });

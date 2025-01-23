@@ -1,27 +1,27 @@
-import { StorageManager } from 'lib/storage-manager';
-import { TokenType } from 'lib/token-service';
-
+/// <reference types="vitest" />
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import { StorageManager } from 'lib/storage-manager/index';
+import { TokenType } from 'lib/token-service/token';
 import { FakeStorage } from './fake-storage';
-
 describe('storage manager', () => {
   const storageManager = new StorageManager();
-  let getSpy: jest.SpyInstance<string | null, [key: string], unknown>;
-  let setSpy: jest.SpyInstance<void, [key: string, value: string], unknown>;
-  let removeSpy: jest.SpyInstance<void, [key: string], unknown>;
+  let getSpy: ReturnType<typeof vi.spyOn>;
+  let setSpy: ReturnType<typeof vi.spyOn>;
+  let removeSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     //@ts-expect-error storageManager.storage is private
     storageManager.storage = new FakeStorage();
     //@ts-expect-error storageManager.storage is private
-    getSpy = jest.spyOn(storageManager.storage, 'getItem');
+    getSpy = vi.spyOn(storageManager.storage, 'getItem');
     //@ts-expect-error storageManager.storage is private
-    setSpy = jest.spyOn(storageManager.storage, 'setItem');
+    setSpy = vi.spyOn(storageManager.storage, 'setItem');
     //@ts-expect-error storageManager.storage is private
-    removeSpy = jest.spyOn(storageManager.storage, 'removeItem');
+    removeSpy = vi.spyOn(storageManager.storage, 'removeItem');
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     getSpy.mockReset();
     setSpy.mockReset();
     removeSpy.mockReset();
@@ -33,6 +33,7 @@ describe('storage manager', () => {
       expect(token).toBeUndefined();
       expect(getSpy).toHaveBeenCalledTimes(1);
     });
+
     test('should get token', () => {
       storageManager.saveTokens({ access_token: 'access' });
       let token = storageManager.getToken(TokenType.access_token);
@@ -47,6 +48,7 @@ describe('storage manager', () => {
       expect(getSpy).toHaveBeenCalledTimes(3);
       expect(setSpy).toHaveBeenCalledTimes(1);
     });
+
     test('should get null for unsupported token type', () => {
       storageManager.saveTokens({ access_token: 'access' });
       const token = storageManager.getToken(TokenType.reset_token);
@@ -54,6 +56,7 @@ describe('storage manager', () => {
       expect(getSpy).toHaveBeenCalledTimes(1);
       expect(setSpy).toHaveBeenCalledTimes(1);
     });
+
     test('delete all tokens', () => {
       storageManager.saveTokens({
         access_token: 'access',
@@ -80,6 +83,7 @@ describe('storage manager', () => {
       expect(setSpy).toHaveBeenCalledTimes(3);
       expect(removeSpy).toHaveBeenCalledTimes(4);
     });
+
     test('delete one tokens', () => {
       storageManager.saveTokens({
         access_token: 'access',
@@ -108,6 +112,7 @@ describe('storage manager', () => {
       expect(setSpy).toHaveBeenCalledTimes(3);
       expect(removeSpy).toHaveBeenCalledTimes(1);
     });
+
     test('get tokens test', () => {
       storageManager.saveTokens({
         access_token: 'access',
@@ -133,6 +138,7 @@ describe('storage manager', () => {
       expect(did).toBeUndefined();
       expect(getSpy).toHaveBeenCalledTimes(1);
     });
+
     test('set device id', () => {
       let did = storageManager.getDeviceId();
       expect(did).toBeUndefined();

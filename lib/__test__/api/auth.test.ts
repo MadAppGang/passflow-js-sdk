@@ -9,6 +9,7 @@ import {
   PassflowSignUpPayload,
 } from 'lib/api';
 import { AxiosClient } from 'lib/api/axios-client';
+import { vi } from 'vitest';
 
 const mockResponse = {
   id_token: 'id_token.test.example',
@@ -87,7 +88,7 @@ describe('AuthAPI', () => {
   describe('signIn', () => {
     it('Should sign in with scopes', async () => {
       const payloadWithScopes: PassflowSignInPayload = { ...payload, scopes: ['id', 'profile', 'offline', 'oidc'] };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
       const signInResponse = await authApi.signIn(payloadWithScopes, deviceId, os);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signin, {
@@ -100,7 +101,7 @@ describe('AuthAPI', () => {
 
     it('Should sign in with empty array scopes', async () => {
       const payloadWithEmptyScopes: PassflowSignInPayload = { ...payload, scopes: [] };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInOnlyAccessTokenResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInOnlyAccessTokenResponse);
       const signInResponse = await authApi.signIn(payloadWithEmptyScopes, deviceId, os);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signin, {
@@ -119,7 +120,7 @@ describe('AuthAPI', () => {
         username: 'wrongUsername',
         scopes: ['id', 'profile', 'offline', 'oidc'],
       };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInErrorNotFoundResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInErrorNotFoundResponse);
       const signInResponse = await authApi.signIn(payloadWithWrongData, deviceId, os);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signin, {
@@ -136,7 +137,7 @@ describe('AuthAPI', () => {
         password: 'wrongPassword',
         scopes: ['id', 'profile', 'offline', 'oidc'],
       };
-      const axiosClientGetMock = jest
+      const axiosClientGetMock = vi
         .spyOn(AxiosClient.prototype, 'post')
         .mockResolvedValue(mockSignInErrorIncorrectPasOrUsernameResponse);
       const signInResponse = await authApi.signIn(payloadWithWrongData, deviceId, os);
@@ -158,7 +159,7 @@ describe('AuthAPI', () => {
         create_tenant: false,
         anonymous: false,
       };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
       const signUpResponse = await authApi.signUp(payloadWithScopes);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signup, payloadWithScopes);
@@ -172,7 +173,7 @@ describe('AuthAPI', () => {
         create_tenant: false,
         anonymous: false,
       };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInOnlyAccessTokenResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInOnlyAccessTokenResponse);
       const signUpResponse = await authApi.signUp(payloadWithEmptyScopes);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signup, payloadWithEmptyScopes);
@@ -190,7 +191,7 @@ describe('AuthAPI', () => {
         create_tenant: false,
         anonymous: false,
       };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignUpErrorTakenResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignUpErrorTakenResponse);
       const signUpResponse = await authApi.signUp(payloadWithTakenData);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.signup, payloadWithTakenData);
@@ -207,7 +208,7 @@ describe('AuthAPI', () => {
         create_tenant: true,
         redirect_url: 'https://test-redirect-url.com',
       };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
       const passwordlessStartResponse = await authApi.passwordlessSignIn(payloadWithScopes, deviceId, os);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.passwordless, {
@@ -226,7 +227,7 @@ describe('AuthAPI', () => {
         create_tenant: true,
         redirect_url: 'https://test-redirect-url.com',
       };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
       const passwordlessStartResponse = await authApi.passwordlessSignIn(payloadWithEmptyScopes, deviceId, os);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.passwordless, {
@@ -245,7 +246,7 @@ describe('AuthAPI', () => {
         create_tenant: true,
         redirect_url: 'https://test-redirect-url.com',
       };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignUpErrorTakenResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignUpErrorTakenResponse);
       const signInResponse = await authApi.passwordlessSignIn(payloadWithTakenData, deviceId, os);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.passwordless, {
@@ -266,7 +267,7 @@ describe('AuthAPI', () => {
         scopes: ['id', 'profile', 'offline', 'oidc'],
         device: deviceId,
       };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
       const passwordlessCompleteResponse = await authApi.passwordlessSignInComplete(payloadWithScopes);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.passwordlessComplete, payloadWithScopes);
@@ -281,7 +282,7 @@ describe('AuthAPI', () => {
         scopes: [],
         device: deviceId,
       };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInOnlyAccessTokenResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSignInOnlyAccessTokenResponse);
       const passwordlessCompleteResponse = await authApi.passwordlessSignInComplete(payloadWithEmptyScopes);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.passwordlessComplete, payloadWithEmptyScopes);
@@ -292,7 +293,7 @@ describe('AuthAPI', () => {
   describe('logOut', () => {
     it('Should logout', async () => {
       const refreshToken = 'refreshToken.test.example';
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
       const logoutResponse = await authApi.logOut(deviceId, refreshToken);
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.logout, {
         device: deviceId,
@@ -307,7 +308,7 @@ describe('AuthAPI', () => {
       const accessToken = 'accessToken.test.example';
       const refreshToken = 'refreshToken.test.example';
       const scopes = ['id', 'profile', 'offline', 'oidc'];
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
       const refreshTokenResponse = await authApi.refreshToken(refreshToken, scopes, accessToken);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(
@@ -322,7 +323,7 @@ describe('AuthAPI', () => {
   describe('sendPasswordResetEmail', () => {
     it('Should request to reset password', async () => {
       const sendPasswordResetPayload = { email: 'test@example.com' };
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockSuccessResponse);
       const sendPasswordResetEmailResponse = await authApi.sendPasswordResetEmail(sendPasswordResetPayload);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.sendPasswordResetEmail, sendPasswordResetPayload);
@@ -336,7 +337,7 @@ describe('AuthAPI', () => {
     const scopes = ['id', 'profile', 'offline', 'oidc'];
 
     it('Should reset/change password', async () => {
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResponse);
       const resetPasswordResponse = await authApi.resetPassword(newPassword, scopes, resetToken);
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(
@@ -348,9 +349,7 @@ describe('AuthAPI', () => {
     });
 
     it('Should block token', async () => {
-      const axiosClientGetMock = jest
-        .spyOn(AxiosClient.prototype, 'post')
-        .mockResolvedValue(mockResetPasswordBlockTokenResponse);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'post').mockResolvedValue(mockResetPasswordBlockTokenResponse);
       const resetPasswordResponse = await authApi.resetPassword(newPassword, scopes, 'blockedToken');
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(

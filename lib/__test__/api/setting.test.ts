@@ -1,5 +1,6 @@
 import { PassflowConfig, PassflowEndpointPaths, SettingAPI } from 'lib/api';
 import { AxiosClient } from 'lib/api/axios-client';
+import { vi } from 'vitest';
 
 const mockSettingsAll = {
   password_policy: {
@@ -41,7 +42,7 @@ describe('AppAPI', () => {
 
   describe('getSettingsAll', () => {
     it('Should call getSettingAll method', async () => {
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockSettingsAll);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockSettingsAll);
       const settings = await settingAPI.getSettingsAll();
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.settingsAll);
@@ -51,7 +52,7 @@ describe('AppAPI', () => {
 
   describe('getPasswordPolicySettings', () => {
     it('Should call getPasswordPolicySettings method', async () => {
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockSettingsAll.password_policy);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockSettingsAll.password_policy);
       const settings = await settingAPI.getPasswordPolicySettings();
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.settingsPasswordPolicy);
@@ -61,7 +62,7 @@ describe('AppAPI', () => {
 
   describe('getPasskeySettings', () => {
     it('Should call getPasskeySettings method', async () => {
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockSettingsAll.passkey_provider);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockSettingsAll.passkey_provider);
       const settings = await settingAPI.getPasskeySettings();
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.settingsPasskey);
