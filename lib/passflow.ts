@@ -147,7 +147,7 @@ export class Passflow {
       this.storageManager.saveTokens(tokens);
       this.setTokensCache(tokens);
       this.subscribeStore.notify(this, PassflowEvent.SignIn);
-      void this.submitSessionCheck();
+      this.submitSessionCheck();
     }
 
     urlParams.delete('access_token');
@@ -208,10 +208,10 @@ export class Passflow {
     window.location.href = this.generateExternalAoothUrl(cloudAoothUrl, scopes);
   }
 
-  async getTokens(doRefresh: boolean): Promise<Tokens | undefined> {
+  getTokens(doRefresh: boolean): Promise<Tokens | undefined> {
     const tokens = this.storageManager.getTokens();
     // we have not token in storage
-    if (!tokens || !tokens.access_token) return undefined;
+    if (!tokens || !tokens.access_token) return Promise.resolve(undefined);
 
     const access = parseToken(tokens.access_token);
 
@@ -220,10 +220,10 @@ export class Passflow {
       if (doRefresh) return this.refreshToken();
 
       // we need return undefined here, because we have expired token and we no need to refresh it
-      return undefined;
+      return Promise.resolve(undefined);
     } else {
       this.setTokensCache(tokens);
-      return tokens;
+      return Promise.resolve(tokens);
     }
   }
 
@@ -274,7 +274,7 @@ export class Passflow {
     return response;
   }
 
-  async passwordlessSignIn(payload: PassflowPasswordlessSignInPayload): Promise<PassflowPasswordlessResponse> {
+  passwordlessSignIn(payload: PassflowPasswordlessSignInPayload): Promise<PassflowPasswordlessResponse> {
     payload.scopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
@@ -392,7 +392,7 @@ export class Passflow {
     throw new Error('Unexpected behavior');
   }
 
-  async sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {
+  sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {
     return this.authApi.sendPasswordResetEmail(payload);
   }
 
@@ -410,19 +410,19 @@ export class Passflow {
     return response;
   }
 
-  async getAppSettings(): Promise<AppSettings> {
+  getAppSettings(): Promise<AppSettings> {
     return this.appApi.getAppSettings();
   }
 
-  async getSettingsAll(): Promise<PassflowSettingsAll> {
+  getSettingsAll(): Promise<PassflowSettingsAll> {
     return this.settingApi.getSettingsAll();
   }
 
-  async getPasswordPolicySettings(): Promise<PassflowPasswordPolicySettings> {
+  getPasswordPolicySettings(): Promise<PassflowPasswordPolicySettings> {
     return this.settingApi.getPasswordPolicySettings();
   }
 
-  async getPasskeySettings(): Promise<PassflowPasskeySettings> {
+  getPasskeySettings(): Promise<PassflowPasskeySettings> {
     return this.settingApi.getPasskeySettings();
   }
 
@@ -502,15 +502,15 @@ export class Passflow {
     return response;
   }
 
-  async getUserPasskeys(): Promise<PassflowUserPasskey> {
+  getUserPasskeys(): Promise<PassflowUserPasskey> {
     return this.userApi.getUserPasskeys();
   }
 
-  async renameUserPasskey(name: string, passkeyId: string): Promise<PassflowSuccessResponse> {
+  renameUserPasskey(name: string, passkeyId: string): Promise<PassflowSuccessResponse> {
     return this.userApi.renameUserPasskey(name, passkeyId);
   }
 
-  async deleteUserPasskey(passkeyId: string): Promise<PassflowSuccessResponse> {
+  deleteUserPasskey(passkeyId: string): Promise<PassflowSuccessResponse> {
     return this.userApi.deleteUserPasskey(passkeyId);
   }
 
@@ -543,7 +543,7 @@ export class Passflow {
     return responseCreateComplete;
   }
 
-  async joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {
+  joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {
     const sscopes = scopes ?? this.scopes;
     return this.tenantAPI.joinInvitation(token, sscopes);
   }
