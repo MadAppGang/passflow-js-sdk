@@ -1,5 +1,6 @@
 import { AppAPI, PassflowConfig, PassflowEndpointPaths } from 'lib/api';
 import { AxiosClient } from 'lib/api/axios-client';
+import { vi } from 'vitest';
 
 const mockAppSettings = {
   id: '2UOCBvXSzD6HNDyLXXNAnRO9zuu',
@@ -79,7 +80,7 @@ describe('AppAPI', () => {
 
   describe('getAppSettings', () => {
     it('Should call get method with the correct appId', async () => {
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockAppSettings);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockAppSettings);
       const appSettings = await appAPI.getAppSettings();
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.appSettings);
@@ -87,7 +88,7 @@ describe('AppAPI', () => {
     });
 
     it('Should call get method with the incorrect appId', async () => {
-      const axiosClientGetMock = jest.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockAppSettingsError);
+      const axiosClientGetMock = vi.spyOn(AxiosClient.prototype, 'get').mockResolvedValue(mockAppSettingsError);
       const appSettings = await appAPI.getAppSettings();
 
       expect(axiosClientGetMock).toHaveBeenCalledWith(PassflowEndpointPaths.appSettings);

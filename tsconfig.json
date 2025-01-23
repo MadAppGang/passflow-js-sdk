@@ -31,7 +31,8 @@
     "emitDeclarationOnly": true,
     "paths": {
       "lib/*": ["lib/*"]
-    }
+    },
+    "types": ["vitest/globals", "vitest"]
   },
   "include": ["lib", "jest.config.cjs", ".eslintrc.cjs"],
   "exclude": ["dist", "node_modules"]
