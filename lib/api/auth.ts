@@ -39,7 +39,7 @@ export class AuthAPI {
     this.axiosClient = new AxiosClient(config);
   }
 
-  async refreshToken(refreshToken: string, scopes: string[], accessToken?: string): Promise<PassflowAuthorizationResponse> {
+  refreshToken(refreshToken: string, scopes: string[], accessToken?: string): Promise<PassflowAuthorizationResponse> {
     const payload = {
       access: accessToken,
       scopes,
@@ -52,7 +52,7 @@ export class AuthAPI {
     });
   }
 
-  async signIn(payload: PassflowSignInPayload, deviceId: string, os: OS): Promise<PassflowAuthorizationResponse> {
+  signIn(payload: PassflowSignInPayload, deviceId: string, os: OS): Promise<PassflowAuthorizationResponse> {
     const defaultPayload: PassflowSignInExtendedPayload = {
       ...payload,
       device: deviceId,
@@ -64,7 +64,7 @@ export class AuthAPI {
     );
   }
 
-  async signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
+  signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
     const { create_tenant, anonymous } = payload;
     const defaultPayload: PassflowSignUpPayload = {
       ...payload,
@@ -77,7 +77,7 @@ export class AuthAPI {
     );
   }
 
-  async passwordlessSignIn(
+  passwordlessSignIn(
     payload: PassflowPasswordlessSignInPayload,
     deviceId: string,
     os: OS,
@@ -95,28 +95,28 @@ export class AuthAPI {
     );
   }
 
-  async passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
+  passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
     return this.axiosClient.post<PassflowValidationResponse, PassflowPasswordlessSignInCompletePayload>(
       PassflowEndpointPaths.passwordlessComplete,
       payload,
     );
   }
 
-  async logOut(deviceId?: string, refreshToken?: string, isAdmin = false): Promise<PassflowSuccessResponse> {
+  logOut(deviceId?: string, refreshToken?: string, isAdmin = false): Promise<PassflowSuccessResponse> {
     const payload = !isAdmin ? { refresh_token: refreshToken, device: deviceId } : undefined;
     const endpoint = isAdmin ? PassflowAdminEndpointPaths.logout : PassflowEndpointPaths.logout;
 
     return this.axiosClient.post<PassflowSuccessResponse, typeof payload>(endpoint, payload);
   }
 
-  async sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {
+  sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {
     return this.axiosClient.post<PassflowSuccessResponse, typeof payload>(
       PassflowEndpointPaths.sendPasswordResetEmail,
       payload,
     );
   }
 
-  async resetPassword(newPassword: string, scopes: string[], resetToken?: string): Promise<PassflowAuthorizationResponse> {
+  resetPassword(newPassword: string, scopes: string[], resetToken?: string): Promise<PassflowAuthorizationResponse> {
     const payload = {
       password: newPassword,
       scopes,
@@ -130,7 +130,7 @@ export class AuthAPI {
     });
   }
 
-  async passkeyRegisterStart(
+  passkeyRegisterStart(
     payload: PassflowPasskeyRegisterStartPayload,
     deviceId: string,
     os: OS,
@@ -149,7 +149,7 @@ export class AuthAPI {
     return this.axiosClient.post<PassflowPasskeyStart, PassflowPasskeyRegisterStartExtendedPayload>(endpoint, defaultPayload);
   }
 
-  async passkeyRegisterComplete(
+  passkeyRegisterComplete(
     passkeyData: RegistrationResponseJSON,
     deviceId: string,
     challengeId: string,
@@ -168,7 +168,7 @@ export class AuthAPI {
     return this.axiosClient.post<PassflowAuthorizationResponse, PassflowPasskeyRegisterPayload>(endpoint, payload);
   }
 
-  async passkeyAuthenticateStart(
+  passkeyAuthenticateStart(
     payload: PassflowPasskeyAuthenticateStartPayload,
     deviceId: string,
     os: OS,
@@ -191,7 +191,7 @@ export class AuthAPI {
     );
   }
 
-  async passkeyAuthenticateComplete(
+  passkeyAuthenticateComplete(
     passkeyData: AuthenticationResponseJSON,
     deviceId: string,
     challengeId: string,
@@ -210,7 +210,7 @@ export class AuthAPI {
     return this.axiosClient.post<PassflowAuthorizationResponse, PassflowPasskeyAuthenticatePayload>(endpoint, payload);
   }
 
-  async passkeyValidate(
+  passkeyValidate(
     otp: string,
     deviceId: string,
     challengeId: string,
@@ -234,7 +234,7 @@ export class AuthAPI {
     return this.axiosClient.post<PassflowValidationResponse, PassflowValidatePayload>(endpoint, payload, { headers });
   }
 
-  async loginInsecure(payload: PassflowInsecureLoginPayload): Promise<PassflowAuthorizationResponse> {
+  loginInsecure(payload: PassflowInsecureLoginPayload): Promise<PassflowAuthorizationResponse> {
     return this.axiosClient.post<PassflowAuthorizationResponse, PassflowInsecureLoginPayload>(
       PassflowAdminEndpointPaths.loginInsecure,
       payload,

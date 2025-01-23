@@ -32,7 +32,10 @@
     ],
     "outDir": "./dist",
     "baseUrl": "./",
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
+    "paths": {
+      "lib/*": ["lib/*"]
+    }
   },
   "include": [
     "lib",
