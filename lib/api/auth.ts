@@ -14,8 +14,6 @@ import {
   PassflowPasskeyAuthenticatePayload,
   PassflowPasskeyAuthenticateStartExtendedPayload,
   PassflowPasskeyAuthenticateStartPayload,
-  PassflowPasskeyCompleteMessage,
-  PassflowPasskeyCompleteMessageWithTokens,
   PassflowPasskeyRegisterPayload,
   PassflowPasskeyRegisterStartExtendedPayload,
   PassflowPasskeyRegisterStartPayload,

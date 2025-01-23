@@ -15,7 +15,6 @@ import {
   type PassflowInviteResponse,
   type PassflowPasskeyAuthenticateStartPayload,
   type PassflowPasskeyCompleteMessage,
-  type PassflowPasskeyCompleteMessageWithTokens,
   type PassflowPasskeyRegisterStartPayload,
   type PassflowPasskeySettings,
   type PassflowPasswordPolicySettings,
@@ -434,7 +433,9 @@ export class Passflow {
     payload.create_tenant = this.createTenantForNewUser;
     const { challenge_id, publicKey } = await this.authApi.passkeyRegisterStart(payload, deviceId, os, !this.appId);
 
-    const webauthn = await startRegistration(publicKey);
+    const webauthn = await startRegistration({
+      optionsJSON: publicKey,
+    });
 
     const responseRegisterComplete = await this.authApi.passkeyRegisterComplete(webauthn, deviceId, challenge_id, !this.appId);
 
@@ -443,6 +444,7 @@ export class Passflow {
     this.setTokensCache(responseRegisterComplete);
     this.subscribeStore.notify(this, PassflowEvent.Register);
     await this.submitSessionCheck();
+    return responseRegisterComplete;
   }
 
   async passkeyAuthenticate(
@@ -454,7 +456,9 @@ export class Passflow {
 
     const { challenge_id, publicKey } = await this.authApi.passkeyAuthenticateStart(payload, deviceId, os, !this.appId);
 
-    const webauthn = await startAuthentication(publicKey);
+    const webauthn = await startAuthentication({
+      optionsJSON: publicKey,
+    });
 
     const responseAuthenticateComplete = await this.authApi.passkeyAuthenticateComplete(
       webauthn,
@@ -525,7 +529,7 @@ export class Passflow {
       scopes,
     );
 
-    const webauthn = await startRegistration(publicKey);
+    const webauthn = await startRegistration({ optionsJSON: publicKey });
 
     const responseCreateComplete = await this.userApi.createUserPasskeyComplete(webauthn, deviceId, challenge_id);
 
