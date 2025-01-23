@@ -1,6 +1,6 @@
 // PassflowEvent store event
 
-import { Passflow } from './passflow';
+import type { Passflow } from './passflow';
 
 export enum PassflowEvent {
   SignIn = 'passflow_event_signin',
@@ -22,16 +22,22 @@ type subscribersMap = {
 export class PassflowStore {
   private allEvents = [PassflowEvent.SignIn, PassflowEvent.SignOut, PassflowEvent.Register, PassflowEvent.Error];
   private subscribers: subscribersMap = {};
-  constructor() {}
 
   subscribe(s: PassflowSubscriber, t?: PassflowEvent[]) {
     const types = !t || !t.length ? this.allEvents : t;
-    types.forEach((tt) => (this.subscribers[tt] = [...(this.subscribers[tt] ?? []), s]));
+    types.forEach((tt) => {
+      const currentSubscribers = this.subscribers[tt] ?? [];
+      this.subscribers[tt] = [...currentSubscribers, s];
+    });
   }
 
   unsubscribe(s: PassflowSubscriber, t?: PassflowEvent[]) {
     const types = !t || !t.length ? this.allEvents : t;
-    types.forEach((tt) => (this.subscribers[tt] = this.subscribers[tt]?.filter((ss) => ss !== s)));
+    types.forEach((tt) => {
+      if (this.subscribers[tt]) {
+        this.subscribers[tt] = this.subscribers[tt].filter((ss) => ss !== s);
+      }
+    });
   }
 
   notify(a: Passflow, t: PassflowEvent) {

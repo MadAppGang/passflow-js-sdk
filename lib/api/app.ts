@@ -1,5 +1,5 @@
 import { AxiosClient } from './axios-client';
-import { AppSettings, PassflowConfig, PassflowEndpointPaths } from './model';
+import { type AppSettings, type PassflowConfig, PassflowEndpointPaths } from './model';
 
 export class AppAPI {
   protected axiosClient: AxiosClient;
@@ -8,7 +8,7 @@ export class AppAPI {
     this.axiosClient = new AxiosClient(config);
   }
 
-  async getAppSettings(): Promise<AppSettings> {
+  getAppSettings(): Promise<AppSettings> {
     return this.axiosClient.get<AppSettings>(PassflowEndpointPaths.appSettings);
   }
 }
