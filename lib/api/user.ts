@@ -20,11 +20,11 @@ export class UserAPI {
     this.axiosClient = new AxiosClient(config);
   }
 
-  async getUserPasskeys(): Promise<PassflowUserPasskey> {
+  getUserPasskeys(): Promise<PassflowUserPasskey> {
     return this.axiosClient.get<PassflowUserPasskey>(PassflowEndpointPaths.userPasskey);
   }
 
-  async renameUserPasskey(name: string, passkeyId: string): Promise<PassflowSuccessResponse> {
+  renameUserPasskey(name: string, passkeyId: string): Promise<PassflowSuccessResponse> {
     return this.axiosClient.patch<PassflowSuccessResponse, { name: string }>(
       `${PassflowEndpointPaths.userPasskey}/${passkeyId}`,
       {
@@ -33,11 +33,11 @@ export class UserAPI {
     );
   }
 
-  async deleteUserPasskey(passkeyId: string): Promise<PassflowSuccessResponse> {
+  deleteUserPasskey(passkeyId: string): Promise<PassflowSuccessResponse> {
     return this.axiosClient.delete<PassflowSuccessResponse>(`${PassflowEndpointPaths.userPasskey}/${passkeyId}`);
   }
 
-  async createUserPasskeyStart(
+  createUserPasskeyStart(
     relyingPartyId: string,
     deviceId: string,
     os: OS,
@@ -57,7 +57,7 @@ export class UserAPI {
     return this.axiosClient.post<PassflowPasskeyStart, typeof payload>(PassflowEndpointPaths.addUserPasskey, payload);
   }
 
-  async createUserPasskeyComplete(
+  createUserPasskeyComplete(
     passkeyData: RegistrationResponseJSON,
     deviceId: string,
     challengeId: string,

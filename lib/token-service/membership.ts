@@ -47,9 +47,8 @@ export const parseMembership = (raw: RawUserMembership): UserMembership => {
     }
     const tnt: TenantMembership = { tenant: { id: v.tenant_id, name: v.tenant_name } };
     tnt.groups = Object.keys(v.groups).map((gk) => {
-      // v.groups[gk] should always have values, as it is a required field
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      return { group: { id: gk, name: v.group_names[gk] ?? 'unknown' }, roles: v.groups[gk]! };
+      const roles = v.groups[gk] || [];
+      return { group: { id: gk, name: v.group_names[gk] ?? 'unknown' }, roles };
     });
     tnt.tenantRoles = tnt.groups?.find((g) => g.group.id === v.root_group_id);
     tenants.push(tnt);

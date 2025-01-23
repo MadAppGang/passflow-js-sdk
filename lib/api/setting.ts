@@ -1,10 +1,10 @@
 import { AxiosClient } from './axios-client';
 import {
-  PassflowConfig,
+  type PassflowConfig,
   PassflowEndpointPaths,
-  PassflowPasskeySettings,
-  PassflowPasswordPolicySettings,
-  PassflowSettingsAll,
+  type PassflowPasskeySettings,
+  type PassflowPasswordPolicySettings,
+  type PassflowSettingsAll,
 } from './model';
 
 export class SettingAPI {
@@ -14,15 +14,15 @@ export class SettingAPI {
     this.axiosClient = new AxiosClient(config);
   }
 
-  async getSettingsAll(): Promise<PassflowSettingsAll> {
+  getSettingsAll(): Promise<PassflowSettingsAll> {
     return this.axiosClient.get<PassflowSettingsAll>(PassflowEndpointPaths.settingsAll);
   }
 
-  async getPasswordPolicySettings(): Promise<PassflowPasswordPolicySettings> {
+  getPasswordPolicySettings(): Promise<PassflowPasswordPolicySettings> {
     return this.axiosClient.get<PassflowPasswordPolicySettings>(PassflowEndpointPaths.settingsPasswordPolicy);
   }
 
-  async getPasskeySettings(): Promise<PassflowPasskeySettings> {
+  getPasskeySettings(): Promise<PassflowPasskeySettings> {
     return this.axiosClient.get<PassflowPasskeySettings>(PassflowEndpointPaths.settingsPasskey);
   }
 }

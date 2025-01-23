@@ -15,7 +15,7 @@ export class TenantAPI {
     this.axiosClient = new AxiosClient(config);
   }
 
-  async joinInvitation(token: string, scopes: string[]): Promise<PassflowInviteResponse> {
+  joinInvitation(token: string, scopes: string[]): Promise<PassflowInviteResponse> {
     const payload = {
       invite: token,
       scopes,
@@ -24,7 +24,7 @@ export class TenantAPI {
     return this.axiosClient.post<PassflowInviteResponse, PassflowInvitePayload>(PassflowEndpointPaths.joinInvitation, payload);
   }
 
-  async createTenant(name: string): Promise<PassflowTenantResponse> {
+  createTenant(name: string): Promise<PassflowTenantResponse> {
     const payload = {
       name,
     };
