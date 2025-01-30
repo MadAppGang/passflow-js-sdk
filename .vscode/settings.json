@@ -17,5 +17,8 @@
     "editor.defaultFormatter": "biomejs.biome"
   },
   "biome.enabled": true,
-  "cSpell.words": ["PASSFLOW"]
+  "cSpell.words": [
+    "PASSFLOW",
+    "passwordless"
+  ]
 }

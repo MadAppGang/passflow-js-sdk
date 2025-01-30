@@ -3,10 +3,8 @@ import { RegistrationResponseJSON } from '@simplewebauthn/types';
 import { AxiosClient } from './axios-client';
 import {
   OS,
-  PassflowAuthorizationResponse,
   PassflowConfig,
   PassflowEndpointPaths,
-  PassflowPasskeyCompleteMessage,
   PassflowPasskeyRegisterPayload,
   PassflowPasskeyStart,
   PassflowSuccessResponse,
@@ -20,8 +18,8 @@ export class UserAPI {
     this.axiosClient = new AxiosClient(config);
   }
 
-  getUserPasskeys(): Promise<PassflowUserPasskey> {
-    return this.axiosClient.get<PassflowUserPasskey>(PassflowEndpointPaths.userPasskey);
+  getUserPasskeys() {
+    return this.axiosClient.get<PassflowUserPasskey[]>(PassflowEndpointPaths.userPasskey);
   }
 
   renameUserPasskey(name: string, passkeyId: string): Promise<PassflowSuccessResponse> {
@@ -37,40 +35,35 @@ export class UserAPI {
     return this.axiosClient.delete<PassflowSuccessResponse>(`${PassflowEndpointPaths.userPasskey}/${passkeyId}`);
   }
 
-  createUserPasskeyStart(
-    relyingPartyId: string,
-    deviceId: string,
-    os: OS,
-    createTenant: boolean,
-    scopes: string[],
-  ): Promise<PassflowPasskeyStart> {
+  addUserPasskeyStart({
+    relyingPartyId,
+    deviceId,
+    os,
+    passkeyDisplayName,
+    passkeyUsername,
+  }: {
+    relyingPartyId: string;
+    deviceId: string;
+    os: OS;
+    passkeyDisplayName?: string;
+    passkeyUsername?: string;
+  }): Promise<PassflowPasskeyStart> {
     const payload = {
+      passkey_display_name: passkeyDisplayName,
+      passkey_username: passkeyUsername,
       relying_party_id: relyingPartyId,
       deviceId,
       os,
-      createTenant,
-      scopes,
-      challenge_type: 'passkey',
-      intention: 'register',
     };
 
     return this.axiosClient.post<PassflowPasskeyStart, typeof payload>(PassflowEndpointPaths.addUserPasskey, payload);
   }
 
-  createUserPasskeyComplete(
-    passkeyData: RegistrationResponseJSON,
-    deviceId: string,
-    challengeId: string,
-  ): Promise<PassflowAuthorizationResponse | PassflowPasskeyCompleteMessage> {
-    const payload: PassflowPasskeyRegisterPayload = {
+  addUserPasskeyComplete(passkeyData: RegistrationResponseJSON, deviceId: string, challengeId: string): Promise<void> {
+    return this.axiosClient.post<void, PassflowPasskeyRegisterPayload>(PassflowEndpointPaths.completeAddUserPasskey, {
       challenge_id: challengeId,
       device: deviceId,
       passkey_data: passkeyData,
-    };
-
-    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowPasskeyRegisterPayload>(
-      PassflowEndpointPaths.completeAddUserPasskey,
-      payload,
-    );
+    });
   }
 }

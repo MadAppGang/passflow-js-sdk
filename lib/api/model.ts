@@ -52,7 +52,6 @@ export enum PassflowAdminEndpointPaths {
   passkeyAuthenticateStart = '/admin/auth/passkey/authenticate/start',
   passkeyAuthenticateComplete = '/admin/auth/passkey/authenticate/complete',
   passkeyValidate = '/admin/auth/validate',
-  loginInsecure = '/admin/auth/insecure_login',
   logout = '/admin/auth/logout',
 }
 
@@ -260,12 +259,7 @@ export type PassflowPasskeyStart = {
   publicKey: PublicKeyCredentialCreationOptionsJSON;
 };
 
-export type PassflowPasskeyCompleteMessage = {
-  challenge_id: string;
-  message: string;
-};
-
-export type PassflowPasskeyCompleteMessageWithTokens = Tokens & PassflowPasskeyCompleteMessage;
+export type PassflowPasskeyCompleteMessageWithTokens = Tokens;
 
 export type PassflowPasskeyPayload = {
   device: string;
@@ -295,11 +289,6 @@ export type PassflowValidatePayload = {
   otp: string;
   device: string;
   challenge_id: string;
-};
-
-export type PassflowInsecureLoginPayload = {
-  email: string;
-  password: string;
 };
 
 // SETTINGS
