@@ -1,9 +1,19 @@
 import path from 'path';
 import { defineConfig } from 'vitest/config'; // Import from 'vitest/config'
 import tsconfigPaths from 'vite-tsconfig-paths';
+import dts from 'vite-plugin-dts';
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  plugins: [
+    tsconfigPaths(),
+    dts({
+      insertTypesEntry: true,
+      rollupTypes: true,
+      outDir: './dist',
+      entryRoot: './lib',
+      tsconfigPath: './tsconfig.json'
+    })
+  ],
   build: {
     lib: {
       entry: path.resolve(__dirname, 'lib/index.ts'),

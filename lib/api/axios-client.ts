@@ -71,76 +71,82 @@ export class AxiosClient {
     });
 
     this.instance.interceptors.response.use(
-      (response) => response,
+      (response: AxiosResponse) => response,
       (e: AxiosError) => this.handleAxiosError(e),
     );
   }
 
   // eslint-disable-next-line complexity
   private async handleAxiosError(e: AxiosError): Promise<unknown> {
+    console.log(`Hangling error: ${JSON.stringify(e, null, 4)}`);
+
     /* Passflow returns 400 error if token has expired */
     const originalRequest = e.config;
     const accessToken = this.storageManager.getToken(TokenType.access_token);
     const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
 
-    if (e.response && refreshToken && originalRequest) {
-      const status = e.response.status as HttpStatuses;
-      const errorData = e.response.data as Error;
-      if ('message' in errorData) return Promise.reject(e);
+    // Handle network
+    if (!e.response) {
+      return Promise.reject(e);
+    }
 
+    const status = e.response.status as HttpStatuses;
+    const errorData = e.response.data as Record<string, unknown>;
+
+    // If we have a response with error data in Passflow format
+    if ('error' in errorData && typeof errorData.error === 'object' && errorData.error !== null) {
       const { error } = errorData as PassflowResponseError;
 
-      if (status === HttpStatuses.internalServerError || error.id === 'error.token.blocked') return Promise.reject(e);
-      if (status === HttpStatuses.badRequest && error.id.includes('token')) {
-        const payload = {
-          access: accessToken,
-          scopes: DEFAULT_SCOPES,
-        };
+      // Handle token refresh
+      if (refreshToken && originalRequest && status === HttpStatuses.badRequest && error.id.includes('token')) {
+        try {
+          const payload = {
+            access: accessToken,
+            scopes: DEFAULT_SCOPES,
+          };
 
-        const tokens = await this.post<PassflowAuthorizationResponse, typeof payload>(PassflowEndpointPaths.refresh, payload, {
-          headers: {
-            [AUTHORIZATION_HEADER_KEY]: `Bearer ${refreshToken}`,
-          },
-        });
+          const tokens = await this.instance.post<typeof payload, PassflowAuthorizationResponse>(
+            PassflowEndpointPaths.refresh,
+            payload,
+            {
+              headers: {
+                [AUTHORIZATION_HEADER_KEY]: `Bearer ${refreshToken}`,
+              },
+            },
+          );
 
-        this.storageManager.saveTokens(tokens);
-        originalRequest.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${tokens.access_token}`;
-        return this.instance(originalRequest);
+          this.storageManager.saveTokens(tokens);
+          originalRequest.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${tokens.access_token}`;
+          return this.instance(originalRequest);
+        } catch (_refreshError) {
+          // If token refresh fails, return the original error
+          return Promise.reject(new PassflowError(error));
+        }
       }
+
+      // Return Passflow error for all other cases
+      return Promise.reject(new PassflowError(error));
     }
 
-    return Promise.reject(e);
-  }
-
-  private handleResponse<T>(response: AxiosResponse<T>): T {
-    if (response.status >= 200 && response.status < 300) {
-      return response.data;
-    } else {
-      throw new Error(`Request failed with status ${response.status}`);
-    }
-  }
-
-  private handleError(e: unknown): never {
-    if (axios.isAxiosError(e) && e.response) {
-      const { error } = e.response.data as PassflowResponseError;
-      throw new PassflowError(error);
-    }
-
-    throw e;
+    // For non-Passflow format errors, create a generic PassflowError
+    return Promise.reject(
+      new PassflowError({
+        id: `error.http.${status}`,
+        message: e.message || 'An error occurred',
+        status: status,
+        location: e.config?.url || 'unknown',
+        time: new Date().toISOString(),
+      }),
+    );
   }
 
   private async send<T, D>(method: RequestMethod, path: string, options?: RequestOptions<D>): Promise<T> {
-    try {
-      const response = await this.instance.request<T>({
-        method,
-        url: path,
-        ...options,
-      });
-
-      return this.handleResponse<T>(response);
-    } catch (e) {
-      this.handleError(e);
-    }
+    const response = await this.instance.request<T>({
+      method,
+      url: path,
+      ...options,
+    });
+    return response.data;
   }
 
   get<T>(path: string, config?: AxiosRequestConfig): Promise<T> {

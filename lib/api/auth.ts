@@ -10,7 +10,6 @@ import {
   PassflowAuthorizationResponse,
   PassflowConfig,
   PassflowEndpointPaths,
-  PassflowInsecureLoginPayload,
   PassflowPasskeyAuthenticatePayload,
   PassflowPasskeyAuthenticateStartExtendedPayload,
   PassflowPasskeyAuthenticateStartPayload,
@@ -232,12 +231,5 @@ export class AuthAPI {
     const headers = appId ? { [APP_ID_HEADER_KEY]: appId } : {};
 
     return this.axiosClient.post<PassflowValidationResponse, PassflowValidatePayload>(endpoint, payload, { headers });
-  }
-
-  loginInsecure(payload: PassflowInsecureLoginPayload): Promise<PassflowAuthorizationResponse> {
-    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowInsecureLoginPayload>(
-      PassflowAdminEndpointPaths.loginInsecure,
-      payload,
-    );
   }
 }

@@ -11,10 +11,8 @@ import {
   type PassflowConfig,
   PassflowEndpointPaths,
   PassflowError,
-  type PassflowInsecureLoginPayload,
   type PassflowInviteResponse,
   type PassflowPasskeyAuthenticateStartPayload,
-  type PassflowPasskeyCompleteMessage,
   type PassflowPasskeyRegisterStartPayload,
   type PassflowPasskeySettings,
   type PassflowPasswordPolicySettings,
@@ -27,7 +25,6 @@ import {
   type PassflowSignUpPayload,
   type PassflowSuccessResponse,
   type PassflowTenantResponse,
-  type PassflowUserPasskey,
   type PassflowValidationResponse,
   type Providers,
   SettingAPI,
@@ -447,9 +444,7 @@ export class Passflow {
     return responseRegisterComplete;
   }
 
-  async passkeyAuthenticate(
-    payload: PassflowPasskeyAuthenticateStartPayload,
-  ): Promise<PassflowAuthorizationResponse | PassflowPasskeyCompleteMessage> {
+  async passkeyAuthenticate(payload: PassflowPasskeyAuthenticateStartPayload): Promise<PassflowAuthorizationResponse> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
@@ -478,31 +473,15 @@ export class Passflow {
     return responseAuthenticateComplete;
   }
 
-  // TODO: Question, why do we need validate passkey with otp?
-  // TODO: and if we need, how to get scopes here?
-  async passkeyValidate(otp: string, challengeId: string, appId?: string): Promise<PassflowValidationResponse> {
-    const deviceId = this.deviceService.getDeviceId();
-
-    const responseValidate = await this.authApi.passkeyValidate(otp, deviceId, challengeId, !this.appId, appId);
-
-    if ('access_token' in responseValidate) {
-      this.storageManager.saveTokens(responseValidate);
-      this.setTokensCache(responseValidate);
-    }
-
-    return responseValidate;
-  }
-
-  async loginInsecure(payload: PassflowInsecureLoginPayload): Promise<PassflowAuthorizationResponse> {
-    const response = await this.authApi.loginInsecure(payload);
-    this.storageManager.saveTokens(response);
-    this.setTokensCache(response);
+  async setTokens(tokens: Tokens): Promise<Tokens> {
+    this.storageManager.saveTokens(tokens);
+    this.setTokensCache(tokens);
     this.subscribeStore.notify(this, PassflowEvent.SignIn);
     await this.submitSessionCheck();
-    return response;
+    return tokens;
   }
 
-  getUserPasskeys(): Promise<PassflowUserPasskey> {
+  getUserPasskeys() {
     return this.userApi.getUserPasskeys();
   }
 
@@ -514,33 +493,22 @@ export class Passflow {
     return this.userApi.deleteUserPasskey(passkeyId);
   }
 
-  async createUserPasskey(
-    relyingPartyId: string,
-    scopes: string[] = this.scopes,
-  ): Promise<PassflowAuthorizationResponse | PassflowPasskeyCompleteMessage> {
+  async addUserPasskey({
+    relyingPartyId,
+    passkeyUsername,
+    passkeyDisplayName,
+  }: { relyingPartyId?: string; passkeyUsername?: string; passkeyDisplayName?: string } = {}): Promise<void> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
-
-    const { challenge_id, publicKey } = await this.userApi.createUserPasskeyStart(
-      relyingPartyId,
+    const { challenge_id, publicKey } = await this.userApi.addUserPasskeyStart({
+      relyingPartyId: relyingPartyId || window?.location?.hostname,
       deviceId,
       os,
-      this.createTenantForNewUser,
-      scopes,
-    );
-
+      passkeyDisplayName,
+      passkeyUsername,
+    });
     const webauthn = await startRegistration({ optionsJSON: publicKey });
-
-    const responseCreateComplete = await this.userApi.createUserPasskeyComplete(webauthn, deviceId, challenge_id);
-
-    if ('access_token' in responseCreateComplete) {
-      responseCreateComplete.scopes = scopes;
-      this.storageManager.saveTokens(responseCreateComplete);
-      this.setTokensCache(responseCreateComplete);
-      this.subscribeStore.notify(this, PassflowEvent.Register);
-    }
-
-    return responseCreateComplete;
+    return await this.userApi.addUserPasskeyComplete(webauthn, deviceId, challenge_id);
   }
 
   joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {

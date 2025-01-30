@@ -8,6 +8,7 @@ export enum PassflowEvent {
   Register = 'passflow_event_register',
   Refresh = 'passflow_event_refresh',
   Error = 'passflow_event_error',
+  PasskeyAdded = 'passflow_event_passkey_added',
 }
 
 export interface PassflowSubscriber {
