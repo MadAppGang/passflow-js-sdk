@@ -354,7 +354,7 @@ export type PassflowUserPasskey = {
   enrolled_at: Date | string;
   enrollment_challenge_id: string;
   confirmed_at: Date | string;
-  last_used: Date | string;
+  last_auth_at: Date | string;
   public_key: string;
   attestation_type: string;
   transport: string[];
