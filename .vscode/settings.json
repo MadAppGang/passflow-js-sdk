@@ -1,10 +1,4 @@
 {
-  "files.exclude": {
-    "**/.yarn": true,
-    "**/.pnp.*": true
-  },
-  "typescript.tsdk": ".yarn/sdks/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "biomejs.biome",
   "[typescript]": {
@@ -16,9 +10,9 @@
   "[json]": {
     "editor.defaultFormatter": "biomejs.biome"
   },
+  "[jsonc]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
   "biome.enabled": true,
-  "cSpell.words": [
-    "PASSFLOW",
-    "passwordless"
-  ]
+  "cSpell.words": ["PASSFLOW", "passwordless"]
 }

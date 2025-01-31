@@ -26,31 +26,15 @@
     "sourceMap": true,
     "strict": true,
     "target": "ES6",
-    "lib": [
-      "ES2021",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
     "outDir": "./dist",
     "baseUrl": "./",
     "emitDeclarationOnly": true,
     "paths": {
-      "lib/*": [
-        "lib/*"
-      ]
+      "lib/*": ["lib/*"]
     },
-    "types": [
-      "vitest/globals",
-      "vitest"
-    ]
+    "types": ["vitest/globals", "vitest"]
   },
-  "include": [
-    "lib",
-    "jest.config.cjs",
-    ".eslintrc.cjs"
-  ],
-  "exclude": [
-    "dist",
-    "node_modules"
-  ]
+  "include": ["lib", "jest.config.cjs", ".eslintrc.cjs"],
+  "exclude": ["dist", "node_modules"]
 }
