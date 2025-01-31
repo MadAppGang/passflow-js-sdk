@@ -78,9 +78,6 @@ export class AxiosClient {
 
   // eslint-disable-next-line complexity
   private async handleAxiosError(e: AxiosError): Promise<unknown> {
-    console.log(`Hangling error: ${JSON.stringify(e, null, 4)}`);
-
-    /* Passflow returns 400 error if token has expired */
     const originalRequest = e.config;
     const accessToken = this.storageManager.getToken(TokenType.access_token);
     const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
