@@ -1,7 +1,7 @@
 {
   "name": "@passflow/passflow-js-sdk",
   "description": "Passflow JS SDK",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -27,7 +27,7 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "build:dts": "pnpm clean && tsc --build tsconfig.json",
     "build:js": "node ./esbuild.config.cjs",
-    "build": "pnpm vite build",
+    "build": "pnpm vite build && pnpm build:dts",
     "test": "vitest run --reporter=default",
     "lint": "biome check .",
     "format": "biome format . --write",
