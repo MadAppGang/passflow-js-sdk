@@ -1,7 +1,7 @@
 {
   "name": "@passflow/passflow-js-sdk",
   "description": "Passflow JS SDK",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -24,7 +24,8 @@
   "scripts": {
     "dev": "pnpm vite",
     "watch": "vite build --watch",
-    "build:dts": "tsc --build tsconfig.json",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "build:dts": "pnpm clean && tsc --build tsconfig.json",
     "build:js": "node ./esbuild.config.cjs",
     "build": "pnpm vite build",
     "test": "vitest run --reporter=default",

@@ -15,7 +15,7 @@
     "resolveJsonModule": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
-    "incremental": true,
+    "incremental": false,
     "strictNullChecks": true,
     "noImplicitAny": true,
     "noUnusedParameters": true,
@@ -30,11 +30,12 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "emitDeclarationOnly": true,
+    "rootDir": "lib",
     "paths": {
       "lib/*": ["lib/*"]
     },
     "types": ["vitest/globals", "vitest"]
   },
-  "include": ["lib", "jest.config.cjs", ".eslintrc.cjs"],
+  "include": ["lib"],
   "exclude": ["dist", "node_modules"]
 }
