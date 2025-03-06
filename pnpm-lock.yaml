@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@passflow/passflow-js-sdk':
-        specifier: link:../../Library/pnpm/global/5/node_modules/@passflow/passflow-js-sdk
-        version: link:../../Library/pnpm/global/5/node_modules/@passflow/passflow-js-sdk
       '@simplewebauthn/browser':
         specifier: ^13.1.0
         version: 13.1.0
@@ -26,9 +23,6 @@ importers:
       dayjs:
         specifier: ^1.11.11
         version: 1.11.13
-      passflow-admin-panel:
-        specifier: link:/Users/jack/mag/passflow_admin_panel
-        version: link:../passflow_admin_panel
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
