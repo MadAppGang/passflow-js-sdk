@@ -429,13 +429,13 @@ export class Passflow {
     payload.scopes = payload.scopes ?? this.scopes;
     payload.create_tenant = this.createTenantForNewUser;
     const { challenge_id, publicKey } = await this.authApi.passkeyRegisterStart(payload, deviceId, os, !this.appId);
-
+    // user handle should be base64 encoded for simplewebauthn lib we are using
+    publicKey.user.id = btoa(publicKey.user.id); 
     const webauthn = await startRegistration({
       optionsJSON: publicKey,
     });
 
     const responseRegisterComplete = await this.authApi.passkeyRegisterComplete(webauthn, deviceId, challenge_id, !this.appId);
-
     responseRegisterComplete.scopes = payload.scopes;
     this.storageManager.saveTokens(responseRegisterComplete);
     this.setTokensCache(responseRegisterComplete);
@@ -448,13 +448,12 @@ export class Passflow {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
-
     const { challenge_id, publicKey } = await this.authApi.passkeyAuthenticateStart(payload, deviceId, os, !this.appId);
-
     const webauthn = await startAuthentication({
       optionsJSON: publicKey,
     });
 
+    
     const responseAuthenticateComplete = await this.authApi.passkeyAuthenticateComplete(
       webauthn,
       deviceId,
@@ -507,6 +506,8 @@ export class Passflow {
       passkeyDisplayName,
       passkeyUsername,
     });
+    // user handle should be base64 encoded for simplewebauthn lib we are using
+    publicKey.user.id = btoa(publicKey.user.id); 
     const webauthn = await startRegistration({ optionsJSON: publicKey });
     return await this.userApi.addUserPasskeyComplete(webauthn, deviceId, challenge_id);
   }
