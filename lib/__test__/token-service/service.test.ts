@@ -73,7 +73,7 @@ describe('token service', () => {
       expect(token).not.toBeNull();
       expect(token?.sub).toBe('2bzBePptDDPkXqfDVfP5gWan00O');
       expect(token?.iat).toBe(1714455932);
-      expect(token?.iss).toBe('https://api.app.aooth.com');
+      expect(token?.iss).toBe('https://api.app.passflow.com');
       expect(token?.jti).toBe('2jbgElLnTX_HANuN5KHHAhrBLIeroD7h4We4_zkhl50=');
       expect(token?.membership).not.toBeNull();
       expect(token?.membership?.raw).toEqual({

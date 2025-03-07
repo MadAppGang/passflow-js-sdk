@@ -185,7 +185,7 @@ export class Passflow {
     return url.toString();
   }
 
-  generateExternalAoothUrl(url: string, scopes?: string[]): string {
+  generateExternalPassflowUrl(url: string, scopes?: string[]): string {
     const externalUrl = new URL(url);
 
     const sscopes = scopes ?? this.scopes;
@@ -201,8 +201,8 @@ export class Passflow {
     return externalUrl.toString();
   }
 
-  authCloudRedirect(cloudAoothUrl: string, scopes?: string[]): void {
-    window.location.href = this.generateExternalAoothUrl(cloudAoothUrl, scopes);
+  authCloudRedirect(cloudPassflowUrl: string, scopes?: string[]): void {
+    window.location.href = this.generateExternalPassflowUrl(cloudPassflowUrl, scopes);
   }
 
   getTokens(doRefresh: boolean): Promise<Tokens | undefined> {

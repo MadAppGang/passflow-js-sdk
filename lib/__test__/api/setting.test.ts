@@ -14,8 +14,8 @@ const mockSettingsAll = {
     require_symbol: true,
   },
   passkey_provider: {
-    name: 'aooth.com',
-    display_name: 'Aooth server',
+    name: 'passflow.com',
+    display_name: 'Passflow server',
     id_field: 'email',
     validation: 'none',
     registration: {

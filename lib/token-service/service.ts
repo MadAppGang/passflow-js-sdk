@@ -66,6 +66,6 @@ export function parseToken(tokenString: string): Token {
 
   const parsedToken = JSON.parse(jsonPayload) as Token;
   parsedToken.membership =
-    parsedToken.aooth_tm && parsedToken.type !== 'invite' ? parseMembership(parsedToken.aooth_tm) : undefined;
+    parsedToken.passflow_tm && parsedToken.type !== 'invite' ? parseMembership(parsedToken.passflow_tm) : undefined;
   return parsedToken;
 }
