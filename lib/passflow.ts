@@ -104,8 +104,11 @@ export class Passflow {
     this.createTenantForNewUser = config.createTenantForNewUser ?? false;
     this.subscribeStore = new PassflowStore();
 
-    this.checkAndSetTokens();
-    this.setTokensToCacheFromLocalStorage();
+    // if parseQueryParams is true, we will check for tokens in the query params
+    if (config.parseQueryParams) {
+      this.checkAndSetTokens();
+    } 
+    this.setTokensToCacheFromLocalStorage();    
   }
 
   // subscribe to authentication events, empty 't' means all event types
@@ -152,9 +155,11 @@ export class Passflow {
     urlParams.delete('id_token');
     urlParams.delete('client_challenge');
 
-    if (urlParams.size > 0)
+    if (urlParams.size > 0) {
       window.history.replaceState({}, document.title, `${window.location.pathname}?${urlParams.toString()}`);
-    else window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
     return tokens;
   }

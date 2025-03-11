@@ -60,6 +60,7 @@ export type PassflowConfig = {
   appId?: string;
   scopes?: string[];
   createTenantForNewUser?: boolean;
+  parseQueryParams?: boolean;
 };
 
 export type PassflowAuthorizationResponse = Tokens;
