@@ -190,24 +190,37 @@ export class Passflow {
     return url.toString();
   }
 
-  generateExternalPassflowUrl(url: string, scopes?: string[]): string {
-    const externalUrl = new URL(url);
+  // create auth redirect url to login with passkey using passkey hosted UI
+  // all params are optional
+  authRedirectUrl(options: {
+    url?: string;
+    redirectUrl?: string;
+    scopes?: string[];
+    appId?: string;
+  } = {}): string {
+    const { url, redirectUrl, scopes, appId } = options ?? {};
+    const externalUrl = new URL(url ?? this.url);
 
     const sscopes = scopes ?? this.scopes;
     const params: Record<string, string> = {
-      appId: this.appId ?? '',
-      redirectto: this.origin,
+      appId: appId ?? this.appId ?? '',
+      redirectto: redirectUrl ?? window.location.href,
       scopes: sscopes.join(','),
     };
 
     const queryParams = new URLSearchParams(params);
     externalUrl.search = queryParams.toString();
-
     return externalUrl.toString();
   }
 
-  authCloudRedirect(cloudPassflowUrl: string, scopes?: string[]): void {
-    window.location.href = this.generateExternalPassflowUrl(cloudPassflowUrl, scopes);
+  // redirect to auth hosted UI login app
+  authRedirect(options: {
+    url?: string;
+    redirectUrl?: string;
+    scopes?: string[];
+    appId?: string;
+  } = {}): void {
+    window.location.href = this.authRedirectUrl(options);
   }
 
   getTokens(doRefresh: boolean): Promise<Tokens | undefined> {
