@@ -200,7 +200,9 @@ export class Passflow {
   } = {}): string {
     const { url, redirectUrl, scopes, appId } = options ?? {};
     const externalUrl = new URL(url ?? this.url);
-
+    // add web to the pathname if it's not there
+    externalUrl.pathname = (externalUrl.pathname.endsWith('/') ? 
+    externalUrl.pathname : externalUrl.pathname + '/') + 'web';
     const sscopes = scopes ?? this.scopes;
     const params: Record<string, string> = {
       appId: appId ?? this.appId ?? '',
@@ -221,6 +223,14 @@ export class Passflow {
     appId?: string;
   } = {}): void {
     window.location.href = this.authRedirectUrl(options);
+  }
+
+  isAuthenticated(): boolean {
+    const tokens = this.parsedTokensCache;
+    if (!tokens) return false;
+    
+    return !isTokenExpired(tokens.access_token) || 
+      (!!tokens.refresh_token && !isTokenExpired(tokens.refresh_token));
   }
 
   getTokens(doRefresh: boolean): Promise<Tokens | undefined> {
