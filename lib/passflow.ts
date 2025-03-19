@@ -107,8 +107,8 @@ export class Passflow {
     // if parseQueryParams is true, we will check for tokens in the query params
     if (config.parseQueryParams) {
       this.checkAndSetTokens();
-    } 
-    this.setTokensToCacheFromLocalStorage();    
+    }
+    this.setTokensToCacheFromLocalStorage();
   }
 
   // subscribe to authentication events, empty 't' means all event types
@@ -192,17 +192,18 @@ export class Passflow {
 
   // create auth redirect url to login with passkey using passkey hosted UI
   // all params are optional
-  authRedirectUrl(options: {
-    url?: string;
-    redirectUrl?: string;
-    scopes?: string[];
-    appId?: string;
-  } = {}): string {
+  authRedirectUrl(
+    options: {
+      url?: string;
+      redirectUrl?: string;
+      scopes?: string[];
+      appId?: string;
+    } = {},
+  ): string {
     const { url, redirectUrl, scopes, appId } = options ?? {};
     const externalUrl = new URL(url ?? this.url);
     // add web to the pathname if it's not there
-    externalUrl.pathname = (externalUrl.pathname.endsWith('/') ? 
-    externalUrl.pathname : externalUrl.pathname + '/') + 'web';
+    externalUrl.pathname = (externalUrl.pathname.endsWith('/') ? externalUrl.pathname : externalUrl.pathname + '/') + 'web';
     const sscopes = scopes ?? this.scopes;
     const params: Record<string, string> = {
       appId: appId ?? this.appId ?? '',
@@ -216,21 +217,22 @@ export class Passflow {
   }
 
   // redirect to auth hosted UI login app
-  authRedirect(options: {
-    url?: string;
-    redirectUrl?: string;
-    scopes?: string[];
-    appId?: string;
-  } = {}): void {
+  authRedirect(
+    options: {
+      url?: string;
+      redirectUrl?: string;
+      scopes?: string[];
+      appId?: string;
+    } = {},
+  ): void {
     window.location.href = this.authRedirectUrl(options);
   }
 
   isAuthenticated(): boolean {
     const tokens = this.parsedTokensCache;
     if (!tokens) return false;
-    
-    return !isTokenExpired(tokens.access_token) || 
-      (!!tokens.refresh_token && !isTokenExpired(tokens.refresh_token));
+
+    return !isTokenExpired(tokens.access_token) || (!!tokens.refresh_token && !isTokenExpired(tokens.refresh_token));
   }
 
   getTokens(doRefresh: boolean): Promise<Tokens | undefined> {
@@ -458,7 +460,7 @@ export class Passflow {
     payload.create_tenant = this.createTenantForNewUser;
     const { challenge_id, publicKey } = await this.authApi.passkeyRegisterStart(payload, deviceId, os, !this.appId);
     // user handle should be base64 encoded for simplewebauthn lib we are using
-    publicKey.user.id = btoa(publicKey.user.id); 
+    publicKey.user.id = btoa(publicKey.user.id);
     const webauthn = await startRegistration({
       optionsJSON: publicKey,
     });
@@ -481,7 +483,6 @@ export class Passflow {
       optionsJSON: publicKey,
     });
 
-    
     const responseAuthenticateComplete = await this.authApi.passkeyAuthenticateComplete(
       webauthn,
       deviceId,
@@ -535,7 +536,7 @@ export class Passflow {
       passkeyUsername,
     });
     // user handle should be base64 encoded for simplewebauthn lib we are using
-    publicKey.user.id = btoa(publicKey.user.id); 
+    publicKey.user.id = btoa(publicKey.user.id);
     const webauthn = await startRegistration({ optionsJSON: publicKey });
     return await this.userApi.addUserPasskeyComplete(webauthn, deviceId, challenge_id);
   }
