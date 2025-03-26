@@ -7,52 +7,58 @@ export type Storage = {
   removeItem: (key: string) => void;
 };
 
+export interface StorageManagerParams {
+  storage?: Storage;
+  prefix?: string;
+}
+
 export class StorageManager {
-  readonly idToken = TokenType.id_token;
-  readonly accessToken = TokenType.access_token;
-  readonly refreshToken = TokenType.refresh_token;
-  readonly scopes = 'tokens_scopes';
-  readonly deviceId = 'passflowDeviceId';
-  readonly invitationToken = 'passflowInvitationToken';
-  readonly previousRedirectUrl = 'passflowPreviousRedirectUrl';
+  private keyStoragePrefix = '';
+  readonly scopes = `${this.keyStoragePrefix}tokens_scopes`;
+  readonly deviceId = `${this.keyStoragePrefix}passflowDeviceId`;
+  readonly invitationToken = `${this.keyStoragePrefix}passflowInvitationToken`;
+  readonly previousRedirectUrl = `${this.keyStoragePrefix}passflowPreviousRedirectUrl`;
 
   private storage: Storage;
 
-  constructor(storage?: Storage) {
+  constructor({ storage, prefix }: StorageManagerParams = {}) {
     this.storage = storage ?? localStorage;
+    this.keyStoragePrefix = prefix ? `${prefix}_` : '';
   }
 
   saveTokens(tokens: Tokens): void {
     const { id_token, access_token, refresh_token, scopes } = tokens;
-    if (id_token) this.storage.setItem(this.idToken, id_token);
-    if (access_token) this.storage.setItem(this.accessToken, access_token);
-    if (refresh_token) this.storage.setItem(this.refreshToken, refresh_token);
+    if (id_token) this.storage.setItem(this.getKeyForTokenType(TokenType.id_token), id_token);
+    if (access_token) this.storage.setItem(this.getKeyForTokenType(TokenType.access_token), access_token);
+    if (refresh_token) this.storage.setItem(this.getKeyForTokenType(TokenType.refresh_token), refresh_token);
     if (scopes) this.storage.setItem(this.scopes, scopes.join(','));
   }
 
   getToken(tokenType: TokenType): string | undefined {
-    return this.storage.getItem(tokenType) ?? undefined;
+    const key = this.getKeyForTokenType(tokenType);
+    return this.storage.getItem(key) ?? undefined;
   }
 
   getTokens(): Tokens | undefined {
-    const access = this.storage.getItem(this.accessToken);
+    const access = this.storage.getItem(this.getKeyForTokenType(TokenType.access_token));
     if (!access) return undefined;
     return {
       access_token: access,
-      id_token: this.storage.getItem(this.idToken) ?? undefined,
-      refresh_token: this.storage.getItem(this.refreshToken) ?? undefined,
+      id_token: this.storage.getItem(this.getKeyForTokenType(TokenType.id_token)) ?? undefined,
+      refresh_token: this.storage.getItem(this.getKeyForTokenType(TokenType.refresh_token)) ?? undefined,
       scopes: this.storage.getItem(this.scopes)?.split(',') ?? undefined,
     };
   }
 
   deleteToken(tokenType: TokenType): void {
-    this.storage.removeItem(tokenType);
+    const key = this.getKeyForTokenType(tokenType);
+    this.storage.removeItem(key);
   }
 
   deleteTokens(): void {
-    this.deleteToken(this.idToken);
-    this.deleteToken(this.accessToken);
-    this.deleteToken(this.refreshToken);
+    this.storage.removeItem(this.getKeyForTokenType(TokenType.id_token));
+    this.storage.removeItem(this.getKeyForTokenType(TokenType.access_token));
+    this.storage.removeItem(this.getKeyForTokenType(TokenType.refresh_token));
     this.storage.removeItem(this.scopes);
   }
 
@@ -90,5 +96,9 @@ export class StorageManager {
 
   deletePreviousRedirectUrl(): void {
     this.storage.removeItem(this.previousRedirectUrl);
+  }
+
+  private getKeyForTokenType(tokenType: TokenType): string {
+    return `${this.keyStoragePrefix}${tokenType}`;
   }
 }

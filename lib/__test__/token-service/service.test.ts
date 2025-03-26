@@ -8,7 +8,7 @@ describe('token service', () => {
   let tokenService: TokenService;
   beforeEach(() => {
     const fakeStorage = new FakeStorage();
-    storageManager = new StorageManager(fakeStorage);
+    storageManager = new StorageManager({ storage: fakeStorage });
     tokenService = new TokenService();
     // @ts-expect-error storage manager is protected
     tokenService.storageManager = storageManager;

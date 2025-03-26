@@ -61,6 +61,7 @@ export type PassflowConfig = {
   scopes?: string[];
   createTenantForNewUser?: boolean;
   parseQueryParams?: boolean;
+  keyStoragePrefix?: string;
 };
 
 export type PassflowAuthorizationResponse = Tokens;

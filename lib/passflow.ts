@@ -82,7 +82,7 @@ export class Passflow {
   tokenService: TokenService;
   tokensCache: Tokens | undefined;
   parsedTokensCache: ParsedTokens | undefined;
-
+  error?: Error;
   origin = window.location.origin;
   url: string;
   appId?: string;
@@ -97,13 +97,12 @@ export class Passflow {
     this.userApi = new UserAPI(config);
     this.settingApi = new SettingAPI(config);
     this.tenantAPI = new TenantAPI(config);
-    this.storageManager = new StorageManager();
+    this.storageManager = new StorageManager({ prefix: config.keyStoragePrefix ?? '' });
     this.tokenService = new TokenService();
     this.deviceService = new DeviceService();
     this.scopes = scopes ?? DEFAULT_SCOPES;
     this.createTenantForNewUser = config.createTenantForNewUser ?? false;
     this.subscribeStore = new PassflowStore();
-
     // if parseQueryParams is true, we will check for tokens in the query params
     if (config.parseQueryParams) {
       this.checkAndSetTokens();
@@ -148,20 +147,32 @@ export class Passflow {
       this.setTokensCache(tokens);
       this.subscribeStore.notify(this, PassflowEvent.SignIn);
       this.submitSessionCheck();
-    }
 
-    urlParams.delete('access_token');
-    urlParams.delete('refresh_token');
-    urlParams.delete('id_token');
-    urlParams.delete('client_challenge');
+      urlParams.delete('access_token');
+      urlParams.delete('refresh_token');
+      urlParams.delete('id_token');
+      urlParams.delete('client_challenge');
 
-    if (urlParams.size > 0) {
-      window.history.replaceState({}, document.title, `${window.location.pathname}?${urlParams.toString()}`);
+      if (urlParams.size > 0) {
+        window.history.replaceState({}, document.title, `${window.location.pathname}?${urlParams.toString()}`);
+      } else {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      this.error = undefined;
+      return tokens;
     } else {
-      window.history.replaceState({}, document.title, window.location.pathname);
+      this.error = this.checkErrorsFromURL();
     }
+    return undefined;
+  }
 
-    return tokens;
+  private checkErrorsFromURL(): Error | undefined {
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get('error');
+    if (error) {
+      return new Error(error);
+    }
+    return undefined;
   }
 
   private setTokensToCacheFromLocalStorage(): void {
@@ -284,6 +295,7 @@ export class Passflow {
     response.scopes = payload.scopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
+    this.error = undefined;
     this.subscribeStore.notify(this, PassflowEvent.SignIn);
     await this.submitSessionCheck();
     return response;
@@ -296,6 +308,7 @@ export class Passflow {
     response.scopes = payload.scopes;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
+    this.error = undefined;
     this.subscribeStore.notify(this, PassflowEvent.Register);
     await this.submitSessionCheck();
     return response;
@@ -320,13 +333,19 @@ export class Passflow {
     return response;
   }
 
-  async logOut(): Promise<PassflowSuccessResponse> {
+  async logOut() {
     const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
     const deviceId = this.storageManager.getDeviceId();
 
-    const status = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
-    //event if we have signout error, we could not keep forcefully user authenticated
-    if (status.result !== 'ok') {
+    try {
+      const status = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
+      //event if we have signout error, we could not keep forcefully user authenticated
+      if (status.result !== 'ok') {
+        this.subscribeStore.notify(this, PassflowEvent.Error);
+      }
+    } catch (error) {
+      // biome-ignore lint/suspicious/noConsole: <explanation>
+      console.error(error);
       this.subscribeStore.notify(this, PassflowEvent.Error);
     }
     // handle error here?
@@ -334,7 +353,6 @@ export class Passflow {
     this.setTokensCache(undefined);
     this.subscribeStore.notify(this, PassflowEvent.SignOut);
     await this.submitSessionCheck();
-    return status;
   }
 
   federatedAuthWithPopup(provider: Providers, redirect_url: string, scopes?: string[]): void {
@@ -381,8 +399,9 @@ export class Passflow {
     this.setTokensCache(undefined);
     this.subscribeStore.notify(this, PassflowEvent.SignOut);
     if (error) {
+      this.error = new Error(error);
       this.subscribeStore.notify(this, PassflowEvent.Error);
-      throw new Error(error);
+      throw this.error;
     }
   }
 
@@ -411,6 +430,7 @@ export class Passflow {
         // this error means we have some network or other error
         // we don't need to reset state
         // let's just notify subscribers and rethrow the error
+        this.error = error as Error;
         this.subscribeStore.notify(this, PassflowEvent.Error);
         throw error;
       }
@@ -430,6 +450,7 @@ export class Passflow {
 
     const response = await this.authApi.resetPassword(newPassword, sscopes, resetToken);
     response.scopes = sscopes;
+    this.error = undefined;
     this.storageManager.saveTokens(response);
     this.setTokensCache(response);
     this.subscribeStore.notify(this, PassflowEvent.SignIn);
@@ -467,6 +488,7 @@ export class Passflow {
 
     const responseRegisterComplete = await this.authApi.passkeyRegisterComplete(webauthn, deviceId, challenge_id, !this.appId);
     responseRegisterComplete.scopes = payload.scopes;
+    this.error = undefined;
     this.storageManager.saveTokens(responseRegisterComplete);
     this.setTokensCache(responseRegisterComplete);
     this.subscribeStore.notify(this, PassflowEvent.Register);
@@ -492,6 +514,7 @@ export class Passflow {
 
     if ('access_token' in responseAuthenticateComplete) {
       responseAuthenticateComplete.scopes = payload.scopes;
+      this.error = undefined;
       this.storageManager.saveTokens(responseAuthenticateComplete);
       this.setTokensCache(responseAuthenticateComplete);
       this.subscribeStore.notify(this, PassflowEvent.SignIn);
@@ -504,6 +527,7 @@ export class Passflow {
   async setTokens(tokens: Tokens): Promise<Tokens> {
     this.storageManager.saveTokens(tokens);
     this.setTokensCache(tokens);
+    this.error = undefined;
     this.subscribeStore.notify(this, PassflowEvent.SignIn);
     await this.submitSessionCheck();
     return tokens;
