@@ -36,6 +36,6 @@
     },
     "types": ["vitest/globals", "vitest"]
   },
-  "include": ["lib"],
+  "include": ["lib", "tests/storage-manager"],
   "exclude": ["dist", "node_modules"]
 }

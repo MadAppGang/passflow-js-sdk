@@ -45,12 +45,12 @@ Object.defineProperty(window, 'localStorage', {
 // Mock URLSearchParams
 class MockURLSearchParams {
   params: Map<string, string>;
-  
+
   constructor(init?: string | Record<string, string>) {
     this.params = new Map();
     if (init) {
       if (typeof init === 'string') {
-        init.split('&').forEach(param => {
+        init.split('&').forEach((param) => {
           const [key, value] = param.split('=');
           if (key) this.params.set(key, value || '');
         });
@@ -87,4 +87,5 @@ class MockURLSearchParams {
   }
 }
 
-global.URLSearchParams = MockURLSearchParams as any; 
+// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+global.URLSearchParams = MockURLSearchParams as any;
