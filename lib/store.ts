@@ -1,47 +1,73 @@
-// PassflowEvent store event
-
-import type { Passflow } from './passflow';
-
+/**
+ * Passflow event types
+ */
 export enum PassflowEvent {
-  SignIn = 'passflow_event_signin',
-  SignOut = 'passflow_event_signout',
-  Register = 'passflow_event_register',
-  Refresh = 'passflow_event_refresh',
-  Error = 'passflow_event_error',
-  PasskeyAdded = 'passflow_event_passkey_added',
+  SignIn = 'signin',
+  Register = 'register',
+  SignOut = 'signout',
+  Error = 'error',
+  Refresh = 'refresh',
 }
 
+/**
+ * Passflow subscriber interface
+ */
 export interface PassflowSubscriber {
-  passflowEvent(a: Passflow, t: PassflowEvent): void;
+  onAuthChange: (eventType: PassflowEvent, source?: any) => void;
 }
 
-type subscribersMap = {
-  [key in PassflowEvent]?: PassflowSubscriber[];
-};
-
-// PassflowStore - event store to manage subscribers
+/**
+ * Store for managing Passflow event subscriptions
+ */
 export class PassflowStore {
-  private allEvents = [PassflowEvent.SignIn, PassflowEvent.SignOut, PassflowEvent.Register, PassflowEvent.Error];
-  private subscribers: subscribersMap = {};
+  private subscribers: Map<PassflowSubscriber, Set<PassflowEvent> | null> = new Map();
 
-  subscribe(s: PassflowSubscriber, t?: PassflowEvent[]) {
-    const types = !t || !t.length ? this.allEvents : t;
-    types.forEach((tt) => {
-      const currentSubscribers = this.subscribers[tt] ?? [];
-      this.subscribers[tt] = [...currentSubscribers, s];
-    });
+  /**
+   * Subscribe to authentication events
+   * @param subscriber The subscriber to register
+   * @param events Optional specific events to subscribe to
+   */
+  subscribe(subscriber: PassflowSubscriber, events?: PassflowEvent[]): void {
+    if (events?.length) {
+      const eventSet = new Set<PassflowEvent>(events);
+      this.subscribers.set(subscriber, eventSet);
+    } else {
+      this.subscribers.set(subscriber, null);
+    }
   }
 
-  unsubscribe(s: PassflowSubscriber, t?: PassflowEvent[]) {
-    const types = !t || !t.length ? this.allEvents : t;
-    types.forEach((tt) => {
-      if (this.subscribers[tt]) {
-        this.subscribers[tt] = this.subscribers[tt].filter((ss) => ss !== s);
+  /**
+   * Unsubscribe from authentication events
+   * @param subscriber The subscriber to unregister
+   * @param events Optional specific events to unsubscribe from
+   */
+  unsubscribe(subscriber: PassflowSubscriber, events?: PassflowEvent[]): void {
+    if (!events?.length) {
+      this.subscribers.delete(subscriber);
+      return;
+    }
+
+    const subscribedEvents = this.subscribers.get(subscriber);
+    if (!subscribedEvents) {
+      return;
+    }
+
+    events.forEach((event) => subscribedEvents.delete(event));
+    if (subscribedEvents.size === 0) {
+      this.subscribers.delete(subscriber);
+    }
+  }
+
+  /**
+   * Notify subscribers of an event
+   * @param source The source of the event
+   * @param eventType The type of event that occurred
+   */
+  notify(source: any, eventType: PassflowEvent): void {
+    this.subscribers.forEach((events, subscriber) => {
+      if (!events || events.has(eventType)) {
+        subscriber.onAuthChange(eventType, source);
       }
     });
   }
-
-  notify(a: Passflow, t: PassflowEvent) {
-    this.subscribers[t]?.forEach((s) => s.passflowEvent(a, t));
-  }
-}
+} 
