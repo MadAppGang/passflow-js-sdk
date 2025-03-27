@@ -98,7 +98,7 @@ export class AuthService {
       console.error(error);
       this.subscribeStore.notify(null, PassflowEvent.Error);
     }
-    
+
     this.storageManager.deleteTokens();
     this.subscribeStore.notify(null, PassflowEvent.SignOut);
     await this.submitSessionCheck();
@@ -292,9 +292,11 @@ export class AuthService {
    */
   isAuthenticated(parsedTokens: any): boolean {
     if (!parsedTokens) return false;
-    
-    return !isTokenExpired(parsedTokens.access_token) || 
-      (!!parsedTokens.refresh_token && !isTokenExpired(parsedTokens.refresh_token));
+
+    return (
+      !isTokenExpired(parsedTokens.access_token) ||
+      (!!parsedTokens.refresh_token && !isTokenExpired(parsedTokens.refresh_token))
+    );
   }
 
   /**

@@ -1,23 +1,26 @@
 /// <reference types="vitest" />
-import { afterEach, describe, expect, test, vi } from 'vitest';
-import { StorageManager } from 'lib/storage-manager/index';
-import { TokenType } from 'lib/token-service/token';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import type { Mock } from 'vitest';
+import { StorageManager } from '../../lib/storage-manager/index';
+import { TokenType } from '../../lib/token-service/token';
 import { FakeStorage } from './fake-storage';
+
+// Create a type for our mock functions
+type MockFn = Mock & { mockReset: () => void };
+
 describe('storage manager', () => {
-  const storageManager = new StorageManager();
-  let getSpy: ReturnType<typeof vi.spyOn>;
-  let setSpy: ReturnType<typeof vi.spyOn>;
-  let removeSpy: ReturnType<typeof vi.spyOn>;
+  let storageManager: StorageManager;
+  let fakeStorage: FakeStorage;
+  let getSpy: MockFn;
+  let setSpy: MockFn;
+  let removeSpy: MockFn;
 
   beforeEach(() => {
-    //@ts-expect-error storageManager.storage is private
-    storageManager.storage = new FakeStorage();
-    //@ts-expect-error storageManager.storage is private
-    getSpy = vi.spyOn(storageManager.storage, 'getItem');
-    //@ts-expect-error storageManager.storage is private
-    setSpy = vi.spyOn(storageManager.storage, 'setItem');
-    //@ts-expect-error storageManager.storage is private
-    removeSpy = vi.spyOn(storageManager.storage, 'removeItem');
+    fakeStorage = new FakeStorage();
+    storageManager = new StorageManager({ storage: fakeStorage });
+    getSpy = vi.spyOn(fakeStorage, 'getItem') as MockFn;
+    setSpy = vi.spyOn(fakeStorage, 'setItem') as MockFn;
+    removeSpy = vi.spyOn(fakeStorage, 'removeItem') as MockFn;
   });
 
   afterEach(() => {
