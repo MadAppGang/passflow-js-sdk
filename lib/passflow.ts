@@ -1,5 +1,4 @@
 /* eslint-disable complexity */
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import axios from 'axios';
 
 import {
@@ -7,10 +6,8 @@ import {
   type AppSettings,
   AuthAPI,
   InvitationAPI,
-  OS,
   type PassflowAuthorizationResponse,
   type PassflowConfig,
-  PassflowEndpointPaths,
   PassflowError,
   type PassflowInviteResponse,
   type PassflowPasskeyAuthenticateStartPayload,
@@ -27,6 +24,9 @@ import {
   type PassflowSuccessResponse,
   type PassflowTenantResponse,
   type PassflowValidationResponse,
+  type Invitation, 
+  type InviteLinkResponse, 
+  type RequestInviteLinkPayload,
   type Providers,
   SettingAPI,
   TenantAPI,
@@ -34,28 +34,108 @@ import {
 } from './api';
 import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL } from './constants';
 import { DeviceService } from './device-service';
+import { AuthService, InvitationService, TenantService, UserService } from './services';
 import { StorageManager } from './storage-manager';
 import { PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
-import { TokenService, TokenType, isTokenExpired, parseToken } from './token-service';
-import type { Invitation, InviteLinkResponse, RequestInviteLinkPayload } from './invitation';
+import { TokenService, parseToken } from './token-service';
 
 import type { ParsedTokens, SessionParams, Tokens } from './types';
 
 export class Passflow {
+  // API clients
   private authApi: AuthAPI;
   private appApi: AppAPI;
   private userApi: UserAPI;
   private settingApi: SettingAPI;
   private tenantAPI: TenantAPI;
   private invitationAPI: InvitationAPI;
+  
+  // Configuration
   private scopes: string[];
   private createTenantForNewUser: boolean;
-  private subscribeStore: PassflowStore;
-
   private doRefreshTokens = false;
+  
+  // Services
+  private deviceService: DeviceService;
+  private storageManager: StorageManager;
+  private tokenService: TokenService;
+  private subscribeStore: PassflowStore;
+  private authService: AuthService;
+  private userService: UserService;
+  private tenantService: TenantService;
+  private invitationService: InvitationService;
+  
+  // Session callbacks
   private createSessionCallback?: (tokens?: Tokens) => void;
   private expiredSessionCallback?: () => void;
 
+  // State
+  tokensCache: Tokens | undefined;
+  parsedTokensCache: ParsedTokens | undefined;
+  error?: Error;
+  origin = window.location.origin;
+  url: string;
+  appId?: string;
+
+  constructor(config: PassflowConfig) {
+    const { url, appId, scopes } = config;
+    this.url = url || PASSFLOW_CLOUD_URL;
+    this.appId = appId;
+
+    // Initialize API clients
+    this.authApi = new AuthAPI(config);
+    this.appApi = new AppAPI(config);
+    this.userApi = new UserAPI(config);
+    this.settingApi = new SettingAPI(config);
+    this.tenantAPI = new TenantAPI(config);
+    this.invitationAPI = new InvitationAPI(config);
+    
+    // Initialize services
+    this.storageManager = new StorageManager({ prefix: config.keyStoragePrefix ?? '' });
+    this.tokenService = new TokenService();
+    this.deviceService = new DeviceService();
+    this.subscribeStore = new PassflowStore();
+    
+    this.scopes = scopes ?? DEFAULT_SCOPES;
+    this.createTenantForNewUser = config.createTenantForNewUser ?? false;
+    
+    // Initialize domain services with dependencies
+    this.authService = new AuthService(
+      this.authApi,
+      this.deviceService,
+      this.storageManager,
+      this.tokenService,
+      this.subscribeStore,
+      this.scopes,
+      this.createTenantForNewUser,
+      this.origin,
+      this.url,
+      { createSession: this.createSessionCallback, expiredSession: this.expiredSessionCallback },
+      this.appId
+    );
+    
+    this.userService = new UserService(
+      this.userApi,
+      this.deviceService
+    );
+    
+    this.tenantService = new TenantService(
+      this.tenantAPI,
+      this.scopes
+    );
+    
+    this.invitationService = new InvitationService(
+      this.invitationAPI
+    );
+    
+    // Check for tokens in query params if configured
+    if (config.parseQueryParams) {
+      this.checkAndSetTokens();
+    }
+    this.setTokensToCacheFromLocalStorage();
+  }
+
+  // Session management
   session: ({ createSession, expiredSession, doRefresh }: SessionParams) => void = async ({
     createSession,
     expiredSession,
@@ -69,7 +149,7 @@ export class Passflow {
   };
 
   private async submitSessionCheck() {
-    const tokens = await this.getTokens(this.doRefreshTokens);
+    const tokens = await this.authService.getTokens(this.doRefreshTokens);
 
     if (tokens && this.createSessionCallback) {
       this.createSessionCallback(this.tokensCache);
@@ -80,55 +160,17 @@ export class Passflow {
     }
   }
 
-  deviceService: DeviceService;
-  storageManager: StorageManager;
-  tokenService: TokenService;
-  tokensCache: Tokens | undefined;
-  parsedTokensCache: ParsedTokens | undefined;
-  error?: Error;
-  origin = window.location.origin;
-  url: string;
-  appId?: string;
-
-  constructor(config: PassflowConfig) {
-    const { url, appId, scopes } = config;
-    this.url = url || PASSFLOW_CLOUD_URL;
-    this.appId = appId;
-
-    this.authApi = new AuthAPI(config);
-    this.appApi = new AppAPI(config);
-    this.userApi = new UserAPI(config);
-    this.settingApi = new SettingAPI(config);
-    this.tenantAPI = new TenantAPI(config);
-    this.invitationAPI = new InvitationAPI(config);
-    this.storageManager = new StorageManager({ prefix: config.keyStoragePrefix ?? '' });
-    this.tokenService = new TokenService();
-    this.deviceService = new DeviceService();
-    this.scopes = scopes ?? DEFAULT_SCOPES;
-    this.createTenantForNewUser = config.createTenantForNewUser ?? false;
-    this.subscribeStore = new PassflowStore();
-    // if parseQueryParams is true, we will check for tokens in the query params
-    if (config.parseQueryParams) {
-      this.checkAndSetTokens();
-    }
-    this.setTokensToCacheFromLocalStorage();
-  }
-
-  // subscribe to authentication events, empty 't' means all event types
+  // Event subscription
   subscribe(s: PassflowSubscriber, t?: PassflowEvent[]) {
     this.subscribeStore.subscribe(s, t);
   }
 
-  // unsubscribe from  authentication events, empty 't' means all event
   unsubscribe(s: PassflowSubscriber, t?: PassflowEvent[]) {
     this.subscribeStore.unsubscribe(s, t);
   }
 
-  // handleTokensRedirect - handles tokens from URL params
+  // Token handling
   handleTokensRedirect(): Tokens | undefined {
-    //TODO: check challenge ID for PCKE
-    //if we have PCKE - we have to run post request and exchange PCKE challenge for tokens with Post request
-    //instead of getting token from URL
     return this.checkAndSetTokens();
   }
 
@@ -149,7 +191,7 @@ export class Passflow {
       };
       this.storageManager.saveTokens(tokens);
       this.setTokensCache(tokens);
-      this.subscribeStore.notify(this, PassflowEvent.SignIn);
+      this.subscribeStore.notify(null, PassflowEvent.SignIn);
       this.submitSessionCheck();
 
       urlParams.delete('access_token');
@@ -186,89 +228,6 @@ export class Passflow {
     }
   }
 
-  private createFederatedAuthUrl(provider: Providers, redirect_url: string, scopes?: string[]): string {
-    const passflowPathWithProvider = `${PassflowEndpointPaths.signInWithProvider}${provider}`;
-
-    if (!this.appId) throw new Error('AppId is required for federated auth');
-    const sscopes = scopes ?? this.scopes;
-
-    const params: Record<string, string> = {
-      scopes: sscopes.join(' '),
-      redirect_url: redirect_url ?? this.origin,
-      appId: this.appId,
-    };
-
-    const url = new URL(passflowPathWithProvider, this.url);
-    const queryParams = new URLSearchParams(params);
-    url.search = queryParams.toString();
-
-    return url.toString();
-  }
-
-  // create auth redirect url to login with passkey using passkey hosted UI
-  // all params are optional
-  authRedirectUrl(
-    options: {
-      url?: string;
-      redirectUrl?: string;
-      scopes?: string[];
-      appId?: string;
-    } = {},
-  ): string {
-    const { url, redirectUrl, scopes, appId } = options ?? {};
-    const externalUrl = new URL(url ?? this.url);
-    // add web to the pathname if it's not there
-    externalUrl.pathname = (externalUrl.pathname.endsWith('/') ? externalUrl.pathname : externalUrl.pathname + '/') + 'web';
-    const sscopes = scopes ?? this.scopes;
-    const params: Record<string, string> = {
-      appId: appId ?? this.appId ?? '',
-      redirectto: redirectUrl ?? window.location.href,
-      scopes: sscopes.join(','),
-    };
-
-    const queryParams = new URLSearchParams(params);
-    externalUrl.search = queryParams.toString();
-    return externalUrl.toString();
-  }
-
-  // redirect to auth hosted UI login app
-  authRedirect(
-    options: {
-      url?: string;
-      redirectUrl?: string;
-      scopes?: string[];
-      appId?: string;
-    } = {},
-  ): void {
-    window.location.href = this.authRedirectUrl(options);
-  }
-
-  isAuthenticated(): boolean {
-    const tokens = this.parsedTokensCache;
-    if (!tokens) return false;
-
-    return !isTokenExpired(tokens.access_token) || (!!tokens.refresh_token && !isTokenExpired(tokens.refresh_token));
-  }
-
-  getTokens(doRefresh: boolean): Promise<Tokens | undefined> {
-    const tokens = this.storageManager.getTokens();
-    // we have not token in storage
-    if (!tokens || !tokens.access_token) return Promise.resolve(undefined);
-
-    const access = parseToken(tokens.access_token);
-
-    if (isTokenExpired(access)) {
-      // we have expired token and we need to refresh it or throw error if it's not possible
-      if (doRefresh) return this.refreshToken();
-
-      // we need return undefined here, because we have expired token and we no need to refresh it
-      return Promise.resolve(undefined);
-    } else {
-      this.setTokensCache(tokens);
-      return Promise.resolve(tokens);
-    }
-  }
-
   setTokensCache(tokens: Tokens | undefined): void {
     this.tokensCache = tokens;
     if (tokens) {
@@ -291,177 +250,97 @@ export class Passflow {
     return this.parsedTokensCache;
   }
 
-  async signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
-    const deviceId = this.deviceService.getDeviceId();
-    const os = OS.web;
-    payload.scopes = payload.scopes ?? this.scopes;
-    const response = await this.authApi.signIn(payload, deviceId, os);
-    response.scopes = payload.scopes;
-    this.storageManager.saveTokens(response);
-    this.setTokensCache(response);
-    this.error = undefined;
-    this.subscribeStore.notify(this, PassflowEvent.SignIn);
-    await this.submitSessionCheck();
-    return response;
+  // Auth delegation methods
+  isAuthenticated(): boolean {
+    return this.authService.isAuthenticated(this.parsedTokensCache);
   }
 
-  async signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
-    payload.scopes = payload.scopes ?? this.scopes;
-    payload.create_tenant = this.createTenantForNewUser;
-    const response = await this.authApi.signUp(payload);
-    response.scopes = payload.scopes;
-    this.storageManager.saveTokens(response);
-    this.setTokensCache(response);
-    this.error = undefined;
-    this.subscribeStore.notify(this, PassflowEvent.Register);
-    await this.submitSessionCheck();
-    return response;
+  signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
+    return this.authService.signIn(payload)
+      .then(response => {
+        this.setTokensCache(response);
+        return response;
+      });
+  }
+
+  signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
+    return this.authService.signUp(payload)
+      .then(response => {
+        this.setTokensCache(response);
+        return response;
+      });
   }
 
   passwordlessSignIn(payload: PassflowPasswordlessSignInPayload): Promise<PassflowPasswordlessResponse> {
-    payload.scopes = payload.scopes ?? this.scopes;
-    const deviceId = this.deviceService.getDeviceId();
-    const os = OS.web;
-    return this.authApi.passwordlessSignIn(payload, deviceId, os);
+    return this.authService.passwordlessSignIn(payload);
   }
 
-  async passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
-    payload.scopes = payload.scopes ?? this.scopes;
-    payload.device = this.deviceService.getDeviceId();
-    const response = await this.authApi.passwordlessSignInComplete(payload);
-    response.scopes = payload.scopes;
-    this.storageManager.saveTokens(response);
-    this.setTokensCache(response);
-    this.subscribeStore.notify(this, PassflowEvent.SignIn);
-    await this.submitSessionCheck();
-    return response;
+  passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
+    return this.authService.passwordlessSignInComplete(payload)
+      .then(response => {
+        this.setTokensCache(response);
+        return response;
+      });
   }
 
-  async logOut() {
-    const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
-    const deviceId = this.storageManager.getDeviceId();
-
-    try {
-      const status = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
-      //event if we have signout error, we could not keep forcefully user authenticated
-      if (status.result !== 'ok') {
-        this.subscribeStore.notify(this, PassflowEvent.Error);
-      }
-    } catch (error) {
-      // biome-ignore lint/suspicious/noConsole: <explanation>
-      console.error(error);
-      this.subscribeStore.notify(this, PassflowEvent.Error);
-    }
-    // handle error here?
-    this.storageManager.deleteTokens();
-    this.setTokensCache(undefined);
-    this.subscribeStore.notify(this, PassflowEvent.SignOut);
-    await this.submitSessionCheck();
+  logOut(): Promise<void> {
+    return this.authService.logOut().then(() => {
+      this.setTokensCache(undefined);
+    });
   }
 
   federatedAuthWithPopup(provider: Providers, redirect_url: string, scopes?: string[]): void {
-    const sscopes = scopes ?? this.scopes;
-    const passflowURL = this.createFederatedAuthUrl(provider, redirect_url, sscopes);
-
-    const popupWindow = window.open(passflowURL, '_blank', 'width=500,height=500');
-
-    if (!popupWindow) {
-      this.federatedAuthWithRedirect(provider, redirect_url, sscopes);
-    } else {
-      const checkInterval = setInterval(() => {
-        if (popupWindow.location.href.startsWith(this.origin)) {
-          const urlParams = new URLSearchParams(popupWindow.location.search);
-          const access_token = urlParams.get('access_token') || '';
-          const refresh_token = urlParams.get('refresh_token') || '';
-          const id_token = urlParams.get('id_token') || '';
-
-          const tokensData = {
-            access_token,
-            refresh_token,
-            id_token,
-            sscopes,
-          };
-          this.storageManager.saveTokens(tokensData);
-          this.setTokensCache(tokensData);
-          this.subscribeStore.notify(this, PassflowEvent.SignIn);
-          window.location.href = `${this.origin}`;
-          clearInterval(checkInterval);
-          popupWindow.close();
-        }
-      }, 100);
-    }
+    this.authService.federatedAuthWithPopup(provider, redirect_url, scopes);
   }
 
   federatedAuthWithRedirect(provider: Providers, redirect_url: string, scopes?: string[]): void {
-    const sscopes = scopes ?? this.scopes;
-    const passflowURL = this.createFederatedAuthUrl(provider, redirect_url, sscopes);
-    window.location.href = passflowURL;
+    this.authService.federatedAuthWithRedirect(provider, redirect_url, scopes);
   }
 
   reset(error?: string) {
     this.storageManager.deleteTokens();
     this.setTokensCache(undefined);
-    this.subscribeStore.notify(this, PassflowEvent.SignOut);
+    this.subscribeStore.notify(null, PassflowEvent.SignOut);
     if (error) {
       this.error = new Error(error);
-      this.subscribeStore.notify(this, PassflowEvent.Error);
+      this.subscribeStore.notify(null, PassflowEvent.Error);
       throw this.error;
     }
   }
 
-  async refreshToken(): Promise<PassflowAuthorizationResponse> {
-    const tokens = this.storageManager.getTokens();
-    if (!tokens) {
-      this.reset('No tokens found'); //throws
-    } else if (!tokens?.refresh_token) {
-      this.reset('No refresh token found'); //throws
-    }
-
-    const oldScopes = tokens?.scopes ?? this.scopes;
-    try {
-      const response = await this.authApi.refreshToken(tokens?.refresh_token ?? '', oldScopes, tokens?.access_token);
-      response.scopes = oldScopes;
-      this.storageManager.saveTokens(response);
-      this.setTokensCache(response);
-      this.subscribeStore.notify(this, PassflowEvent.Refresh);
-      return response;
-    } catch (error) {
-      if (error instanceof PassflowError) {
-        this.reset(error.message);
-      } else if (axios.isAxiosError(error) && error.response && error.response?.status >= 400 && error.response?.status < 500) {
-        this.reset(`Getting unknown error message from server with code:${error.response.status}`);
-      } else {
-        // this error means we have some network or other error
-        // we don't need to reset state
-        // let's just notify subscribers and rethrow the error
-        this.error = error as Error;
-        this.subscribeStore.notify(this, PassflowEvent.Error);
-        throw error;
-      }
-    }
-    // we should not be there ....
-    throw new Error('Unexpected behavior');
+  refreshToken(): Promise<PassflowAuthorizationResponse> {
+    return this.authService.refreshToken()
+      .then(response => {
+        this.setTokensCache(response);
+        return response;
+      })
+      .catch(error => {
+        if (error instanceof PassflowError) {
+          this.reset(error.message);
+        } else if (axios.isAxiosError(error) && error.response && error.response?.status >= 400 && error.response?.status < 500) {
+          this.reset(`Getting unknown error message from server with code:${error.response.status}`);
+        } else {
+          this.error = error as Error;
+          this.subscribeStore.notify(null, PassflowEvent.Error);
+          throw error;
+        }
+        throw new Error('Unexpected behavior');
+      });
   }
 
   sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {
-    return this.authApi.sendPasswordResetEmail(payload);
+    return this.authService.sendPasswordResetEmail(payload);
   }
 
-  async resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
-    const urlParams = new URLSearchParams(window.location.search);
-    const resetToken = urlParams.get('token') ?? undefined;
-    const sscopes = scopes ?? this.scopes;
-
-    const response = await this.authApi.resetPassword(newPassword, sscopes, resetToken);
-    response.scopes = sscopes;
-    this.error = undefined;
-    this.storageManager.saveTokens(response);
-    this.setTokensCache(response);
-    this.subscribeStore.notify(this, PassflowEvent.SignIn);
-    await this.submitSessionCheck();
-    return response;
+  resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
+    return this.authService.resetPassword(newPassword, scopes)
+      .then(response => {
+        this.setTokensCache(response);
+        return response;
+      });
   }
 
+  // App settings
   getAppSettings(): Promise<AppSettings> {
     return this.appApi.getAppSettings();
   }
@@ -478,135 +357,84 @@ export class Passflow {
     return this.settingApi.getPasskeySettings();
   }
 
-  async passkeyRegister(payload: PassflowPasskeyRegisterStartPayload): Promise<PassflowAuthorizationResponse> {
-    const deviceId = this.deviceService.getDeviceId();
-    const os = OS.web;
-    payload.scopes = payload.scopes ?? this.scopes;
-    payload.create_tenant = this.createTenantForNewUser;
-    const { challenge_id, publicKey } = await this.authApi.passkeyRegisterStart(payload, deviceId, os, !this.appId);
-    // user handle should be base64 encoded for simplewebauthn lib we are using
-    publicKey.user.id = btoa(publicKey.user.id);
-    const webauthn = await startRegistration({
-      optionsJSON: publicKey,
-    });
-
-    const responseRegisterComplete = await this.authApi.passkeyRegisterComplete(webauthn, deviceId, challenge_id, !this.appId);
-    responseRegisterComplete.scopes = payload.scopes;
-    this.error = undefined;
-    this.storageManager.saveTokens(responseRegisterComplete);
-    this.setTokensCache(responseRegisterComplete);
-    this.subscribeStore.notify(this, PassflowEvent.Register);
-    await this.submitSessionCheck();
-    return responseRegisterComplete;
+  // Passkey methods
+  passkeyRegister(payload: PassflowPasskeyRegisterStartPayload): Promise<PassflowAuthorizationResponse> {
+    return this.authService.passkeyRegister(payload)
+      .then(response => {
+        this.setTokensCache(response);
+        return response;
+      });
   }
 
-  async passkeyAuthenticate(payload: PassflowPasskeyAuthenticateStartPayload): Promise<PassflowAuthorizationResponse> {
-    const deviceId = this.deviceService.getDeviceId();
-    const os = OS.web;
-    payload.scopes = payload.scopes ?? this.scopes;
-    const { challenge_id, publicKey } = await this.authApi.passkeyAuthenticateStart(payload, deviceId, os, !this.appId);
-    const webauthn = await startAuthentication({
-      optionsJSON: publicKey,
-    });
-
-    const responseAuthenticateComplete = await this.authApi.passkeyAuthenticateComplete(
-      webauthn,
-      deviceId,
-      challenge_id,
-      !this.appId,
-    );
-
-    if ('access_token' in responseAuthenticateComplete) {
-      responseAuthenticateComplete.scopes = payload.scopes;
-      this.error = undefined;
-      this.storageManager.saveTokens(responseAuthenticateComplete);
-      this.setTokensCache(responseAuthenticateComplete);
-      this.subscribeStore.notify(this, PassflowEvent.SignIn);
-      await this.submitSessionCheck();
-    }
-
-    return responseAuthenticateComplete;
+  passkeyAuthenticate(payload: PassflowPasskeyAuthenticateStartPayload): Promise<PassflowAuthorizationResponse> {
+    return this.authService.passkeyAuthenticate(payload)
+      .then(response => {
+        if ('access_token' in response) {
+          this.setTokensCache(response);
+        }
+        return response;
+      });
   }
 
+  // Token management
   async setTokens(tokens: Tokens): Promise<Tokens> {
     this.storageManager.saveTokens(tokens);
     this.setTokensCache(tokens);
     this.error = undefined;
-    this.subscribeStore.notify(this, PassflowEvent.SignIn);
+    this.subscribeStore.notify(null, PassflowEvent.SignIn);
     await this.submitSessionCheck();
     return tokens;
   }
 
+  // User passkey methods delegated to UserService
   getUserPasskeys() {
-    return this.userApi.getUserPasskeys();
+    return this.userService.getUserPasskeys();
   }
 
   renameUserPasskey(name: string, passkeyId: string): Promise<PassflowSuccessResponse> {
-    return this.userApi.renameUserPasskey(name, passkeyId);
+    return this.userService.renameUserPasskey(name, passkeyId);
   }
 
   deleteUserPasskey(passkeyId: string): Promise<PassflowSuccessResponse> {
-    return this.userApi.deleteUserPasskey(passkeyId);
+    return this.userService.deleteUserPasskey(passkeyId);
   }
 
-  async addUserPasskey({
-    relyingPartyId,
-    passkeyUsername,
-    passkeyDisplayName,
-  }: { relyingPartyId?: string; passkeyUsername?: string; passkeyDisplayName?: string } = {}): Promise<void> {
-    const deviceId = this.deviceService.getDeviceId();
-    const os = OS.web;
-    const { challenge_id, publicKey } = await this.userApi.addUserPasskeyStart({
-      relyingPartyId: relyingPartyId || window?.location?.hostname,
-      deviceId,
-      os,
-      passkeyDisplayName,
-      passkeyUsername,
-    });
-    // user handle should be base64 encoded for simplewebauthn lib we are using
-    publicKey.user.id = btoa(publicKey.user.id);
-    const webauthn = await startRegistration({ optionsJSON: publicKey });
-    return await this.userApi.addUserPasskeyComplete(webauthn, deviceId, challenge_id);
+  addUserPasskey(options?: { relyingPartyId?: string; passkeyUsername?: string; passkeyDisplayName?: string }): Promise<void> {
+    return this.userService.addUserPasskey(options);
   }
 
+  // Tenant methods delegated to TenantService
   joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {
-    const sscopes = scopes ?? this.scopes;
-    return this.tenantAPI.joinInvitation(token, sscopes);
+    return this.tenantService.joinInvitation(token, scopes);
   }
 
   async createTenant(name: string, refreshToken?: boolean): Promise<PassflowTenantResponse> {
-    const tenant = this.tenantAPI.createTenant(name);
+    const tenant = await this.tenantService.createTenant(name);
     if (refreshToken) {
       await this.refreshToken();
     }
     return tenant;
   }
 
-  // Invitation API methods
-
-  /**
-   * Requests an invitation link that can be used to invite users
-   * @param payload Request invitation payload
-   * @returns Promise with invitation link and token
-   */
+  // Invitation methods delegated to InvitationService
   requestInviteLink(payload: RequestInviteLinkPayload): Promise<InviteLinkResponse> {
-    return this.invitationAPI.requestInviteLink(payload);
+    return this.invitationService.requestInviteLink(payload);
   }
 
-  /**
-   * Gets a list of active invitations
-   * @returns Promise with array of invitations
-   */
   getInvitations(): Promise<Invitation[]> {
-    return this.invitationAPI.getInvitations();
+    return this.invitationService.getInvitations();
   }
 
-  /**
-   * Deletes an invitation by token
-   * @param token The invitation token to delete
-   * @returns Promise with success response
-   */
   deleteInvitation(token: string): Promise<PassflowSuccessResponse> {
-    return this.invitationAPI.deleteInvitation(token);
+    return this.invitationService.deleteInvitation(token);
   }
-}
+
+  // Auth redirect helpers
+  authRedirectUrl(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string; } = {}): string {
+    return this.authService.authRedirectUrl(options);
+  }
+
+  authRedirect(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string; } = {}): void {
+    this.authService.authRedirect(options);
+  }
+} 

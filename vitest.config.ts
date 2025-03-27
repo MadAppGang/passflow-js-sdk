@@ -1,17 +1,23 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vitest/config'
-import { resolve } from 'path'
+import path from 'path'
 
 export default defineConfig({
   test: {
-    globals: true,
     environment: 'jsdom',
-    setupFiles: ['./vitest-setup.ts'],
-    include: ['lib/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    globals: true,
+    setupFiles: ['./tests/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['lib/services/**/*.ts'],
+      exclude: ['**/node_modules/**', '**/dist/**']
+    },
+    include: ['**/tests/**/*.test.ts'],
   },
   resolve: {
     alias: {
-      lib: resolve(__dirname, './lib')
+      '@': path.resolve(__dirname, './lib'),
     }
   }
 })
