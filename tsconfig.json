@@ -30,7 +30,7 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "emitDeclarationOnly": true,
-    "rootDir": "lib",
+    "rootDir": "./",
     "paths": {
       "lib/*": ["lib/*"]
     },
