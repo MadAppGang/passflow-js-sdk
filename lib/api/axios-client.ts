@@ -1,4 +1,4 @@
-import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY, DEFAULT_SCOPES, PASSFLOW_CLOUD_URL } from 'lib/constants';
+import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY, DEFAULT_SCOPES, PASSFLOW_CLOUD_URL } from '../constants';
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import axiosRetry from 'axios-retry';

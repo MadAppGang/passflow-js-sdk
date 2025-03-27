@@ -1,5 +1,5 @@
 import { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/types';
-import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY } from 'lib/constants';
+import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY } from '../constants';
 
 import { StorageManager } from '../storage-manager';
 

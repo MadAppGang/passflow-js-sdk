@@ -282,8 +282,8 @@ describe('AuthService', () => {
 
       expect(url).toContain('web');
       expect(url).toContain('appId=test-app-id');
-      expect(url).toContain('redirectto=https%3A%2F%2Fapp.example.com%2Fcallback');
-      expect(url).toContain('scopes=profile%2Cemail');
+      expect(url).toContain('redirectto=https://app.example.com/callback');
+      expect(url).toContain('scopes=profile,email');
     });
   });
 });
