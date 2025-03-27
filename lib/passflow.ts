@@ -6,6 +6,7 @@ import {
   AppAPI,
   type AppSettings,
   AuthAPI,
+  InvitationAPI,
   OS,
   type PassflowAuthorizationResponse,
   type PassflowConfig,
@@ -36,6 +37,7 @@ import { DeviceService } from './device-service';
 import { StorageManager } from './storage-manager';
 import { PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
 import { TokenService, TokenType, isTokenExpired, parseToken } from './token-service';
+import type { Invitation, InviteLinkResponse, RequestInviteLinkPayload } from './invitation';
 
 import type { ParsedTokens, SessionParams, Tokens } from './types';
 
@@ -45,6 +47,7 @@ export class Passflow {
   private userApi: UserAPI;
   private settingApi: SettingAPI;
   private tenantAPI: TenantAPI;
+  private invitationAPI: InvitationAPI;
   private scopes: string[];
   private createTenantForNewUser: boolean;
   private subscribeStore: PassflowStore;
@@ -97,6 +100,7 @@ export class Passflow {
     this.userApi = new UserAPI(config);
     this.settingApi = new SettingAPI(config);
     this.tenantAPI = new TenantAPI(config);
+    this.invitationAPI = new InvitationAPI(config);
     this.storageManager = new StorageManager({ prefix: config.keyStoragePrefix ?? '' });
     this.tokenService = new TokenService();
     this.deviceService = new DeviceService();
@@ -576,5 +580,33 @@ export class Passflow {
       await this.refreshToken();
     }
     return tenant;
+  }
+
+  // Invitation API methods
+
+  /**
+   * Requests an invitation link that can be used to invite users
+   * @param payload Request invitation payload
+   * @returns Promise with invitation link and token
+   */
+  requestInviteLink(payload: RequestInviteLinkPayload): Promise<InviteLinkResponse> {
+    return this.invitationAPI.requestInviteLink(payload);
+  }
+
+  /**
+   * Gets a list of active invitations
+   * @returns Promise with array of invitations
+   */
+  getInvitations(): Promise<Invitation[]> {
+    return this.invitationAPI.getInvitations();
+  }
+
+  /**
+   * Deletes an invitation by token
+   * @param token The invitation token to delete
+   * @returns Promise with success response
+   */
+  deleteInvitation(token: string): Promise<PassflowSuccessResponse> {
+    return this.invitationAPI.deleteInvitation(token);
   }
 }
