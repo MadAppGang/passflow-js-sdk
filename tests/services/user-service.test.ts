@@ -1,7 +1,7 @@
-import { describe, test, expect, beforeEach, vi, Mock } from 'vitest';
-import { UserService } from '../../lib/services/user-service';
-import { UserAPI, OS, PassflowSuccessResponse } from '../../lib/api';
+import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
+import { OS, PassflowSuccessResponse, UserAPI } from '../../lib/api';
 import { DeviceService } from '../../lib/device-service';
+import { UserService } from '../../lib/services/user-service';
 
 // Mock dependencies
 vi.mock('../../lib/api/user');

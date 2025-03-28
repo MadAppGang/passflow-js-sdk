@@ -1,5 +1,4 @@
-import { describe, test, expect, beforeEach, vi, Mock } from 'vitest';
-import { AuthService } from '../../lib/services/auth-service';
+import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   AuthAPI,
   OS,
@@ -9,10 +8,11 @@ import {
   PassflowUserPayload,
 } from '../../lib/api';
 import { DeviceService } from '../../lib/device-service';
+import { AuthService } from '../../lib/services/auth-service';
 import { StorageManager } from '../../lib/storage-manager';
-import { TokenService, isTokenExpired, parseToken, Token } from '../../lib/token-service';
 import { PassflowEvent, PassflowStore } from '../../lib/store';
-import { Tokens, ParsedTokens } from '../../lib/types';
+import { Token, TokenService, isTokenExpired, parseToken } from '../../lib/token-service';
+import { ParsedTokens, Tokens } from '../../lib/types';
 
 // Mock dependencies
 vi.mock('../../lib/api/auth');

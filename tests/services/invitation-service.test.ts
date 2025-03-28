@@ -1,12 +1,12 @@
-import { describe, test, expect, beforeEach, vi, Mock } from 'vitest';
-import { InvitationService } from '../../lib/services/invitation-service';
+import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
-  InvitationAPI,
-  RequestInviteLinkPayload,
-  InviteLinkResponse,
   Invitation,
+  InvitationAPI,
+  InviteLinkResponse,
   PassflowSuccessResponse,
+  RequestInviteLinkPayload,
 } from '../../lib/api';
+import { InvitationService } from '../../lib/services/invitation-service';
 
 // Mock dependencies
 vi.mock('../../lib/api/invitation');

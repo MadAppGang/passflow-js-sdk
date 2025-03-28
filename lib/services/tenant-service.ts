@@ -1,8 +1,4 @@
-import {
-  TenantAPI,
-  PassflowTenantResponse,
-  PassflowInviteResponse,
-} from '../api';
+import { PassflowInviteResponse, PassflowTenantResponse, TenantAPI } from '../api';
 
 /**
  * Service for managing tenants
@@ -10,7 +6,7 @@ import {
 export class TenantService {
   constructor(
     private tenantAPI: TenantAPI,
-    private scopes: string[]
+    private scopes: string[],
   ) {}
 
   /**

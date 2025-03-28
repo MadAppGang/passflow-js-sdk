@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeEach, vi, Mock } from 'vitest';
-import { TenantService } from '../../lib/services/tenant-service';
+import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
 import { TenantAPI } from '../../lib/api';
+import { TenantService } from '../../lib/services/tenant-service';
 
 // Mock dependencies
 vi.mock('../../lib/api/tenant');

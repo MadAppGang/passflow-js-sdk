@@ -1,4 +1,4 @@
-import { InvitationAPI, RequestInviteLinkPayload, InviteLinkResponse, Invitation, PassflowSuccessResponse } from '../api';
+import { Invitation, InvitationAPI, InviteLinkResponse, PassflowSuccessResponse, RequestInviteLinkPayload } from '../api';
 
 /**
  * Service for managing invitations

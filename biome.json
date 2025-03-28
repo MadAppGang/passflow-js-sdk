@@ -3,7 +3,15 @@
   "vcs": { "enabled": false, "clientKind": "git", "useIgnoreFile": false },
   "files": {
     "ignoreUnknown": false,
-    "ignore": ["dist/**", "./coverage/**", "lib/__test__/**", "vitest.config.ts", "vitest-setup.ts", "vite.config.ts"]
+    "ignore": [
+      "dist/**",
+      "./coverage/**",
+      "lib/__test__/**",
+      "vitest.config.ts",
+      "vitest-setup.ts",
+      "vite.config.ts",
+      "examples/**"
+    ]
   },
   "formatter": {
     "enabled": true,
