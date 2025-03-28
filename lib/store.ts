@@ -13,7 +13,7 @@ export enum PassflowEvent {
  * Passflow subscriber interface
  */
 export interface PassflowSubscriber {
-  onAuthChange: (eventType: PassflowEvent, source?: any) => void;
+  onAuthChange: (eventType: PassflowEvent, source?: unknown) => void;
 }
 
 /**
@@ -63,11 +63,11 @@ export class PassflowStore {
    * @param source The source of the event
    * @param eventType The type of event that occurred
    */
-  notify(source: any, eventType: PassflowEvent): void {
+  notify(source: unknown, eventType: PassflowEvent): void {
     this.subscribers.forEach((events, subscriber) => {
       if (!events || events.has(eventType)) {
         subscriber.onAuthChange(eventType, source);
       }
     });
   }
-} 
+}

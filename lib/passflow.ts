@@ -244,35 +244,31 @@ export class Passflow {
     return this.parsedTokensCache ? this.authService.isAuthenticated(this.parsedTokensCache) : false;
   }
 
-  signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
-    return this.authService.signIn(payload).then((response) => {
-      this.setTokensCache(response);
-      return response;
-    });
+  async signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
+    const response = await this.authService.signIn(payload);
+    this.setTokensCache(response);
+    return response;
   }
 
-  signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
-    return this.authService.signUp(payload).then((response) => {
-      this.setTokensCache(response);
-      return response;
-    });
+  async signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
+    const response = await this.authService.signUp(payload);
+    this.setTokensCache(response);
+    return response;
   }
 
   passwordlessSignIn(payload: PassflowPasswordlessSignInPayload): Promise<PassflowPasswordlessResponse> {
     return this.authService.passwordlessSignIn(payload);
   }
 
-  passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
-    return this.authService.passwordlessSignInComplete(payload).then((response) => {
-      this.setTokensCache(response);
-      return response;
-    });
+  async passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
+    const response = await this.authService.passwordlessSignInComplete(payload);
+    this.setTokensCache(response);
+    return response;
   }
 
-  logOut(): Promise<void> {
-    return this.authService.logOut().then(() => {
-      this.setTokensCache(undefined);
-    });
+  async logOut(): Promise<void> {
+    await this.authService.logOut();
+    this.setTokensCache(undefined);
   }
 
   federatedAuthWithPopup(provider: Providers, redirect_url: string, scopes?: string[]): void {
@@ -294,41 +290,33 @@ export class Passflow {
     }
   }
 
-  refreshToken(): Promise<PassflowAuthorizationResponse> {
-    return this.authService
-      .refreshToken()
-      .then((response) => {
-        this.setTokensCache(response);
-        return response;
-      })
-      .catch((error) => {
-        if (error instanceof PassflowError) {
-          this.reset(error.message);
-        } else if (
-          axios.isAxiosError(error) &&
-          error.response &&
-          error.response?.status >= 400 &&
-          error.response?.status < 500
-        ) {
-          this.reset(`Getting unknown error message from server with code:${error.response.status}`);
-        } else {
-          this.error = error as Error;
-          this.subscribeStore.notify(null, PassflowEvent.Error);
-          throw error;
-        }
-        throw new Error('Unexpected behavior');
-      });
+  async refreshToken(): Promise<PassflowAuthorizationResponse> {
+    try {
+      const response = await this.authService.refreshToken();
+      this.setTokensCache(response);
+      return response;
+    } catch (error) {
+      if (error instanceof PassflowError) {
+        this.reset(error.message);
+      } else if (axios.isAxiosError(error) && error.response && error.response?.status >= 400 && error.response?.status < 500) {
+        this.reset(`Getting unknown error message from server with code:${error.response.status}`);
+      } else {
+        this.error = error as Error;
+        this.subscribeStore.notify(null, PassflowEvent.Error);
+        throw error;
+      }
+      throw new Error('Unexpected behavior');
+    }
   }
 
   sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {
     return this.authService.sendPasswordResetEmail(payload);
   }
 
-  resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
-    return this.authService.resetPassword(newPassword, scopes).then((response) => {
-      this.setTokensCache(response);
-      return response;
-    });
+  async resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
+    const response = await this.authService.resetPassword(newPassword, scopes);
+    this.setTokensCache(response);
+    return response;
   }
 
   // App settings
@@ -349,20 +337,18 @@ export class Passflow {
   }
 
   // Passkey methods
-  passkeyRegister(payload: PassflowPasskeyRegisterStartPayload): Promise<PassflowAuthorizationResponse> {
-    return this.authService.passkeyRegister(payload).then((response) => {
-      this.setTokensCache(response);
-      return response;
-    });
+  async passkeyRegister(payload: PassflowPasskeyRegisterStartPayload): Promise<PassflowAuthorizationResponse> {
+    const response = await this.authService.passkeyRegister(payload);
+    this.setTokensCache(response);
+    return response;
   }
 
-  passkeyAuthenticate(payload: PassflowPasskeyAuthenticateStartPayload): Promise<PassflowAuthorizationResponse> {
-    return this.authService.passkeyAuthenticate(payload).then((response) => {
-      if ('access_token' in response) {
-        this.setTokensCache(response);
-      }
-      return response;
-    });
+  async passkeyAuthenticate(payload: PassflowPasskeyAuthenticateStartPayload): Promise<PassflowAuthorizationResponse> {
+    const response = await this.authService.passkeyAuthenticate(payload);
+    if ('access_token' in response) {
+      this.setTokensCache(response);
+    }
+    return response;
   }
 
   // Token management
@@ -411,16 +397,26 @@ export class Passflow {
   }
 
   // Invitation methods delegated to InvitationService
-  requestInviteLink(payload: RequestInviteLinkPayload): Promise<InviteLinkResponse> {
-    return this.invitationService.requestInviteLink(payload);
+  async requestInviteLink(payload: RequestInviteLinkPayload): Promise<InviteLinkResponse> {
+    return await this.invitationService.requestInviteLink(payload);
   }
 
-  getInvitations(): Promise<Invitation[]> {
-    return this.invitationService.getInvitations();
+  /**
+   * Gets a list of active invitations
+   * @param options Optional parameters for filtering and pagination
+   * @returns Promise with array of invitations
+   */
+  async getInvitations(options?: {
+    tenant_id?: string;
+    group_id?: string;
+    skip?: number | string;
+    limit?: number | string;
+  }): Promise<Invitation[]> {
+    return await this.invitationService.getInvitations(options);
   }
 
-  deleteInvitation(token: string): Promise<PassflowSuccessResponse> {
-    return this.invitationService.deleteInvitation(token);
+  async deleteInvitation(token: string): Promise<PassflowSuccessResponse> {
+    return await this.invitationService.deleteInvitation(token);
   }
 
   // Auth redirect helpers

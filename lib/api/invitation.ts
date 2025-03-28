@@ -46,10 +46,25 @@ export class InvitationAPI {
 
   /**
    * Gets a list of active invitations
+   * @param options Optional parameters for filtering and pagination
    * @returns Promise with array of invitations
    */
-  getInvitations(): Promise<Invitation[]> {
-    return this.axiosClient.get<Invitation[]>('/api/invitation/list');
+  getInvitations(options?: {
+    tenant_id?: string;
+    group_id?: string;
+    skip?: number | string;
+    limit?: number | string;
+  }): Promise<Invitation[]> {
+    const params: Record<string, string> = {};
+
+    if (options) {
+      if (options.tenant_id) params['tenant_id'] = options.tenant_id.toString();
+      if (options.group_id) params['group_id'] = options.group_id.toString();
+      if (options.skip !== undefined) params['skip'] = options.skip.toString();
+      if (options.limit !== undefined) params['limit'] = options.limit.toString();
+    }
+
+    return this.axiosClient.get<Invitation[]>('/api/invitation/list', { params });
   }
 
   /**
