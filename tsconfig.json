@@ -8,7 +8,7 @@
     "declarationDir": "./dist",
     "declarationMap": true,
     "esModuleInterop": true,
-    // "module": "ESNext",
+    "module": "ESNext",
     "moduleResolution": "Bundler",
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
