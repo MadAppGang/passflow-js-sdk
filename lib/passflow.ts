@@ -375,6 +375,11 @@ export class Passflow {
     return tokens;
   }
 
+  // Add getTokens method
+  async getTokens(doRefresh = false): Promise<Tokens | undefined> {
+    return await this.authService.getTokens(doRefresh);
+  }
+
   // User passkey methods delegated to UserService
   getUserPasskeys() {
     return this.userService.getUserPasskeys();
