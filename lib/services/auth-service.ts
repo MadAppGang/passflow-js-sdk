@@ -5,11 +5,11 @@ import {
   OS,
   PassflowAuthorizationResponse,
   PassflowError,
+  PassflowPasskeyAuthenticateStartPayload,
+  PassflowPasskeyRegisterStartPayload,
   PassflowPasswordlessResponse,
   PassflowPasswordlessSignInCompletePayload,
   PassflowPasswordlessSignInPayload,
-  PassflowPasskeyAuthenticateStartPayload,
-  PassflowPasskeyRegisterStartPayload,
   PassflowSendPasswordResetEmailPayload,
   PassflowSignInPayload,
   PassflowSignUpPayload,
@@ -17,10 +17,10 @@ import {
   PassflowValidationResponse,
   Providers,
 } from '../api';
-import { TokenType, isTokenExpired, parseToken } from '../token-service';
 import { DeviceService } from '../device-service';
 import { StorageManager } from '../storage-manager';
 import { PassflowEvent, PassflowStore } from '../store';
+import { TokenType, isTokenExpired, parseToken } from '../token-service';
 import { ParsedTokens, Tokens } from '../types';
 
 /**

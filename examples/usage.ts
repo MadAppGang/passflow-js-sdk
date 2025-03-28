@@ -1,6 +1,6 @@
 // Example usage of the Passflow SDK
 
-import { Passflow, PassflowEvent, PassflowConfig } from '../lib';
+import { Passflow, PassflowConfig, PassflowEvent } from '../lib';
 
 // Configuration
 const config: PassflowConfig = {
@@ -17,7 +17,7 @@ const passflow = new Passflow(config);
 passflow.subscribe({
   onAuthChange: (eventType, source) => {
     console.log(`Auth event: ${eventType}`);
-    
+
     switch (eventType) {
       case PassflowEvent.SignIn:
         console.log('User signed in successfully');
@@ -29,7 +29,7 @@ passflow.subscribe({
         console.error('Authentication error:', source?.error);
         break;
     }
-  }
+  },
 });
 
 // Example: Sign in with email/password
@@ -39,17 +39,16 @@ async function signInWithEmailPassword() {
       email: 'user@example.com',
       password: 'securePassword123',
     });
-    
+
     console.log('Signed in successfully, tokens:', response);
-    
+
     // Check if the user is authenticated
     const isAuthenticated = passflow.isAuthenticated();
     console.log('Is authenticated:', isAuthenticated);
-    
+
     // Get user passkeys
     const passkeys = await passflow.getUserPasskeys();
     console.log('User passkeys:', passkeys);
-    
   } catch (error) {
     console.error('Sign-in failed:', error);
   }
@@ -61,20 +60,19 @@ async function manageTenantAndInvitations() {
     // Create a new tenant
     const tenant = await passflow.createTenant('My Organization');
     console.log('Created tenant:', tenant);
-    
+
     // Create invitation link
     const inviteLink = await passflow.requestInviteLink({
       email: 'newuser@example.com',
       role: 'member',
       send_to_email: true,
     });
-    
+
     console.log('Invitation link:', inviteLink.link);
-    
+
     // List active invitations
     const invitations = await passflow.getInvitations();
     console.log('Active invitations:', invitations);
-    
   } catch (error) {
     console.error('Tenant management failed:', error);
   }
@@ -97,4 +95,4 @@ if (window.location.search.includes('action=signin')) {
   manageTenantAndInvitations();
 } else if (window.location.search.includes('action=signout')) {
   signOut();
-} 
+}

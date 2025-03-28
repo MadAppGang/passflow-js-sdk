@@ -1,9 +1,5 @@
 import { startRegistration } from '@simplewebauthn/browser';
-import {
-  UserAPI,
-  OS,
-  PassflowSuccessResponse,
-} from '../api';
+import { OS, PassflowSuccessResponse, UserAPI } from '../api';
 
 /**
  * Service for managing user profile and passkeys
@@ -11,7 +7,7 @@ import {
 export class UserService {
   constructor(
     private userAPI: UserAPI,
-    private deviceService: DeviceService
+    private deviceService: DeviceService,
   ) {}
 
   /**
@@ -50,10 +46,10 @@ export class UserService {
     relyingPartyId,
     passkeyUsername,
     passkeyDisplayName,
-  }: { 
-    relyingPartyId?: string; 
-    passkeyUsername?: string; 
-    passkeyDisplayName?: string 
+  }: {
+    relyingPartyId?: string;
+    passkeyUsername?: string;
+    passkeyDisplayName?: string;
   } = {}): Promise<void> {
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;

@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { StorageManager } from '../../lib/storage-manager';
 import { Token, TokenService, TokenType, isTokenExpired, parseToken } from '../../lib/token-service';
 import { parseMembership } from '../../lib/token-service/membership';
