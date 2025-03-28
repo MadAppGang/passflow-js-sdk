@@ -24,8 +24,8 @@ import {
   type PassflowSuccessResponse,
   type PassflowTenantResponse,
   type PassflowValidationResponse,
-  type Invitation, 
-  type InviteLinkResponse, 
+  type Invitation,
+  type InviteLinkResponse,
   type RequestInviteLinkPayload,
   type Providers,
   SettingAPI,
@@ -37,7 +37,7 @@ import { DeviceService } from './device-service';
 import { AuthService, InvitationService, TenantService, UserService } from './services';
 import { StorageManager } from './storage-manager';
 import { PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
-import { TokenService, parseToken } from './token-service';
+import { parseToken } from './token-service';
 
 import type { ParsedTokens, SessionParams, Tokens } from './types';
 
@@ -49,22 +49,21 @@ export class Passflow {
   private settingApi: SettingAPI;
   private tenantAPI: TenantAPI;
   private invitationAPI: InvitationAPI;
-  
+
   // Configuration
   private scopes: string[];
   private createTenantForNewUser: boolean;
   private doRefreshTokens = false;
-  
+
   // Services
   private deviceService: DeviceService;
   private storageManager: StorageManager;
-  private tokenService: TokenService;
   private subscribeStore: PassflowStore;
   private authService: AuthService;
   private userService: UserService;
   private tenantService: TenantService;
   private invitationService: InvitationService;
-  
+
   // Session callbacks
   private createSessionCallback?: (tokens?: Tokens) => void;
   private expiredSessionCallback?: () => void;
@@ -89,45 +88,35 @@ export class Passflow {
     this.settingApi = new SettingAPI(config);
     this.tenantAPI = new TenantAPI(config);
     this.invitationAPI = new InvitationAPI(config);
-    
+
     // Initialize services
     this.storageManager = new StorageManager({ prefix: config.keyStoragePrefix ?? '' });
-    this.tokenService = new TokenService();
     this.deviceService = new DeviceService();
     this.subscribeStore = new PassflowStore();
-    
+
     this.scopes = scopes ?? DEFAULT_SCOPES;
     this.createTenantForNewUser = config.createTenantForNewUser ?? false;
-    
+
     // Initialize domain services with dependencies
     this.authService = new AuthService(
       this.authApi,
       this.deviceService,
       this.storageManager,
-      this.tokenService,
       this.subscribeStore,
       this.scopes,
       this.createTenantForNewUser,
       this.origin,
       this.url,
       { createSession: this.createSessionCallback, expiredSession: this.expiredSessionCallback },
-      this.appId
+      this.appId ?? '',
     );
-    
-    this.userService = new UserService(
-      this.userApi,
-      this.deviceService
-    );
-    
-    this.tenantService = new TenantService(
-      this.tenantAPI,
-      this.scopes
-    );
-    
-    this.invitationService = new InvitationService(
-      this.invitationAPI
-    );
-    
+
+    this.userService = new UserService(this.userApi, this.deviceService);
+
+    this.tenantService = new TenantService(this.tenantAPI, this.scopes);
+
+    this.invitationService = new InvitationService(this.invitationAPI);
+
     // Check for tokens in query params if configured
     if (config.parseQueryParams) {
       this.checkAndSetTokens();
@@ -252,23 +241,21 @@ export class Passflow {
 
   // Auth delegation methods
   isAuthenticated(): boolean {
-    return this.authService.isAuthenticated(this.parsedTokensCache);
+    return this.parsedTokensCache ? this.authService.isAuthenticated(this.parsedTokensCache) : false;
   }
 
   signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
-    return this.authService.signIn(payload)
-      .then(response => {
-        this.setTokensCache(response);
-        return response;
-      });
+    return this.authService.signIn(payload).then((response) => {
+      this.setTokensCache(response);
+      return response;
+    });
   }
 
   signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
-    return this.authService.signUp(payload)
-      .then(response => {
-        this.setTokensCache(response);
-        return response;
-      });
+    return this.authService.signUp(payload).then((response) => {
+      this.setTokensCache(response);
+      return response;
+    });
   }
 
   passwordlessSignIn(payload: PassflowPasswordlessSignInPayload): Promise<PassflowPasswordlessResponse> {
@@ -276,11 +263,10 @@ export class Passflow {
   }
 
   passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
-    return this.authService.passwordlessSignInComplete(payload)
-      .then(response => {
-        this.setTokensCache(response);
-        return response;
-      });
+    return this.authService.passwordlessSignInComplete(payload).then((response) => {
+      this.setTokensCache(response);
+      return response;
+    });
   }
 
   logOut(): Promise<void> {
@@ -309,15 +295,21 @@ export class Passflow {
   }
 
   refreshToken(): Promise<PassflowAuthorizationResponse> {
-    return this.authService.refreshToken()
-      .then(response => {
+    return this.authService
+      .refreshToken()
+      .then((response) => {
         this.setTokensCache(response);
         return response;
       })
-      .catch(error => {
+      .catch((error) => {
         if (error instanceof PassflowError) {
           this.reset(error.message);
-        } else if (axios.isAxiosError(error) && error.response && error.response?.status >= 400 && error.response?.status < 500) {
+        } else if (
+          axios.isAxiosError(error) &&
+          error.response &&
+          error.response?.status >= 400 &&
+          error.response?.status < 500
+        ) {
           this.reset(`Getting unknown error message from server with code:${error.response.status}`);
         } else {
           this.error = error as Error;
@@ -333,11 +325,10 @@ export class Passflow {
   }
 
   resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
-    return this.authService.resetPassword(newPassword, scopes)
-      .then(response => {
-        this.setTokensCache(response);
-        return response;
-      });
+    return this.authService.resetPassword(newPassword, scopes).then((response) => {
+      this.setTokensCache(response);
+      return response;
+    });
   }
 
   // App settings
@@ -359,21 +350,19 @@ export class Passflow {
 
   // Passkey methods
   passkeyRegister(payload: PassflowPasskeyRegisterStartPayload): Promise<PassflowAuthorizationResponse> {
-    return this.authService.passkeyRegister(payload)
-      .then(response => {
-        this.setTokensCache(response);
-        return response;
-      });
+    return this.authService.passkeyRegister(payload).then((response) => {
+      this.setTokensCache(response);
+      return response;
+    });
   }
 
   passkeyAuthenticate(payload: PassflowPasskeyAuthenticateStartPayload): Promise<PassflowAuthorizationResponse> {
-    return this.authService.passkeyAuthenticate(payload)
-      .then(response => {
-        if ('access_token' in response) {
-          this.setTokensCache(response);
-        }
-        return response;
-      });
+    return this.authService.passkeyAuthenticate(payload).then((response) => {
+      if ('access_token' in response) {
+        this.setTokensCache(response);
+      }
+      return response;
+    });
   }
 
   // Token management
@@ -430,11 +419,11 @@ export class Passflow {
   }
 
   // Auth redirect helpers
-  authRedirectUrl(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string; } = {}): string {
+  authRedirectUrl(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string } = {}): string {
     return this.authService.authRedirectUrl(options);
   }
 
-  authRedirect(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string; } = {}): void {
+  authRedirect(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string } = {}): void {
     this.authService.authRedirect(options);
   }
-} 
+}

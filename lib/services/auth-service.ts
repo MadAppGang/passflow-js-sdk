@@ -17,11 +17,11 @@ import {
   PassflowValidationResponse,
   Providers,
 } from '../api';
-import { TokenService, TokenType, isTokenExpired, parseToken } from '../token-service';
+import { TokenType, isTokenExpired, parseToken } from '../token-service';
 import { DeviceService } from '../device-service';
 import { StorageManager } from '../storage-manager';
 import { PassflowEvent, PassflowStore } from '../store';
-import { Tokens } from '../types';
+import { ParsedTokens, Tokens } from '../types';
 
 /**
  * Service for handling authentication related functionality
@@ -31,7 +31,6 @@ export class AuthService {
     private authApi: AuthAPI,
     private deviceService: DeviceService,
     private storageManager: StorageManager,
-    private tokenService: TokenService,
     private subscribeStore: PassflowStore,
     private scopes: string[],
     private createTenantForNewUser: boolean,
@@ -95,6 +94,7 @@ export class AuthService {
         this.subscribeStore.notify(null, PassflowEvent.Error);
       }
     } catch (error) {
+      // biome-ignore lint/suspicious/noConsole: <explanation>
       console.error(error);
       this.subscribeStore.notify(null, PassflowEvent.Error);
     }
@@ -290,7 +290,7 @@ export class AuthService {
   /**
    * Check if user is authenticated
    */
-  isAuthenticated(parsedTokens: any): boolean {
+  isAuthenticated(parsedTokens: ParsedTokens): boolean {
     if (!parsedTokens) return false;
 
     return (
@@ -328,7 +328,7 @@ export class AuthService {
 
     if (isTokenExpired(access)) {
       // we have expired token and we need to refresh it or throw error if it's not possible
-      if (doRefresh) return this.refreshToken();
+      if (doRefresh) return await this.refreshToken();
 
       // we need return undefined here, because we have expired token and we no need to refresh it
       return undefined;
