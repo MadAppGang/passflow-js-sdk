@@ -12,6 +12,7 @@ export { PassflowEvent, type PassflowSubscriber } from './store';
 
 // Re-export token utilities
 export { isTokenExpired, parseToken, TokenType } from './token-service';
+export type { Token, InvitationToken } from './token-service';
 
 // Export Passflow class
 export { Passflow } from './passflow';
