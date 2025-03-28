@@ -10,9 +10,9 @@ import {
 } from '../../lib/api';
 import { DeviceService } from '../../lib/device-service';
 import { StorageManager } from '../../lib/storage-manager';
-import { TokenService } from '../../lib/token-service';
+import { TokenService, isTokenExpired, parseToken, Token } from '../../lib/token-service';
 import { PassflowEvent, PassflowStore } from '../../lib/store';
-import { Tokens } from '../../lib/types';
+import { Tokens, ParsedTokens } from '../../lib/types';
 
 // Mock dependencies
 vi.mock('../../lib/api/auth');
@@ -52,10 +52,6 @@ describe('AuthService', () => {
     deleteTokens: Mock;
     getDeviceId: Mock;
   };
-  let mockTokenService: {
-    isTokenExpired: Mock;
-    parseToken: Mock;
-  };
   let mockSubscribeStore: {
     notify: Mock;
   };
@@ -77,6 +73,23 @@ describe('AuthService', () => {
     access_token: 'mock-access-token',
     refresh_token: 'mock-refresh-token',
     id_token: 'mock-id-token',
+    scopes: mockScopes,
+  };
+
+  const mockParsedToken: Token = {
+    aud: ['test-audience'],
+    exp: Date.now() / 1000 + 3600,
+    iat: Date.now() / 1000,
+    iss: 'test-issuer',
+    jti: 'test-jti',
+    sub: 'test-subject',
+    type: 'access',
+  };
+
+  const mockParsedTokens: ParsedTokens = {
+    access_token: mockParsedToken,
+    id_token: mockParsedToken,
+    refresh_token: mockParsedToken,
     scopes: mockScopes,
   };
 
@@ -121,10 +134,9 @@ describe('AuthService', () => {
       getDeviceId: vi.fn().mockReturnValue(mockDeviceId),
     };
 
-    mockTokenService = {
-      isTokenExpired: vi.fn().mockReturnValue(false),
-      parseToken: vi.fn().mockReturnValue({ exp: Date.now() / 1000 + 3600 }),
-    };
+    // Mock token service functions directly
+    vi.mocked(isTokenExpired).mockReturnValue(false);
+    vi.mocked(parseToken).mockReturnValue(mockParsedToken);
 
     mockSubscribeStore = {
       notify: vi.fn(),
@@ -135,7 +147,6 @@ describe('AuthService', () => {
       mockAuthApi as unknown as AuthAPI,
       mockDeviceService as unknown as DeviceService,
       mockStorageManager as unknown as StorageManager,
-      mockTokenService as unknown as TokenService,
       mockSubscribeStore as unknown as PassflowStore,
       mockScopes,
       true, // createTenantForNewUser
@@ -257,7 +268,13 @@ describe('AuthService', () => {
 
   describe('isAuthenticated', () => {
     test('should return false if no tokens', () => {
-      expect(authService.isAuthenticated(undefined)).toBe(false);
+      const result = authService.isAuthenticated(undefined as unknown as ParsedTokens);
+      expect(result).toBe(false);
+    });
+
+    test('should return true if tokens are valid', () => {
+      const result = authService.isAuthenticated(mockParsedTokens);
+      expect(result).toBe(true);
     });
   });
 
@@ -276,6 +293,13 @@ describe('AuthService', () => {
 
   describe('authRedirectUrl', () => {
     test('should generate correct redirect URL', () => {
+      // Mock window.location.href which is used in the method
+      const originalWindowLocation = window.location;
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        value: { href: 'https://example.com' },
+      });
+
       const url = authService.authRedirectUrl({
         redirectUrl: 'https://app.example.com/callback',
       });
@@ -284,6 +308,12 @@ describe('AuthService', () => {
       expect(url).toContain('appId=test-app-id');
       expect(url).toContain('redirectto=https://app.example.com/callback');
       expect(url).toContain('scopes=profile,email');
+
+      // Restore window.location
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        value: originalWindowLocation,
+      });
     });
   });
 });

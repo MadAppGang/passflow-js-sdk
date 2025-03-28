@@ -1,8 +1,13 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vitest/config'
 import path from 'path'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 export default defineConfig({
+  plugins: [
+    // Ensure tests use the main tsconfig, not the build one
+    tsconfigPaths({ projects: ['tsconfig.json'] }),
+  ],
   test: {
     environment: 'jsdom',
     globals: true,
