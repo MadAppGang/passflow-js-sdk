@@ -3,10 +3,13 @@
  */
 export enum PassflowEvent {
   SignIn = 'signin',
+  SignInStart = 'signin:start',
   Register = 'register',
+  RegisterStart = 'register:start',
   SignOut = 'signout',
   Error = 'error',
   Refresh = 'refresh',
+  RefreshStart = 'refresh:start',
 }
 
 /**

@@ -44,6 +44,7 @@ export class AuthService {
   ) {}
 
   async signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
+    this.subscribeStore.notify(null, PassflowEvent.SignInStart);
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
@@ -56,6 +57,7 @@ export class AuthService {
   }
 
   async signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
+    this.subscribeStore.notify(null, PassflowEvent.RegisterStart);
     payload.scopes = payload.scopes ?? this.scopes;
     payload.create_tenant = this.createTenantForNewUser;
     const response = await this.authApi.signUp(payload);
@@ -67,6 +69,7 @@ export class AuthService {
   }
 
   passwordlessSignIn(payload: PassflowPasswordlessSignInPayload): Promise<PassflowPasswordlessResponse> {
+    this.subscribeStore.notify(null, PassflowEvent.SignInStart);
     payload.scopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
@@ -74,6 +77,7 @@ export class AuthService {
   }
 
   async passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
+    this.subscribeStore.notify(null, PassflowEvent.SignInStart);
     payload.scopes = payload.scopes ?? this.scopes;
     payload.device = this.deviceService.getDeviceId();
     const response = await this.authApi.passwordlessSignInComplete(payload);
@@ -105,6 +109,7 @@ export class AuthService {
   }
 
   async refreshToken(): Promise<PassflowAuthorizationResponse> {
+    this.subscribeStore.notify(null, PassflowEvent.RefreshStart);
     const tokens = this.storageManager.getTokens();
     if (!tokens) {
       throw new Error('No tokens found');
@@ -136,6 +141,7 @@ export class AuthService {
   }
 
   async resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
+    this.subscribeStore.notify(null, PassflowEvent.SignInStart);
     const urlParams = new URLSearchParams(window.location.search);
     const resetToken = urlParams.get('token') ?? undefined;
     const sscopes = scopes ?? this.scopes;
@@ -149,6 +155,7 @@ export class AuthService {
   }
 
   async passkeyRegister(payload: PassflowPasskeyRegisterStartPayload): Promise<PassflowAuthorizationResponse> {
+    this.subscribeStore.notify(null, PassflowEvent.RegisterStart);
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
@@ -169,6 +176,7 @@ export class AuthService {
   }
 
   async passkeyAuthenticate(payload: PassflowPasskeyAuthenticateStartPayload): Promise<PassflowAuthorizationResponse> {
+    this.subscribeStore.notify(null, PassflowEvent.SignInStart);
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
     payload.scopes = payload.scopes ?? this.scopes;
@@ -214,6 +222,7 @@ export class AuthService {
   }
 
   federatedAuthWithPopup(provider: Providers, redirect_url: string, scopes?: string[]): void {
+    this.subscribeStore.notify(null, PassflowEvent.SignInStart);
     const sscopes = scopes ?? this.scopes;
     const passflowURL = this.createFederatedAuthUrl(provider, redirect_url, sscopes);
 
@@ -246,6 +255,7 @@ export class AuthService {
   }
 
   federatedAuthWithRedirect(provider: Providers, redirect_url: string, scopes?: string[]): void {
+    this.subscribeStore.notify(null, PassflowEvent.SignInStart);
     const sscopes = scopes ?? this.scopes;
     const passflowURL = this.createFederatedAuthUrl(provider, redirect_url, sscopes);
     window.location.href = passflowURL;
