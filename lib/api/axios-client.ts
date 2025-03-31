@@ -1,4 +1,4 @@
-import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY, DEFAULT_SCOPES, PASSFLOW_CLOUD_URL } from '../constants';
+import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY, PASSFLOW_CLOUD_URL } from '../constants';
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import axiosRetry from 'axios-retry';
@@ -6,15 +6,7 @@ import axiosRetry from 'axios-retry';
 import { StorageManager } from '../storage-manager';
 import { TokenService, TokenType } from '../token-service';
 
-import {
-  PassflowAuthorizationResponse,
-  PassflowConfig,
-  PassflowEndpointPaths,
-  PassflowError,
-  PassflowResponseError,
-  RequestMethod,
-  RequestOptions,
-} from './model';
+import { PassflowConfig, PassflowError, PassflowResponseError, RequestMethod, RequestOptions } from './model';
 
 export enum HttpStatuses {
   badRequest = 400,
@@ -77,10 +69,11 @@ export class AxiosClient {
   }
 
   // eslint-disable-next-line complexity
+  // biome-ignore lint/suspicious/useAwait: <explanation>
   private async handleAxiosError(e: AxiosError): Promise<unknown> {
-    const originalRequest = e.config;
-    const accessToken = this.storageManager.getToken(TokenType.access_token);
-    const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
+    // const originalRequest = e.config;
+    // const accessToken = this.storageManager.getToken(TokenType.access_token);
+    // const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
 
     // Handle network
     if (!e.response) {
@@ -93,36 +86,38 @@ export class AxiosClient {
     // If we have a response with error data in Passflow format
     if ('error' in errorData && typeof errorData.error === 'object' && errorData.error !== null) {
       const { error } = errorData as PassflowResponseError;
-
-      // Handle token refresh
-      if (refreshToken && originalRequest && status === HttpStatuses.badRequest && error.id.includes('token')) {
-        try {
-          const payload = {
-            access: accessToken,
-            scopes: DEFAULT_SCOPES,
-          };
-
-          const tokens = await this.instance.post<typeof payload, PassflowAuthorizationResponse>(
-            PassflowEndpointPaths.refresh,
-            payload,
-            {
-              headers: {
-                [AUTHORIZATION_HEADER_KEY]: `Bearer ${refreshToken}`,
-              },
-            },
-          );
-
-          this.storageManager.saveTokens(tokens);
-          originalRequest.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${tokens.access_token}`;
-          return this.instance(originalRequest);
-        } catch (_refreshError) {
-          // If token refresh fails, return the original error
-          return Promise.reject(new PassflowError(error));
-        }
-      }
-
-      // Return Passflow error for all other cases
       return Promise.reject(new PassflowError(error));
+
+      // TODO: Uncomment this and redo the refresh token logic if it's needed
+      //   // Handle token refresh
+      //   if (refreshToken && originalRequest && status === HttpStatuses.badRequest && error.id.includes('token')) {
+      //     try {
+      //       const payload = {
+      //         access: accessToken,
+      //         scopes: DEFAULT_SCOPES,
+      //       };
+
+      //       const tokens = await this.instance.post<typeof payload, PassflowAuthorizationResponse>(
+      //         PassflowEndpointPaths.refresh,
+      //         payload,
+      //         {
+      //           headers: {
+      //             [AUTHORIZATION_HEADER_KEY]: `Bearer ${refreshToken}`,
+      //           },
+      //         },
+      //       );
+
+      //       this.storageManager.saveTokens(tokens);
+      //       originalRequest.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${tokens.access_token}`;
+      //       return this.instance(originalRequest);
+      //     } catch (_refreshError) {
+      //       // If token refresh fails, return the original error
+      //       return Promise.reject(new PassflowError(error));
+      //     }
+      //   }
+
+      //   // Return Passflow error for all other cases
+      //   return Promise.reject(new PassflowError(error));
     }
 
     // For non-Passflow format errors, create a generic PassflowError

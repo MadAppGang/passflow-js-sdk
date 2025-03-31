@@ -37,8 +37,9 @@ export class AuthService {
     private origin: string,
     private url: string,
     private sessionCallbacks: {
-      createSession?: (tokens?: Tokens) => void;
-      expiredSession?: () => void;
+      createSession?: (tokens?: Tokens) => Promise<void>;
+      expiredSession?: () => Promise<void>;
+      refreshError?: (error: PassflowError) => Promise<void>;
     },
     private appId?: string,
   ) {}
@@ -313,17 +314,25 @@ export class AuthService {
    * Handle session check and callbacks
    */
   async submitSessionCheck(doRefresh = false): Promise<Tokens | undefined> {
-    const tokens = await this.getTokens(doRefresh);
+    try {
+      const tokens = await this.getTokens(doRefresh);
 
-    if (tokens && this.sessionCallbacks.createSession) {
-      this.sessionCallbacks.createSession(tokens);
+      if (tokens && this.sessionCallbacks.createSession) {
+        await this.sessionCallbacks.createSession(tokens);
+      }
+
+      if (!tokens && this.sessionCallbacks.expiredSession) {
+        await this.sessionCallbacks.expiredSession();
+      }
+
+      return tokens;
+    } catch (error) {
+      if (this.sessionCallbacks.refreshError) {
+        await this.sessionCallbacks.refreshError(error as PassflowError);
+      }
+
+      return undefined;
     }
-
-    if (!tokens && this.sessionCallbacks.expiredSession) {
-      this.sessionCallbacks.expiredSession();
-    }
-
-    return tokens;
   }
 
   /**

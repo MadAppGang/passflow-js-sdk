@@ -65,8 +65,9 @@ export class Passflow {
   private invitationService: InvitationService;
 
   // Session callbacks
-  private createSessionCallback?: (tokens?: Tokens) => void;
-  private expiredSessionCallback?: () => void;
+  private createSessionCallback?: (tokens?: Tokens) => Promise<void>;
+  private expiredSessionCallback?: () => Promise<void>;
+  private refreshErrorCallback?: (error: PassflowError) => Promise<void>;
 
   // State
   tokensCache: Tokens | undefined;
@@ -107,7 +108,11 @@ export class Passflow {
       this.createTenantForNewUser,
       this.origin,
       this.url,
-      { createSession: this.createSessionCallback, expiredSession: this.expiredSessionCallback },
+      {
+        createSession: this.createSessionCallback,
+        expiredSession: this.expiredSessionCallback,
+        refreshError: this.refreshErrorCallback,
+      },
       this.appId ?? '',
     );
 
@@ -125,27 +130,35 @@ export class Passflow {
   }
 
   // Session management
-  session: ({ createSession, expiredSession, doRefresh }: SessionParams) => void = async ({
+  session: ({ createSession, expiredSession, doRefresh }: SessionParams) => Promise<void> = async ({
     createSession,
     expiredSession,
+    refreshError,
     doRefresh = false,
   }) => {
     this.createSessionCallback = createSession;
     this.expiredSessionCallback = expiredSession;
+    this.refreshErrorCallback = refreshError;
     this.doRefreshTokens = doRefresh;
 
     await this.submitSessionCheck();
   };
 
   private async submitSessionCheck() {
-    const tokens = await this.authService.getTokens(this.doRefreshTokens);
+    try {
+      const tokens = await this.authService.getTokens(this.doRefreshTokens);
 
-    if (tokens && this.createSessionCallback) {
-      this.createSessionCallback(this.tokensCache);
-    }
+      if (tokens && this.createSessionCallback) {
+        await this.createSessionCallback(tokens);
+      }
 
-    if (!tokens && this.expiredSessionCallback) {
-      this.expiredSessionCallback();
+      if (!tokens && this.expiredSessionCallback) {
+        await this.expiredSessionCallback();
+      }
+    } catch (error) {
+      if (this.refreshErrorCallback) {
+        await this.refreshErrorCallback(error as PassflowError);
+      }
     }
   }
 
