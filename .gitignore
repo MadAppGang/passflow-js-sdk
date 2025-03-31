@@ -50,3 +50,5 @@ yarn.lock
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+all-in-one.txt
+all-in-one2.txt

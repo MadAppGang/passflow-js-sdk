@@ -14,5 +14,8 @@
     "editor.defaultFormatter": "biomejs.biome"
   },
   "biome.enabled": true,
-  "cSpell.words": ["PASSFLOW", "passwordless"]
+  "cSpell.words": ["PASSFLOW", "passwordless"],
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
 }
