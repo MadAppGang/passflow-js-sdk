@@ -15,6 +15,8 @@ export {
   isTokenExpired,
   parseToken,
   TokenType,
+  type InvitationToken,
+  type Token,
   type UserMembership,
   type TenantMembership,
   type GroupMembership,
