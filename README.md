@@ -1,339 +1,1065 @@
-# User Authentication Service Library Documentation
+# Passflow JavaScript SDK Documentation
 
 ## Table of Contents
 
-1.  [Introduction](#introduction)
-2.  [File Structure](#file-structure)
-3.  [Core Concepts](#core-concepts)
-    - [Tokens](#tokens)
-    - [Storage Management](#storage-management)
-    - [Event System](#event-system)
-    - [Service Orchestration](#service-orchestration)
-4.  [API Reference](#api-reference)
-    - [Types](#types)
-      - [`Tokens`](#tokens-type)
-      - [`ParsedTokens`](#parsedtokens-type)
-      - [`SessionParams`](#sessionparams-type)
-      - [`Storage` (Interface)](#storage-interface)
-      - [`StorageManagerParams`](#storagemanagerparams-interface)
-      - [`TokenType`](#tokentype-enum)
-      - [`PassflowEvent` (Enum)](#passflowevent-enum)
-      - [`PassflowSubscriber` (Interface)](#passflowsubscriber-interface)
-    - [Classes](#classes)
-      - [`StorageManager`](#storagemanager-class)
-      - [`Token`](#token-class)
-      - [`TokenService`](#tokenservice-class)
-      - [`AuthService`](#authservice-class)
-5.  [Usage Example](#usage-example)
-6.  [Event Handling](#event-handling)
+- [Quick Start Examples](#quick-start-examples)
+  - [Basic Initialization](#basic-initialization)
+  - [Simple Authentication](#simple-authentication)
+  - [Passwordless Authentication](#quick-passwordless-authentication)
+  - [Passkey Authentication](#basic-passkey-usage)
+  - [Password Reset](#quick-password-reset)
+  - [Tenant Creation](#basic-tenant-creation)
+  - [Event Subscription](#simple-event-subscription)
+- [Introduction](#introduction)
+- [Installation](#installation)
+- [Getting Started](#getting-started)
+  - [Initialization](#initialization)
+  - [Session Management](#session-management)
+- [Authentication](#authentication)
+  - [Sign In](#sign-in)
+  - [Sign Up](#sign-up)
+  - [Sign Out](#sign-out)
+  - [Passwordless Authentication](#passwordless-authentication)
+  - [Federated Authentication](#federated-authentication)
+  - [Passkey Authentication](#passkey-authentication)
+  - [Password Reset](#password-reset)
+- [Token Management](#token-management)
+- [Tenant Management](#tenant-management)
+- [Invitation Management](#invitation-management)
+- [Events and Subscriptions](#events-and-subscriptions)
+- [Error Handling](#error-handling)
+- [API Reference](#api-reference)
+  - [Passflow Class](#passflow-class)
+  - [Services](#services)
+  - [Types](#types)
+- [Detailed Examples](#detailed-examples)
 
----
+## Quick Start Examples
 
-## 1. Introduction
+### Basic Initialization
 
-This library provides a comprehensive solution for managing user authentication within client-side JavaScript/TypeScript applications. It handles token storage, parsing (including basic JWT validation), session lifecycle management (checking validity, refreshing), and provides an event system to react to authentication state changes.
+```javascript
+import { Passflow } from "passflow-js";
 
-The library is designed to be modular, separating concerns into distinct components: storage management, token handling, and the main authentication service logic. This promotes maintainability and allows for easier testing and potential replacement of individual parts (like the storage mechanism).
+// Minimal initialization with just the required appId
+const passflow = new Passflow({
+  appId: "your-app-id",
+});
 
----
+// Simple session setup
+passflow.session({
+  createSession: () => console.log("User is authenticated"),
+  expiredSession: () => console.log("User session expired"),
+});
+```
 
-## 2. File Structure
+### Simple Authentication
 
-Based on the comments in the provided code, the library appears to be organized into the following files:
+```javascript
+// Basic sign in with just email and password
+const simpleSignIn = async () => {
+  try {
+    await passflow.signIn({
+      email: "user@example.com",
+      password: "password123",
+    });
+    console.log("Signed in successfully");
+  } catch (error) {
+    console.error("Sign in failed", error);
+  }
+};
 
-- `./lib/types/index.ts`: Contains shared type definitions (`Tokens`, `ParsedTokens`, `SessionParams`) used across different modules of the library.
-- `./lib/storage-manager/index.ts`: Defines the `Storage` interface (the contract for how storage should work), `StorageManagerParams` interface (for configuration), and the `StorageManager` class itself, responsible for the actual interaction with browser storage.
-- `./lib/token-service/index.ts`: Defines the `TokenType` enum (to differentiate token types), the `Token` class (representing a single parsed token with utility methods), and the `TokenService` class (for parsing raw tokens and performing validation).
-- `./lib/auth-service/index.ts`: Defines the `PassflowEvent` enum (listing possible authentication states/events), `PassflowSubscriber` interface (for objects that want to listen to events), and the main `AuthService` class which orchestrates the overall authentication flow and event dispatching.
+// Basic sign up with minimal user info
+const simpleSignUp = async () => {
+  try {
+    await passflow.signUp({
+      user: {
+        email: "user@example.com",
+        password: "password123",
+      },
+    });
+    console.log("Registered successfully");
+  } catch (error) {
+    console.error("Registration failed", error);
+  }
+};
 
----
+// Simple logout
+const simpleSignOut = async () => {
+  await passflow.logOut();
+};
+```
 
-## 3. Core Concepts
+### Quick Passwordless Authentication
 
-### Tokens
+```javascript
+// Start passwordless flow with just email
+const simplePasswordless = async () => {
+  try {
+    const response = await passflow.passwordlessSignIn({
+      email: "user@example.com",
+      challenge_type: "otp",
+      redirect_url: window.location.origin,
+    });
+    console.log("Check your email for the code");
+    return response.challenge_id;
+  } catch (error) {
+    console.error("Failed to start passwordless flow", error);
+  }
+};
 
-- **Raw Tokens (`Tokens` type):** This is the basic structure `{ access_token: string; id_token?: string; refresh_token?: string; scopes?: string[] }` representing the tokens exactly as they might be received from your authentication server's API endpoint.
-- **Parsed Tokens (`Token` class, `ParsedTokens` type):** Raw token strings are transformed into instances of the `Token` class. If a token string follows the JSON Web Token (JWT) format, this class automatically decodes the header and payload sections, making claims easily accessible. The `ParsedTokens` type mirrors the `Tokens` type but holds `Token` objects instead of strings.
-- **Validation:** The library primarily focuses on _expiration_ validation using the standard `exp` claim found in JWTs. The `Token.isExpired()` method checks if the current time is past the time specified in the `exp` claim. It doesn't perform signature verification, which should typically happen server-side or using a more specialized JWT library if needed client-side.
+// Complete with just the challenge ID and OTP
+const completeSimplePasswordless = async (challengeId, otp) => {
+  try {
+    await passflow.passwordlessSignInComplete({
+      challenge_id: challengeId,
+      otp: otp,
+    });
+    console.log("Authentication successful");
+  } catch (error) {
+    console.error("Failed to complete passwordless flow", error);
+  }
+};
+```
 
-### Storage Management
+### Basic Passkey Usage
 
-- The `StorageManager` class acts as an intermediary between the authentication logic and the browser's actual storage mechanism (like `localStorage` or `sessionStorage`).
-- **Abstraction:** It allows the library (and your application) to interact with storage using a consistent API (`setItem`, `getItem`, `removeItem`) without needing to know the specifics of the underlying storage.
-- **Configuration:** You can provide your own storage implementation (e.g., for React Native, or an in-memory store for testing) and add a prefix to all storage keys to avoid collisions with other data stored on the same domain.
+```javascript
+// Register a passkey with minimal options
+const simplePasskeyRegister = async () => {
+  try {
+    await passflow.passkeyRegister({
+      relying_party_id: window.location.hostname,
+      redirect_url: window.location.origin,
+      scopes: ["id", "offline"],
+    });
+    console.log("Passkey registered");
+  } catch (error) {
+    console.error("Passkey registration failed", error);
+  }
+};
 
-### Event System
+// Authenticate with minimal options
+const simplePasskeyAuthenticate = async () => {
+  try {
+    await passflow.passkeyAuthenticate({
+      relying_party_id: window.location.hostname,
+    });
+    console.log("Authenticated with passkey");
+  } catch (error) {
+    console.error("Passkey authentication failed", error);
+  }
+};
+```
 
-- The `AuthService` uses a standard **publish-subscribe (pub/sub)** pattern. It maintains a list of subscribers interested in authentication state changes.
-- **Events (`PassflowEvent`):** When significant actions occur (like login, logout, session check, token refresh attempt, session expiration), the `AuthService` "publishes" or "notifies" subscribers by calling their `onAuthChange` method, passing the specific `PassflowEvent` type.
-- **Subscribers (`PassflowSubscriber`):** Any part of your application (like UI components, data fetching services) can implement the `PassflowSubscriber` interface and register itself with the `AuthService` to receive these notifications and react accordingly. This decouples the components from the `AuthService`.
+### Quick Password Reset
 
-### Service Orchestration
+```javascript
+// Send reset email with just the email address
+const simplePasswordReset = async () => {
+  try {
+    await passflow.sendPasswordResetEmail({
+      email: "user@example.com",
+    });
+    console.log("Password reset email sent");
+  } catch (error) {
+    console.error("Failed to send reset email", error);
+  }
+};
+```
 
-- The `AuthService` is the central coordinator. It utilizes the `StorageManager` to save and load token data and the `TokenService` to interpret and validate these tokens.
-- It manages the overall **session lifecycle**:
-  - `checkSession()`: Verifies if valid tokens exist in storage. If the access token is expired but a valid refresh token exists (and `doRefresh` is enabled), it attempts to refresh the tokens (_Note: the refresh API call itself is marked `TODO`_). It then updates its internal state and notifies subscribers about the outcome (active session, no session, expired session).
-  - `setTokens()`: Called after a successful login to store the new tokens.
-  - `logout()`: Clears the session data and notifies subscribers.
+### Basic Tenant Creation
 
----
+```javascript
+// Create a tenant with just a name
+const simpleCreateTenant = async () => {
+  try {
+    await passflow.createTenant("My Organization");
+    console.log("Tenant created");
+  } catch (error) {
+    console.error("Failed to create tenant", error);
+  }
+};
+```
 
-## 4. API Reference
+### Simple Event Subscription
+
+```javascript
+// Subscribe to authentication events with minimal setup
+passflow.subscribe({
+  onAuthChange: (eventType) => {
+    console.log(`Auth event occurred: ${eventType}`);
+  },
+});
+```
+
+## Introduction
+
+Passflow JavaScript SDK is a client library for interacting with the Passflow authentication service. It provides a comprehensive set of features for user authentication, token management, tenant management, and more. The SDK supports various authentication methods including email/password, passwordless, passkeys (WebAuthn), and federated identity providers.
+
+## Installation
+
+```bash
+npm install passflow-js
+# or
+yarn add passflow-js
+```
+
+## Getting Started
+
+### Initialization
+
+Import and initialize the Passflow client with your configuration:
+
+```javascript
+import { Passflow } from "passflow-js";
+
+const passflow = new Passflow({
+  url: "https://auth.passflow.cloud", // or your custom URL
+  appId: "your-app-id",
+  scopes: [
+    "id",
+    "offline",
+    "tenant",
+    "email",
+    "oidc",
+    "openid",
+    "access:tenant:all",
+  ], // optional, these are the defaults
+  createTenantForNewUser: false, // optional
+  parseQueryParams: true, // optional, will parse tokens from URL query params
+  keyStoragePrefix: "myapp", // optional, prefix for localStorage keys
+});
+```
+
+### Session Management
+
+Setup session management to handle authentication state:
+
+```javascript
+passflow.session({
+  createSession: (tokens) => {
+    console.log("Session created", tokens);
+    // Set your app's authenticated state
+  },
+  expiredSession: () => {
+    console.log("Session expired");
+    // Clear your app's authenticated state
+  },
+  doRefresh: true, // automatically refresh tokens when expired
+});
+```
+
+## Authentication
+
+### Sign In
+
+```javascript
+// Sign in with email and password
+const signIn = async () => {
+  try {
+    const response = await passflow.signIn({
+      email: "user@example.com",
+      password: "password123",
+      scopes: ["id", "offline", "tenant", "email"], // optional
+    });
+    console.log("Signed in successfully", response);
+  } catch (error) {
+    console.error("Sign in failed", error);
+  }
+};
+```
+
+### Sign Up
+
+```javascript
+// Register a new user
+const signUp = async () => {
+  try {
+    const response = await passflow.signUp({
+      user: {
+        email: "user@example.com",
+        password: "password123",
+        given_name: "John",
+        family_name: "Doe",
+        // Additional optional user fields
+      },
+      scopes: ["id", "offline", "tenant", "email"], // optional
+      create_tenant: true, // optional
+    });
+    console.log("Registered successfully", response);
+  } catch (error) {
+    console.error("Registration failed", error);
+  }
+};
+```
+
+### Sign Out
+
+```javascript
+// Log out the current user
+const signOut = async () => {
+  try {
+    await passflow.logOut();
+    console.log("Signed out successfully");
+  } catch (error) {
+    console.error("Sign out failed", error);
+  }
+};
+```
+
+### Passwordless Authentication
+
+```javascript
+// Start passwordless authentication flow
+const startPasswordless = async () => {
+  try {
+    const response = await passflow.passwordlessSignIn({
+      email: "user@example.com",
+      challenge_type: "otp", // or 'magic_link'
+      redirect_url: "https://yourapp.com/auth/callback",
+    });
+    console.log("Passwordless authentication started", response);
+    // Store the challenge_id for the next step
+  } catch (error) {
+    console.error("Passwordless authentication failed", error);
+  }
+};
+
+// Complete passwordless authentication flow
+const completePasswordless = async (challengeId, otp) => {
+  try {
+    const response = await passflow.passwordlessSignInComplete({
+      challenge_id: challengeId,
+      otp: otp,
+    });
+    console.log("Passwordless authentication completed", response);
+  } catch (error) {
+    console.error("Passwordless authentication completion failed", error);
+  }
+};
+```
+
+### Federated Authentication
+
+```javascript
+// Sign in with a provider using popup
+passflow.federatedAuthWithPopup(
+  "google", // or 'facebook'
+  "https://yourapp.com/auth/callback",
+  ["id", "offline", "tenant", "email"] // optional scopes
+);
+
+// Sign in with a provider using redirect
+passflow.federatedAuthWithRedirect(
+  "google", // or 'facebook'
+  "https://yourapp.com/auth/callback",
+  ["id", "offline", "tenant", "email"] // optional scopes
+);
+```
+
+### Passkey Authentication
+
+```javascript
+// Register a new passkey
+const registerPasskey = async () => {
+  try {
+    const response = await passflow.passkeyRegister({
+      passkey_display_name: "My Passkey",
+      passkey_username: "user@example.com",
+      relying_party_id: window.location.hostname,
+      redirect_url: "https://yourapp.com/auth/callback",
+      scopes: ["id", "offline", "tenant", "email"], // optional
+    });
+    console.log("Passkey registered successfully", response);
+  } catch (error) {
+    console.error("Passkey registration failed", error);
+  }
+};
+
+// Authenticate with a passkey
+const authenticateWithPasskey = async () => {
+  try {
+    const response = await passflow.passkeyAuthenticate({
+      relying_party_id: window.location.hostname,
+      scopes: ["id", "offline", "tenant", "email"], // optional
+    });
+    console.log("Passkey authentication successful", response);
+  } catch (error) {
+    console.error("Passkey authentication failed", error);
+  }
+};
+
+// Add additional passkey to user account
+const addPasskey = async () => {
+  try {
+    await passflow.addUserPasskey({
+      relyingPartyId: window.location.hostname,
+      passkeyUsername: "user@example.com",
+      passkeyDisplayName: "My Secondary Passkey",
+    });
+    console.log("Passkey added successfully");
+  } catch (error) {
+    console.error("Adding passkey failed", error);
+  }
+};
+
+// Manage user passkeys
+const managePasskeys = async () => {
+  try {
+    // Get all passkeys
+    const passkeys = await passflow.getUserPasskeys();
+    console.log("User passkeys", passkeys);
+
+    // Rename a passkey
+    await passflow.renameUserPasskey("New Name", "passkey-id");
+
+    // Delete a passkey
+    await passflow.deleteUserPasskey("passkey-id");
+  } catch (error) {
+    console.error("Passkey management failed", error);
+  }
+};
+```
+
+### Password Reset
+
+```javascript
+// Send password reset email
+const sendResetEmail = async () => {
+  try {
+    await passflow.sendPasswordResetEmail({
+      email: "user@example.com",
+      reset_page_url: "https://yourapp.com/reset-password",
+    });
+    console.log("Password reset email sent");
+  } catch (error) {
+    console.error("Sending password reset email failed", error);
+  }
+};
+
+// Reset password (after receiving reset token)
+const resetPassword = async (newPassword) => {
+  try {
+    // The token should be in the URL query parameters
+    const response = await passflow.resetPassword(newPassword);
+    console.log("Password reset successful", response);
+  } catch (error) {
+    console.error("Password reset failed", error);
+  }
+};
+```
+
+## Token Management
+
+```javascript
+// Check if user is authenticated
+const isAuthenticated = passflow.isAuthenticated();
+
+// Get current tokens
+const tokens = passflow.getTokensCache();
+
+// Get parsed tokens (decoded JWT payload)
+const parsedTokens = passflow.getParsedTokenCache();
+
+// Manually refresh token
+const refreshToken = async () => {
+  try {
+    const response = await passflow.refreshToken();
+    console.log("Token refreshed", response);
+  } catch (error) {
+    console.error("Token refresh failed", error);
+  }
+};
+
+// Set tokens manually
+const setTokens = async (tokens) => {
+  try {
+    await passflow.setTokens({
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      id_token: tokens.id_token,
+      scopes: tokens.scopes,
+    });
+  } catch (error) {
+    console.error("Setting tokens failed", error);
+  }
+};
+
+// Handle tokens from redirect
+const handleRedirect = () => {
+  const tokens = passflow.handleTokensRedirect();
+  if (tokens) {
+    console.log("Tokens received from redirect", tokens);
+  }
+};
+```
+
+## Tenant Management
+
+```javascript
+// Create a new tenant
+const createTenant = async () => {
+  try {
+    const response = await passflow.createTenant("My Organization", true);
+    console.log("Tenant created", response);
+  } catch (error) {
+    console.error("Tenant creation failed", error);
+  }
+};
+
+// Join a tenant via invitation
+const joinTenant = async (invitationToken) => {
+  try {
+    const response = await passflow.joinInvitation(invitationToken);
+    console.log("Joined tenant", response);
+  } catch (error) {
+    console.error("Joining tenant failed", error);
+  }
+};
+```
+
+## Invitation Management
+
+```javascript
+// Request an invitation link
+const requestInvite = async () => {
+  try {
+    const response = await passflow.requestInviteLink({
+      email: "newuser@example.com",
+      tenant: "tenant-id", // optional
+      group: "group-id", // optional
+      role: "role-name", // optional
+      callback: "https://yourapp.com/onboarding", // optional
+      send_to_email: true, // optional
+    });
+    console.log("Invitation link created", response);
+  } catch (error) {
+    console.error("Creating invitation link failed", error);
+  }
+};
+
+// Get all active invitations
+const getInvitations = async () => {
+  try {
+    const invitations = await passflow.getInvitations({
+      tenant_id: "tenant-id", // optional
+      group_id: "group-id", // optional
+      skip: 0, // optional
+      limit: 10, // optional
+    });
+    console.log("Active invitations", invitations);
+  } catch (error) {
+    console.error("Getting invitations failed", error);
+  }
+};
+
+// Delete an invitation
+const deleteInvitation = async (token) => {
+  try {
+    await passflow.deleteInvitation(token);
+    console.log("Invitation deleted");
+  } catch (error) {
+    console.error("Deleting invitation failed", error);
+  }
+};
+```
+
+## Events and Subscriptions
+
+```javascript
+// Define a subscriber
+const subscriber = {
+  onAuthChange: (eventType, source) => {
+    console.log(`Auth event: ${eventType}`, source);
+
+    // Handle different event types
+    switch (eventType) {
+      case "signin":
+        // Handle sign in
+        break;
+      case "signout":
+        // Handle sign out
+        break;
+      case "register":
+        // Handle registration
+        break;
+      case "error":
+        // Handle error
+        break;
+      case "refresh":
+        // Handle token refresh
+        break;
+    }
+  },
+};
+
+// Subscribe to all events
+passflow.subscribe(subscriber);
+
+// Subscribe to specific events
+passflow.subscribe(subscriber, ["signin", "signout"]);
+
+// Unsubscribe from all events
+passflow.unsubscribe(subscriber);
+
+// Unsubscribe from specific events
+passflow.unsubscribe(subscriber, ["error"]);
+```
+
+## Error Handling
+
+Errors thrown by the SDK are typically instances of `PassflowError` which include details about the error:
+
+```javascript
+try {
+  await passflow.signIn({
+    email: "user@example.com",
+    password: "wrong-password",
+  });
+} catch (error) {
+  if (error instanceof PassflowError) {
+    console.error(`Error ID: ${error.id}`);
+    console.error(`Error Message: ${error.message}`);
+    console.error(`Status Code: ${error.status}`);
+    console.error(`Location: ${error.location}`);
+    console.error(`Time: ${error.time}`);
+  } else {
+    console.error("Unknown error:", error);
+  }
+}
+```
+
+## API Reference
+
+### Passflow Class
+
+The main class that provides access to all functionality of the SDK.
+
+#### Constructor
+
+```typescript
+constructor(config: PassflowConfig)
+```
+
+Configuration options:
+
+- `url`: The URL of the Passflow service (default: 'https://auth.passflow.cloud')
+- `appId`: Your application ID
+- `scopes`: Token scopes to request (default: ['id', 'offline', 'tenant', 'email', 'oidc', 'openid', 'access:tenant:all'])
+- `createTenantForNewUser`: Whether to create a tenant for new users (default: false)
+- `parseQueryParams`: Whether to parse tokens from URL query parameters (default: false)
+- `keyStoragePrefix`: Prefix for localStorage keys
+
+#### Methods
+
+**Authentication Methods**
+
+| Method                                                     | Description                            |
+| ---------------------------------------------------------- | -------------------------------------- |
+| `session({ createSession, expiredSession, doRefresh })`    | Set up session management              |
+| `signIn(payload)`                                          | Sign in with email/password            |
+| `signUp(payload)`                                          | Register a new user                    |
+| `logOut()`                                                 | Sign out the current user              |
+| `passwordlessSignIn(payload)`                              | Start passwordless authentication      |
+| `passwordlessSignInComplete(payload)`                      | Complete passwordless authentication   |
+| `federatedAuthWithPopup(provider, redirectUrl, scopes)`    | Sign in with a provider using popup    |
+| `federatedAuthWithRedirect(provider, redirectUrl, scopes)` | Sign in with a provider using redirect |
+| `passkeyRegister(payload)`                                 | Register a new passkey                 |
+| `passkeyAuthenticate(payload)`                             | Authenticate with a passkey            |
+| `sendPasswordResetEmail(payload)`                          | Send password reset email              |
+| `resetPassword(newPassword, scopes)`                       | Reset password                         |
+
+**Token Methods**
+
+| Method                     | Description                    |
+| -------------------------- | ------------------------------ |
+| `isAuthenticated()`        | Check if user is authenticated |
+| `getTokensCache()`         | Get current tokens             |
+| `getParsedTokenCache()`    | Get parsed tokens              |
+| `refreshToken()`           | Refresh the access token       |
+| `setTokens(tokens)`        | Set tokens manually            |
+| `handleTokensRedirect()`   | Handle tokens from redirect    |
+| `authRedirectUrl(options)` | Generate an auth redirect URL  |
+| `authRedirect(options)`    | Redirect to the auth page      |
+
+**Tenant Methods**
+
+| Method                             | Description                  |
+| ---------------------------------- | ---------------------------- |
+| `createTenant(name, refreshToken)` | Create a new tenant          |
+| `joinInvitation(token, scopes)`    | Join a tenant via invitation |
+
+**Invitation Methods**
+
+| Method                       | Description                |
+| ---------------------------- | -------------------------- |
+| `requestInviteLink(payload)` | Request an invitation link |
+| `getInvitations(options)`    | Get all active invitations |
+| `deleteInvitation(token)`    | Delete an invitation       |
+
+**Passkey Methods**
+
+| Method                               | Description                   |
+| ------------------------------------ | ----------------------------- |
+| `getUserPasskeys()`                  | Get all user passkeys         |
+| `renameUserPasskey(name, passkeyId)` | Rename a passkey              |
+| `deleteUserPasskey(passkeyId)`       | Delete a passkey              |
+| `addUserPasskey(options)`            | Add a passkey to user account |
+
+**Event Methods**
+
+| Method                            | Description                  |
+| --------------------------------- | ---------------------------- |
+| `subscribe(subscriber, events)`   | Subscribe to auth events     |
+| `unsubscribe(subscriber, events)` | Unsubscribe from auth events |
+
+### Services
+
+The SDK includes several services that handle specific functionality:
+
+- `AuthService`: Handles authentication and session management
+- `UserService`: Handles user-related operations
+- `TenantService`: Handles tenant operations
+- `InvitationService`: Handles invitation operations
+- `DeviceService`: Manages device identification
+- `TokenService`: Handles token parsing and validation
+- `StorageManager`: Manages token storage
 
 ### Types
 
-#### `Tokens` (Type)
+Key types used in the SDK:
 
-Defines the structure for raw authentication tokens, typically received from an API.
+#### PassflowConfig
 
 ```typescript
-// Defined in: ./lib/types/index.ts
-export type Tokens = {
-  access_token: string;
-  id_token?: string; // Optional ID token
-  refresh_token?: string; // Optional refresh token
-  scopes?: string[]; // Optional list of granted scopes
+type PassflowConfig = {
+  url?: string;
+  appId?: string;
+  scopes?: string[];
+  createTenantForNewUser?: boolean;
+  parseQueryParams?: boolean;
+  keyStoragePrefix?: string;
 };
-ParsedTokens (Type)Defines the structure holding parsed Token objects.// Defined in: ./lib/types/index.ts
-import { Token } from '../token-service';
+```
 
-export type ParsedTokens = {
-  access_token: Token;
-  id_token?: Token;
-  refresh_token?: Token;
+#### Tokens
+
+```typescript
+type Tokens = {
+  access_token: string;
+  id_token?: string;
+  refresh_token?: string;
   scopes?: string[];
 };
-SessionParams (Type)Configuration parameters passed to the AuthService constructor.// Defined in: ./lib/types/index.ts
-export type SessionParams = {
-  // Callback function invoked when a session is successfully created or tokens are updated (e.g., after login or refresh).
-  createSession?: (tokens?: Tokens) => void;
-  // Callback function invoked when the session expires and cannot be refreshed, or immediately upon calling logout.
-  expiredSession?: () => void;
-  // Flag to enable (true) or disable (false) automatic token refresh using the refresh token. Defaults to true.
-  doRefresh?: boolean;
+```
+
+#### Token
+
+```typescript
+type Token = {
+  aud: string[];
+  exp: number;
+  iat: number;
+  iss: string;
+  jti: string;
+  sub: string;
+  type: string;
+  email?: string;
+  passflow_tm?: RawUserMembership;
+  payload?: unknown;
+  membership?: UserMembership;
 };
-Storage (Interface)Defines the required methods for any storage implementation used by StorageManager.// Defined in: ./lib/storage-manager/index.ts
-export type Storage = {
-  setItem: (key: string, value: string) => void;
-  getItem: (key: string) => string | null;
-  removeItem: (key: string) => void;
+```
+
+#### PassflowSignInPayload
+
+```typescript
+type PassflowSignInPayload = {
+  password: string;
+  scopes?: string[];
+  email?: string;
+  phone?: string;
+  username?: string;
+} & ({ email: string } | { phone: string } | { username: string });
+```
+
+#### PassflowSignUpPayload
+
+```typescript
+type PassflowSignUpPayload = {
+  user: PassflowUserPayload;
+  scopes?: string[];
+  create_tenant?: boolean;
+  anonymous?: boolean;
+  invite?: string;
 };
-StorageManagerParams (Interface)Configuration parameters for the StorageManager constructor.// Defined in: ./lib/storage-manager/index.ts
-export interface StorageManagerParams {
-  // The storage implementation conforming to the `Storage` interface. Defaults to browser `localStorage`.
-  storage?: Storage;
-  // An optional string prefix added to all keys used in storage to prevent naming conflicts.
-  prefix?: string;
-}
-TokenType (Enum)Enumerates the different types of tokens managed, primarily used as keys for storage.// Defined in: ./lib/token-service/index.ts
-export enum TokenType {
-  ACCESS = 'access_token',
-  ID = 'id_token',
-  REFRESH = 'refresh_token',
-}
-PassflowEvent (Enum)Enumerates the distinct types of authentication events emitted by AuthService.// Defined in: ./lib/auth-service/index.ts
+```
+
+#### UserMembership
+
+```typescript
+type UserMembership = {
+  raw: RawUserMembership;
+  tenants: TenantMembership[];
+};
+```
+
+#### PassflowEvent
+
+```typescript
 enum PassflowEvent {
-  CHECKING_SESSION = 'CHECKING_SESSION', // Fired when checkSession() begins its process.
-  NO_SESSION = 'NO_SESSION', // Fired by checkSession() if no valid tokens are found initially and refresh isn't possible/successful.
-  SESSION_ACTIVE = 'SESSION_ACTIVE', // Fired by checkSession() when a valid, non-expired access token is confirmed (either initially or after refresh).
-  LOGOUT = 'LOGOUT', // Fired after logout() successfully clears tokens and state.
-  LOGIN = 'LOGIN', // Fired after setTokens() successfully stores and parses new tokens.
-  SESSION_EXPIRED = 'SESSION_EXPIRED', // Fired by checkSession() when the access token is expired and refresh fails or is disabled.
-  REFRESHING_SESSION = 'REFRESHING_SESSION', // Fired just before the (TODO) refresh API call is attempted.
-  ERROR = 'ERROR', // Fired if an error occurs during the refresh process. The error object might be passed as the 'source'.
+  SignIn = "signin",
+  Register = "register",
+  SignOut = "signout",
+  Error = "error",
+  Refresh = "refresh",
 }
-PassflowSubscriber (Interface)Defines the contract for objects that wish to subscribe to AuthService events.// Defined in: ./lib/auth-service/index.ts
-interface PassflowSubscriber {
-  /**
-   * Method called by AuthService when a subscribed event occurs.
-   * @param event The type of event that occurred (PassflowEvent).
-   * @param source Typically the AuthService instance itself, or potentially an error object for ERROR events.
-   */
-  onAuthChange(event: PassflowEvent, source: unknown): void;
-}
-ClassesStorageManager ClassFile: ./lib/storage-manager/index.ts
+```
 
-Purpose: Handles the low-level details of reading from and writing to the chosen storage mechanism (localStorage, sessionStorage, or custom). Ensures consistent key naming, optionally applying a prefix.Key Methods:constructor(params?: StorageManagerParams): Sets up the storage mechanism (defaulting to localStorage) and the key prefix.setTokens(tokens: Tokens): Persists the provided raw token strings and scopes.getTokens(): Tokens: Retrieves all stored raw token strings and scopes.getToken(type: TokenType): string | null: Retrieves a specific raw token string by its type.removeTokens(): Deletes all authentication-related tokens and scopes from storage.Includes methods for getting/setting/removing deviceId, invitationToken, and previousRedirectUrl using the same storage mechanism and prefix.Token ClassFile: ./lib/token-service/index.tsPurpose: Represents an individual token. If the token is a JWT, it decodes the header and payload for easy access. Provides utility methods like checking expiration.Key Methods:constructor(value: string): Takes the raw token string. Attempts to decode it as a JWT.isExpired(threshold?: number): boolean: Checks the exp claim against the current time. Returns true if expired, not a JWT, or no exp claim exists. The optional threshold (in seconds) allows checking if the token will expire within that future timeframe.getClaim(claim: string): any: Accesses a specific claim from the decoded JWT payload (e.g., getClaim('sub'), getClaim('email')). Returns undefined if the claim doesn't exist or the token isn't a valid JWT payload.Properties:value: string: The original, raw token string.header: any: The decoded JWT header object, or undefined.payload: any: The decoded JWT payload object, or undefined.TokenService ClassFile: ./lib/token-service/index.tsPurpose: Acts as a service layer for token operations. Uses StorageManager to get raw tokens and then uses the Token class to parse and validate them.Key Methods:constructor(storageManager: StorageManager): Requires an instance of StorageManager.parseToken(tokenValue: string): Token: Utility to create a Token instance from a raw string.parseTokens(tokens?: Tokens): ParsedTokens | null: Converts a raw Tokens object into a ParsedTokens object containing Token instances.getParsedTokens(): ParsedTokens | null: The main method to get the current tokens from storage and return them as parsed Token objects.validateToken(token?: Token): boolean: Simple validation: checks if the token object exists and is not expired according to token.isExpired().isAccessTokenExpired(): boolean: Convenience method to check the expiration of the currently stored access token.isRefreshTokenExpired(): boolean: Convenience method to check the expiration of the currently stored refresh token.getClaim(claim: string, tokenType: TokenType = TokenType.ACCESS): any: Retrieves a specific claim from either the access token (default) or the ID token stored in storage.AuthService ClassFile: ./lib/auth-service/index.tsPurpose: The primary interface for the application to interact with the authentication system. It coordinates StorageManager and TokenService, manages the session state machine, handles the refresh logic (partially implemented), and notifies subscribers of state changes.Key Methods:constructor(storageManager, tokenService, params?: SessionParams): Initializes the service with its dependencies and configuration (callbacks, refresh behavior).setTokens(tokens?: Tokens): Call this after a successful login. It stores the tokens via StorageManager, updates its internal state with the parsed tokens from TokenService, notifies subscribers with the LOGIN event, and triggers the createSession callback.checkSession(): Promise<void>: Call this on application startup. It checks storage for tokens, validates them (especially the access token). If the access token is expired but a valid refresh token exists and doRefresh is true, it attempts the refresh flow (notifies REFRESHING_SESSION, calls the TODO refresh logic, then potentially calls setTokens on success or notifies SESSION_EXPIRED on failure). Finally, it notifies SESSION_ACTIVE, NO_SESSION, or SESSION_EXPIRED based on the outcome.logout(): Promise<void>: Call this to end the user session. It removes tokens via StorageManager, clears internal state, notifies subscribers with the LOGOUT event, and triggers the expiredSession callback.getTokens(): ParsedTokens | null: Returns the current parsed tokens held in the service's state (useful for direct access if needed, but often claims are retrieved via TokenService.getClaim).isLoggedIn(): boolean: A simple check based on the internal state – returns true if a valid (parsed and non-expired) access token is currently held by the service.subscribe(subscriber: PassflowSubscriber, events?: PassflowEvent[]): Registers a listener for authentication events. Can specify particular events or listen to all.unsubscribe(subscriber: PassflowSubscriber, events?: PassflowEvent[]): Removes a listener.Internal State: Holds the current ParsedTokens (this.tokens) and the session validity status (this.loggedIn).Refresh Logic: The refreshSession method outlines the steps but crucially marks the actual API call to exchange the refresh token for new tokens as // TODO: Implement refresh token logic. This part needs to be filled in with your specific API endpoint call.5. Usage ExampleThis example demonstrates initializing the services, subscribing to events for UI updates, checking the session on load, and handling login/logout triggers.import {
-  StorageManager,
-  TokenService,
-  AuthService,
-  PassflowEvent,
-  PassflowSubscriber,
-  Tokens // Import Tokens type if needed for callbacks or login function signature
-} from './your-auth-library'; // Adjust import path as necessary
+## Detailed Examples
 
-// --- 1. Initialization ---
+### Complete Sign In Flow
 
-// Use default localStorage with a specific prefix for keys
-const storageManager = new StorageManager({ prefix: 'myWebAppAuth' });
-const tokenService = new TokenService(storageManager);
+```javascript
+import { Passflow, PassflowError } from "passflow-js";
 
-// Instantiate the main service
-const authService = new AuthService(storageManager, tokenService, {
-  // Optional: Called on successful login or token refresh
-  createSession: (rawTokens?: Tokens) => {
-    console.log('AuthService: Session is active.', rawTokens ? 'Tokens provided.' : 'Using existing tokens.');
-    // Maybe trigger fetching user-specific data here
-    // fetchUserData(rawTokens.access_token);
+// Initialize Passflow
+const passflow = new Passflow({
+  appId: "your-app-id",
+  parseQueryParams: true,
+});
+
+// Set up session management
+passflow.session({
+  createSession: (tokens) => {
+    // Store authentication state
+    localStorage.setItem("isAuthenticated", "true");
+
+    // Update UI
+    document.getElementById("login-form").style.display = "none";
+    document.getElementById("user-dashboard").style.display = "block";
   },
-  // Optional: Called on logout or when session expires and cannot be refreshed
   expiredSession: () => {
-    console.log('AuthService: Session ended or expired.');
-    // Redirect to login page or clear user-specific state
-    // clearUserData();
-    // window.location.href = '/login';
+    // Clear authentication state
+    localStorage.removeItem("isAuthenticated");
+
+    // Update UI
+    document.getElementById("login-form").style.display = "block";
+    document.getElementById("user-dashboard").style.display = "none";
   },
-  // Explicitly enable auto-refresh (this is the default)
   doRefresh: true,
 });
 
-// --- 2. Event Subscription (Example: Simple UI Updater) ---
+// Handle form submission
+document
+  .getElementById("login-form")
+  .addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-class SimpleAuthUI implements PassflowSubscriber {
-  private statusEl: HTMLElement | null;
-  private loginBtn: HTMLElement | null;
-  private logoutBtn: HTMLElement | null;
-  private userInfoEl: HTMLElement | null;
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
 
-  constructor() {
-    // Assume these elements exist in your HTML
-    this.statusEl = document.getElementById('auth-status-display');
-    this.loginBtn = document.getElementById('login-button');
-    this.logoutBtn = document.getElementById('logout-button');
-    this.userInfoEl = document.getElementById('user-info');
-  }
-
-  updateStatus(text: string) {
-    if (this.statusEl) this.statusEl.textContent = text;
-    console.log(`UI Update: ${text}`); // Log UI changes
-  }
-
-  showLoggedInState(isLoggedIn: boolean) {
-     if (this.loginBtn) this.loginBtn.style.display = isLoggedIn ? 'none' : 'inline-block';
-     if (this.logoutBtn) this.logoutBtn.style.display = isLoggedIn ? 'inline-block' : 'none';
-     if (this.userInfoEl) this.userInfoEl.style.display = isLoggedIn ? 'block' : 'none';
-  }
-
-  displayUserInfo() {
-    if (this.userInfoEl && authService.isLoggedIn()) {
-       // Use TokenService to get claims from the currently stored token
-       const email = tokenService.getClaim('email');
-       const name = tokenService.getClaim('name') ?? 'User';
-       this.userInfoEl.textContent = `Welcome, ${name} (${email ?? 'no email'})`;
-    } else if (this.userInfoEl) {
-       this.userInfoEl.textContent = '';
+    try {
+      await passflow.signIn({ email, password });
+      // Login successful - session callback will handle UI update
+    } catch (error) {
+      if (error instanceof PassflowError) {
+        document.getElementById("error-message").textContent = error.message;
+      } else {
+        document.getElementById("error-message").textContent =
+          "An unexpected error occurred";
+        console.error(error);
+      }
     }
-  }
+  });
 
-  onAuthChange(event: PassflowEvent, source: unknown) {
-    console.log(`Auth Event Received by UI: ${event}`);
-    switch (event) {
-      case PassflowEvent.CHECKING_SESSION:
-        this.updateStatus('Verifying session...');
-        this.showLoggedInState(false); // Assume logged out until confirmed
-        break;
-      case PassflowEvent.REFRESHING_SESSION:
-        this.updateStatus('Refreshing session...');
-        break;
-      case PassflowEvent.SESSION_ACTIVE:
-      case PassflowEvent.LOGIN:
-        this.updateStatus('Logged In');
-        this.showLoggedInState(true);
-        this.displayUserInfo(); // Display user info based on token claims
-        break;
-      case PassflowEvent.NO_SESSION:
-      case PassflowEvent.LOGOUT:
-      case PassflowEvent.SESSION_EXPIRED:
-        this.updateStatus('Logged Out');
-        this.showLoggedInState(false);
-         this.displayUserInfo(); // Clear user info
-        break;
-      case PassflowEvent.ERROR:
-         this.updateStatus('Authentication Error!');
-         console.error('Auth Error Source:', source);
-         this.showLoggedInState(false); // Treat error as logged out
-         this.displayUserInfo();
-         break;
+// Handle logout
+document.getElementById("logout-button").addEventListener("click", async () => {
+  await passflow.logOut();
+  // Logout successful - session callback will handle UI update
+});
+
+// Check for redirect tokens on page load
+window.addEventListener("load", () => {
+  const tokens = passflow.handleTokensRedirect();
+  if (tokens) {
+    console.log("Authenticated via redirect");
+  }
+});
+```
+
+### Authentication with Passkeys
+
+```javascript
+import { Passflow } from "passflow-js";
+
+// Initialize Passflow
+const passflow = new Passflow({
+  appId: "your-app-id",
+});
+
+// Set up session management
+passflow.session({
+  createSession: (tokens) => {
+    console.log("Session created", tokens);
+  },
+  expiredSession: () => {
+    console.log("Session expired");
+  },
+  doRefresh: true,
+});
+
+// Handle passkey registration
+document
+  .getElementById("register-passkey-button")
+  .addEventListener("click", async () => {
+    try {
+      const email = document.getElementById("email").value;
+
+      await passflow.passkeyRegister({
+        passkey_display_name: "My Passkey",
+        passkey_username: email,
+        relying_party_id: window.location.hostname,
+        redirect_url: window.location.origin,
+        scopes: ["id", "offline", "tenant", "email"],
+      });
+
+      alert("Passkey registered successfully!");
+    } catch (error) {
+      alert(`Passkey registration failed: ${error.message}`);
+      console.error(error);
     }
+  });
+
+// Handle passkey authentication
+document
+  .getElementById("login-with-passkey-button")
+  .addEventListener("click", async () => {
+    try {
+      await passflow.passkeyAuthenticate({
+        relying_party_id: window.location.hostname,
+      });
+
+      alert("Authenticated with passkey successfully!");
+    } catch (error) {
+      alert(`Passkey authentication failed: ${error.message}`);
+      console.error(error);
+    }
+  });
+```
+
+### Multi-tenant Application
+
+```javascript
+import { Passflow, PassflowEvent } from "passflow-js";
+
+// Initialize Passflow
+const passflow = new Passflow({
+  appId: "your-app-id",
+});
+
+// Track current tenant
+let currentTenant = null;
+
+// Set up session management
+passflow.session({
+  createSession: (tokens) => {
+    const parsedTokens = passflow.getParsedTokenCache();
+    if (parsedTokens?.access_token?.membership?.tenants?.length > 0) {
+      currentTenant = parsedTokens.access_token.membership.tenants[0];
+      updateTenantUI();
+    } else {
+      showCreateTenantUI();
+    }
+  },
+  expiredSession: () => {
+    currentTenant = null;
+    showLoginUI();
+  },
+  doRefresh: true,
+});
+
+// Subscribe to auth events
+passflow.subscribe({
+  onAuthChange: (eventType) => {
+    if (
+      eventType === PassflowEvent.SignIn ||
+      eventType === PassflowEvent.Register
+    ) {
+      const parsedTokens = passflow.getParsedTokenCache();
+      if (parsedTokens?.access_token?.membership?.tenants?.length > 0) {
+        currentTenant = parsedTokens.access_token.membership.tenants[0];
+        updateTenantUI();
+      } else {
+        showCreateTenantUI();
+      }
+    }
+  },
+});
+
+// Create tenant function
+async function createNewTenant() {
+  const tenantName = document.getElementById("tenant-name").value;
+  try {
+    await passflow.createTenant(tenantName, true);
+    const parsedTokens = passflow.getParsedTokenCache();
+    currentTenant = parsedTokens.access_token.membership.tenants[0];
+    updateTenantUI();
+  } catch (error) {
+    console.error("Failed to create tenant", error);
+    alert(`Failed to create tenant: ${error.message}`);
   }
 }
 
-// Instantiate and subscribe the UI updater
-const authUI = new SimpleAuthUI();
-authService.subscribe(authUI);
-
-// --- 3. Application Startup Logic ---
-
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('App Loaded. Checking session...');
-  authService.checkSession()
-    .then(() => {
-      console.log('Initial session check finished.');
-      // Initial UI state is set by the event handler, but you could
-      // force an update here if needed based on authService.isLoggedIn()
-    })
-    .catch(error => {
-      // This catch might be redundant if the ERROR event is handled,
-      // but useful for logging unexpected issues in checkSession itself.
-      console.error('Critical error during initial session check:', error);
-      authUI.updateStatus('Error checking session.');
-      authUI.showLoggedInState(false);
+// Invite user function
+async function inviteUser() {
+  const email = document.getElementById("invite-email").value;
+  try {
+    const response = await passflow.requestInviteLink({
+      email,
+      tenant: currentTenant.tenant.id,
+      send_to_email: true,
     });
-
-  // --- 4. Hook up Login/Logout Triggers ---
-
-  // Example: Assuming you have a function that calls your backend API for login
-  async function performApiLogin(username, password): Promise<Tokens | null> {
-      // Replace with your actual API call
-      console.log(`Simulating API login for ${username}...`);
-      await new Promise(res => setTimeout(res, 500)); // Simulate network delay
-      // On successful API login, return the tokens
-      // This is dummy data - replace with your actual API response structure
-      const dummyTokens: Tokens = {
-          access_token: `jwt.accesstoken.${Date.now()}.payload`,
-          refresh_token: `jwt.refreshtoken.${Date.now()}.payload`,
-          id_token: `jwt.idtoken.${Date.now()}.payload`,
-          scopes: ["read", "write"]
-      };
-      return dummyTokens;
-      // On failure, return null or throw an error
-      // return null;
+    alert(`Invitation sent to ${email}`);
+    console.log("Invitation link:", response.link);
+  } catch (error) {
+    console.error("Failed to invite user", error);
+    alert(`Failed to invite user: ${error.message}`);
   }
+}
 
-  // Attach to login button click
-  const loginButton = document.getElementById('login-button');
-  loginButton?.addEventListener('click', async () => {
-      authUI.updateStatus('Logging in...');
-      try {
-          // Get credentials from form inputs (not shown)
-          const username = 'testuser';
-          const password = 'password';
-          const tokens = await performApiLogin(username, password);
-          if (tokens) {
-              authService.setTokens(tokens); // This triggers LOGIN event and createSession callback
-          } else {
-              authUI.updateStatus('Login failed (API).');
-          }
-      } catch (error) {
-          console.error('Login API call failed:', error);
-          authUI.updateStatus('Login failed (Error).');
-      }
+// UI update functions
+function updateTenantUI() {
+  document.getElementById("tenant-name-display").textContent =
+    currentTenant.tenant.name;
+  document.getElementById("tenant-id-display").textContent =
+    currentTenant.tenant.id;
+  document.getElementById("tenant-section").style.display = "block";
+  document.getElementById("create-tenant-section").style.display = "none";
+}
+
+function showCreateTenantUI() {
+  document.getElementById("tenant-section").style.display = "none";
+  document.getElementById("create-tenant-section").style.display = "block";
+}
+
+function showLoginUI() {
+  document.getElementById("tenant-section").style.display = "none";
+  document.getElementById("create-tenant-section").style.display = "none";
+  document.getElementById("login-section").style.display = "block";
+}
+
+// Event listeners
+document
+  .getElementById("create-tenant-form")
+  .addEventListener("submit", (e) => {
+    e.preventDefault();
+    createNewTenant();
   });
 
-  // Attach to logout button click
-  const logoutButton = document.getElementById('logout-button');
-  logoutButton?.addEventListener('click', () => {
-      authService.logout(); // This triggers LOGOUT event and expiredSession callback
-  });
-
-}); // End DOMContentLoaded
-
-// --- 5. Cleanup (Example) ---
-// If your application framework has component lifecycle hooks (e.g., React useEffect cleanup, Angular OnDestroy)
-// remember to unsubscribe to prevent memory leaks:
-// window.addEventListener('beforeunload', () => {
-//   authService.unsubscribe(authUI);
-// });
-
-6. Event Handling Deep DiveThe event system is core to making the library flexible and allowing different parts of your application to react to authentication changes without being tightly coupled.How it Works: AuthService maintains a Map where keys are subscriber objects and values are either null (subscribe to all events) or a Set of specific PassflowEvents to listen for. When an event occurs (e.g., setTokens calls notify(this, PassflowEvent.LOGIN)), the notify method iterates through the map. For each subscriber, it checks if the subscriber wants all events (null) or if the specific event type is in their Set. If the condition matches, it calls the subscriber's onAuthChange method.Subscribing:authService.subscribe(myComponent): myComponent will receive all PassflowEvent notifications.authService.subscribe(myLogger, [PassflowEvent.LOGIN, PassflowEvent.LOGOUT, PassflowEvent.ERROR]): myLogger will only receive notifications for login, logout, and error events.Unsubscribing: It's crucial to call `authService.unsubscribe(
+document.getElementById("invite-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  inviteUser();
+});
 ```
