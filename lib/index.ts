@@ -11,8 +11,17 @@ export * from './types';
 export { PassflowEvent, type PassflowSubscriber } from './store';
 
 // Re-export token utilities
-export { isTokenExpired, parseToken, TokenType } from './token-service';
-export type { Token, InvitationToken } from './token-service';
+export {
+  isTokenExpired,
+  parseToken,
+  TokenType,
+  type UserMembership,
+  type TenantMembership,
+  type GroupMembership,
+  type Tenant,
+  type Group,
+  type RawUserMembership,
+} from './token-service';
 
 // Export Passflow class
 export { Passflow } from './passflow';
