@@ -13,10 +13,34 @@ export enum PassflowEvent {
 }
 
 /**
+ * Error payload interface for structured error information
+ */
+export interface ErrorPayload {
+  message: string;
+  code?: string | number;
+  details?: unknown;
+  originalError?: unknown;
+}
+
+/**
+ * Event-specific payload types
+ */
+export type PassflowEventPayload = {
+  [PassflowEvent.SignIn]: { tokens?: unknown };
+  [PassflowEvent.SignInStart]: { email?: string; provider?: string };
+  [PassflowEvent.Register]: { tokens?: unknown };
+  [PassflowEvent.RegisterStart]: { email?: string };
+  [PassflowEvent.SignOut]: { userId?: string };
+  [PassflowEvent.Error]: ErrorPayload;
+  [PassflowEvent.Refresh]: { tokens?: unknown };
+  [PassflowEvent.RefreshStart]: { tokenId?: string };
+};
+
+/**
  * Passflow subscriber interface
  */
 export interface PassflowSubscriber {
-  onAuthChange: (eventType: PassflowEvent, source?: unknown) => void;
+  onAuthChange<E extends PassflowEvent>(eventType: E, payload?: PassflowEventPayload[E]): void;
 }
 
 /**
@@ -63,13 +87,13 @@ export class PassflowStore {
 
   /**
    * Notify subscribers of an event
-   * @param source The source of the event
    * @param eventType The type of event that occurred
+   * @param payload Event-specific payload data
    */
-  notify(source: unknown, eventType: PassflowEvent): void {
+  notify<E extends PassflowEvent>(eventType: E, payload?: PassflowEventPayload[E]): void {
     this.subscribers.forEach((events, subscriber) => {
       if (!events || events.has(eventType)) {
-        subscriber.onAuthChange(eventType, source);
+        subscriber.onAuthChange(eventType, payload);
       }
     });
   }

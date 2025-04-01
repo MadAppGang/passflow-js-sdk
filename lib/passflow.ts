@@ -1,6 +1,3 @@
-/* eslint-disable complexity */
-import axios from 'axios';
-
 import {
   AppAPI,
   type AppSettings,
@@ -36,7 +33,7 @@ import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL } from './constants';
 import { DeviceService } from './device-service';
 import { AuthService, InvitationService, TenantService, UserService } from './services';
 import { StorageManager } from './storage-manager';
-import { PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
+import { ErrorPayload, PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
 import { parseToken } from './token-service';
 
 import type { ParsedTokens, SessionParams, Tokens } from './types';
@@ -138,14 +135,26 @@ export class Passflow {
   };
 
   private async submitSessionCheck() {
-    const tokens = await this.authService.getTokens(this.doRefreshTokens);
+    try {
+      const tokens = await this.authService.getTokens(this.doRefreshTokens);
 
-    if (tokens && this.createSessionCallback) {
-      this.createSessionCallback(this.tokensCache);
-    }
+      if (tokens && this.createSessionCallback) {
+        this.createSessionCallback(this.tokensCache);
+      }
 
-    if (!tokens && this.expiredSessionCallback) {
-      this.expiredSessionCallback();
+      if (!tokens && this.expiredSessionCallback) {
+        this.expiredSessionCallback();
+      }
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Session check failed',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+
+      if (this.expiredSessionCallback) {
+        this.expiredSessionCallback();
+      }
     }
   }
 
@@ -180,7 +189,7 @@ export class Passflow {
       };
       this.storageManager.saveTokens(tokens);
       this.setTokensCache(tokens);
-      this.subscribeStore.notify(null, PassflowEvent.SignIn);
+      this.subscribeStore.notify(PassflowEvent.SignIn, { tokens });
       this.submitSessionCheck();
 
       urlParams.delete('access_token');
@@ -282,30 +291,37 @@ export class Passflow {
   reset(error?: string) {
     this.storageManager.deleteTokens();
     this.setTokensCache(undefined);
-    this.subscribeStore.notify(null, PassflowEvent.SignOut);
+    this.subscribeStore.notify(PassflowEvent.SignOut, {});
     if (error) {
       this.error = new Error(error);
-      this.subscribeStore.notify(null, PassflowEvent.Error);
+      const errorPayload: ErrorPayload = {
+        message: error,
+        code: 'RESET_ERROR',
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
       throw this.error;
     }
   }
 
   async refreshToken(): Promise<PassflowAuthorizationResponse> {
+    if (!this.parsedTokensCache?.refresh_token) {
+      throw new Error('No refresh token found');
+    }
+
     try {
       const response = await this.authService.refreshToken();
       this.setTokensCache(response);
       return response;
     } catch (error) {
       if (error instanceof PassflowError) {
-        this.reset(error.message);
-      } else if (axios.isAxiosError(error) && error.response && error.response?.status >= 400 && error.response?.status < 500) {
-        this.reset(`Getting unknown error message from server with code:${error.response.status}`);
+        throw error;
       } else {
-        this.error = error as Error;
-        this.subscribeStore.notify(null, PassflowEvent.Error);
+        this.subscribeStore.notify(PassflowEvent.Error, {
+          message: 'Failed to refresh token',
+          originalError: error,
+        });
         throw error;
       }
-      throw new Error('Unexpected behavior');
     }
   }
 
@@ -320,20 +336,56 @@ export class Passflow {
   }
 
   // App settings
-  getAppSettings(): Promise<AppSettings> {
-    return this.appApi.getAppSettings();
+  async getAppSettings(): Promise<AppSettings> {
+    try {
+      return await this.appApi.getAppSettings();
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to get app settings',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
-  getSettingsAll(): Promise<PassflowSettingsAll> {
-    return this.settingApi.getSettingsAll();
+  async getSettingsAll(): Promise<PassflowSettingsAll> {
+    try {
+      return await this.settingApi.getSettingsAll();
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to get all settings',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
-  getPasswordPolicySettings(): Promise<PassflowPasswordPolicySettings> {
-    return this.settingApi.getPasswordPolicySettings();
+  async getPasswordPolicySettings(): Promise<PassflowPasswordPolicySettings> {
+    try {
+      return await this.settingApi.getPasswordPolicySettings();
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to get password policy settings',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
-  getPasskeySettings(): Promise<PassflowPasskeySettings> {
-    return this.settingApi.getPasskeySettings();
+  async getPasskeySettings(): Promise<PassflowPasskeySettings> {
+    try {
+      return await this.settingApi.getPasskeySettings();
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to get passkey settings',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
   // Passkey methods
@@ -352,13 +404,10 @@ export class Passflow {
   }
 
   // Token management
-  async setTokens(tokens: Tokens): Promise<Tokens> {
-    this.storageManager.saveTokens(tokens);
-    this.setTokensCache(tokens);
-    this.error = undefined;
-    this.subscribeStore.notify(null, PassflowEvent.SignIn);
-    await this.submitSessionCheck();
-    return tokens;
+  setTokens(tokensData: Tokens): void {
+    this.storageManager.saveTokens(tokensData);
+    this.setTokensCache(tokensData);
+    this.subscribeStore.notify(PassflowEvent.SignIn, { tokens: tokensData });
   }
 
   // Add getTokens method
@@ -367,38 +416,105 @@ export class Passflow {
   }
 
   // User passkey methods delegated to UserService
-  getUserPasskeys() {
-    return this.userService.getUserPasskeys();
+  async getUserPasskeys() {
+    try {
+      return await this.userService.getUserPasskeys();
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to get user passkeys',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
-  renameUserPasskey(name: string, passkeyId: string): Promise<PassflowSuccessResponse> {
-    return this.userService.renameUserPasskey(name, passkeyId);
+  async renameUserPasskey(name: string, passkeyId: string): Promise<PassflowSuccessResponse> {
+    try {
+      return await this.userService.renameUserPasskey(name, passkeyId);
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to rename user passkey',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
-  deleteUserPasskey(passkeyId: string): Promise<PassflowSuccessResponse> {
-    return this.userService.deleteUserPasskey(passkeyId);
+  async deleteUserPasskey(passkeyId: string): Promise<PassflowSuccessResponse> {
+    try {
+      return await this.userService.deleteUserPasskey(passkeyId);
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to delete user passkey',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
-  addUserPasskey(options?: { relyingPartyId?: string; passkeyUsername?: string; passkeyDisplayName?: string }): Promise<void> {
-    return this.userService.addUserPasskey(options);
+  async addUserPasskey(options?: {
+    relyingPartyId?: string;
+    passkeyUsername?: string;
+    passkeyDisplayName?: string;
+  }): Promise<void> {
+    try {
+      return await this.userService.addUserPasskey(options);
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to add user passkey',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
   // Tenant methods delegated to TenantService
-  joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {
-    return this.tenantService.joinInvitation(token, scopes);
+  async joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {
+    try {
+      return await this.tenantService.joinInvitation(token, scopes);
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to join invitation',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
   async createTenant(name: string, refreshToken?: boolean): Promise<PassflowTenantResponse> {
-    const tenant = await this.tenantService.createTenant(name);
-    if (refreshToken) {
-      await this.refreshToken();
+    try {
+      const tenant = await this.tenantService.createTenant(name);
+      if (refreshToken) {
+        await this.refreshToken();
+      }
+      return tenant;
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to create tenant',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
     }
-    return tenant;
   }
 
   // Invitation methods delegated to InvitationService
   async requestInviteLink(payload: RequestInviteLinkPayload): Promise<InviteLinkResponse> {
-    return await this.invitationService.requestInviteLink(payload);
+    try {
+      return await this.invitationService.requestInviteLink(payload);
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to request invite link',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
   /**
@@ -412,11 +528,29 @@ export class Passflow {
     skip?: number | string;
     limit?: number | string;
   }): Promise<Invitation[]> {
-    return await this.invitationService.getInvitations(options);
+    try {
+      return await this.invitationService.getInvitations(options);
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to get invitations',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
   async deleteInvitation(token: string): Promise<PassflowSuccessResponse> {
-    return await this.invitationService.deleteInvitation(token);
+    try {
+      return await this.invitationService.deleteInvitation(token);
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to delete invitation',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
   }
 
   // Auth redirect helpers
