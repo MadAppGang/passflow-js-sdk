@@ -37,8 +37,8 @@ export class AuthService {
     private origin: string,
     private url: string,
     private sessionCallbacks: {
-      createSession?: (tokens?: Tokens) => void;
-      expiredSession?: () => void;
+      createSession?: (tokens?: Tokens) => Promise<void>;
+      expiredSession?: () => Promise<void>;
     },
     private appId?: string,
   ) {}
@@ -455,31 +455,27 @@ export class AuthService {
    * Handle session check and callbacks
    */
   async submitSessionCheck(doRefresh = false): Promise<Tokens | undefined> {
+    let tokens;
     try {
-      const tokens = await this.getTokens(doRefresh);
-
-      if (tokens && this.sessionCallbacks.createSession) {
-        this.sessionCallbacks.createSession(tokens);
-      }
-
-      if (!tokens && this.sessionCallbacks.expiredSession) {
-        this.sessionCallbacks.expiredSession();
-      }
-
-      return tokens;
+      tokens = await this.getTokens(doRefresh);
     } catch (error) {
       const errorPayload: ErrorPayload = {
-        message: error instanceof Error ? error.message : 'Session check failed',
+        message: error instanceof Error || error instanceof PassflowError ? error.message : 'Session check failed',
         originalError: error,
       };
       this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-
-      if (this.sessionCallbacks.expiredSession) {
-        this.sessionCallbacks.expiredSession();
-      }
-
-      return undefined;
+      tokens = undefined;
     }
+
+    if (tokens && this.sessionCallbacks.createSession) {
+      await this.sessionCallbacks.createSession(tokens);
+    }
+
+    if (!tokens && this.sessionCallbacks.expiredSession) {
+      await this.sessionCallbacks.expiredSession();
+    }
+
+    return tokens;
   }
 
   /**
