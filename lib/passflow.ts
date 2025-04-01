@@ -276,8 +276,19 @@ export class Passflow {
   }
 
   async logOut(): Promise<void> {
-    await this.authService.logOut();
+    try {
+      await this.authService.logOut();
+      this.storageManager.deleteTokens();
+      await this.submitSessionCheck();
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to log out',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+    }
     this.setTokensCache(undefined);
+    this.subscribeStore.notify(PassflowEvent.SignOut, {});
   }
 
   federatedAuthWithPopup(provider: Providers, redirect_url: string, scopes?: string[]): void {

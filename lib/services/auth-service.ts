@@ -142,25 +142,13 @@ export class AuthService {
     try {
       const status = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
       if (status.result !== 'ok') {
-        const errorPayload: ErrorPayload = {
-          message: 'Logout failed',
-          code: 'LOGOUT_FAILED',
-        };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        throw new Error('Logout failed');
       }
     } catch (error) {
       // biome-ignore lint/suspicious/noConsole: <explanation>
       console.error(error);
-      const errorPayload: ErrorPayload = {
-        message: error instanceof Error ? error.message : 'Logout failed',
-        originalError: error,
-        code: error instanceof PassflowError ? error.id : undefined,
-      };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
     }
-    this.subscribeStore.notify(PassflowEvent.SignOut, {});
-    this.storageManager.deleteTokens();
-    await this.submitSessionCheck();
   }
 
   async refreshToken(): Promise<PassflowAuthorizationResponse> {
