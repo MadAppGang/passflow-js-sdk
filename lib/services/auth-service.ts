@@ -158,9 +158,8 @@ export class AuthService {
       };
       this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
     }
-
-    this.storageManager.deleteTokens();
     this.subscribeStore.notify(PassflowEvent.SignOut, {});
+    this.storageManager.deleteTokens();
     await this.submitSessionCheck();
   }
 
