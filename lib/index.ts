@@ -8,7 +8,7 @@ export * from './constants';
 export * from './types';
 
 // Re-export events
-export { PassflowEvent, type PassflowSubscriber } from './store';
+export { PassflowEvent, type PassflowSubscriber, type ErrorPayload, type PassflowEventPayload } from './store';
 
 // Re-export token utilities
 export {
