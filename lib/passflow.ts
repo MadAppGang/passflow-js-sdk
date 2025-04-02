@@ -34,7 +34,7 @@ import { DeviceService } from './device-service';
 import { AuthService, InvitationService, TenantService, UserService } from './services';
 import { StorageManager } from './storage-manager';
 import { ErrorPayload, PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
-import { parseToken } from './token-service';
+import { parseToken, TokenType } from './token-service';
 
 import type { ParsedTokens, SessionParams, Tokens } from './types';
 
@@ -62,8 +62,8 @@ export class Passflow {
   private invitationService: InvitationService;
 
   // Session callbacks
-  private createSessionCallback?: (tokens?: Tokens) => void;
-  private expiredSessionCallback?: () => void;
+  private createSessionCallback?: (tokens?: Tokens) => Promise<void>;
+  private expiredSessionCallback?: () => Promise<void>;
 
   // State
   tokensCache: Tokens | undefined;
@@ -122,7 +122,7 @@ export class Passflow {
   }
 
   // Session management
-  session: ({ createSession, expiredSession, doRefresh }: SessionParams) => void = async ({
+  session: ({ createSession, expiredSession, doRefresh }: SessionParams) => Promise<void> = async ({
     createSession,
     expiredSession,
     doRefresh = false,
@@ -135,26 +135,24 @@ export class Passflow {
   };
 
   private async submitSessionCheck() {
+    let tokens;
     try {
-      const tokens = await this.authService.getTokens(this.doRefreshTokens);
-
-      if (tokens && this.createSessionCallback) {
-        this.createSessionCallback(this.tokensCache);
-      }
-
-      if (!tokens && this.expiredSessionCallback) {
-        this.expiredSessionCallback();
-      }
+      tokens = await this.authService.getTokens(this.doRefreshTokens);
     } catch (error) {
       const errorPayload: ErrorPayload = {
-        message: error instanceof Error ? error.message : 'Session check failed',
+        message: error instanceof Error || error instanceof PassflowError ? error.message : 'Session check failed',
         originalError: error,
       };
       this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      tokens = undefined;
+    }
 
-      if (this.expiredSessionCallback) {
-        this.expiredSessionCallback();
-      }
+    if (tokens && this.createSessionCallback) {
+      await this.createSessionCallback(tokens);
+    }
+
+    if (!tokens && this.expiredSessionCallback) {
+      await this.expiredSessionCallback();
     }
   }
 
@@ -424,6 +422,11 @@ export class Passflow {
   // Add getTokens method
   async getTokens(doRefresh = false): Promise<Tokens | undefined> {
     return await this.authService.getTokens(doRefresh);
+  }
+
+  // Get token from storage by key
+  getToken(tokenType: TokenType): string | undefined {
+    return this.storageManager.getToken(tokenType);
   }
 
   // User passkey methods delegated to UserService
