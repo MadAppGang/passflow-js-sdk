@@ -1,5 +1,6 @@
 import { AxiosClient } from './axios-client';
-import { PassflowConfig, PassflowSuccessResponse } from './model';
+import { type PassflowConfig, type PassflowSuccessResponse, PassflowEndpointPaths, pathWithParams } from './model';
+import { TenantAPI } from './tenant';
 
 export interface RequestInviteLinkPayload {
   email?: string;
@@ -49,22 +50,21 @@ export class InvitationAPI {
    * @param options Optional parameters for filtering and pagination
    * @returns Promise with array of invitations
    */
-  getInvitations(options?: {
-    tenant_id?: string;
-    group_id?: string;
+  getInvitations(options: {
+    tenantID: string;
+    groupID?: string;
     skip?: number | string;
     limit?: number | string;
   }): Promise<Invitation[]> {
     const params: Record<string, string> = {};
 
-    if (options) {
-      if (options.tenant_id) params['tenant_id'] = options.tenant_id.toString();
-      if (options.group_id) params['group_id'] = options.group_id.toString();
-      if (options.skip !== undefined) params['skip'] = options.skip.toString();
-      if (options.limit !== undefined) params['limit'] = options.limit.toString();
-    }
+    if (options.groupID) params['group_id'] = options.groupID.toString();
+    if (options.skip !== undefined) params['skip'] = options.skip.toString();
+    if (options.limit !== undefined) params['limit'] = options.limit.toString();
 
-    return this.axiosClient.get<Invitation[]>('/api/invitation/list', { params });
+    const path = pathWithParams(PassflowEndpointPaths.invitationsPath, { tenantID: options.tenantID });
+
+    return this.axiosClient.get<Invitation[]>(path, { params });
   }
 
   /**
@@ -73,6 +73,7 @@ export class InvitationAPI {
    * @returns Promise with success response
    */
   deleteInvitation(token: string): Promise<PassflowSuccessResponse> {
-    return this.axiosClient.delete<PassflowSuccessResponse>(`/api/invitation/${token}`);
+    const path = pathWithParams(PassflowEndpointPaths.invitationDelete, { token });
+    return this.axiosClient.delete<PassflowSuccessResponse>(path);
   }
 }

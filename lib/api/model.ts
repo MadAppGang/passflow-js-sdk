@@ -44,6 +44,9 @@ export enum PassflowEndpointPaths {
   completeAddUserPasskey = `${PassflowEndpointPaths.userPasskey}/add/complete`,
   joinInvitation = '/user/tenant/join',
   tenantPath = '/user/tenant',
+  invitationsPath = '/user/tenant/:tenantID/invitations',
+  invitationList = '/user/invitation/list',
+  invitationDelete = '/api/invitation/:token',
 }
 
 export enum PassflowAdminEndpointPaths {
@@ -396,3 +399,15 @@ export type PassflowCreateTenantPayload = {
 };
 
 export type PassflowCreateTokenResponse = PassflowTenantResponse;
+
+// Helper function to create paths with parameters
+export function pathWithParams(template: string, params: Record<string, string>): string {
+  let result = template;
+  Object.entries(params).forEach(([key, value]) => {
+    result = result.replace(`:${key}`, value);
+  });
+  return result;
+}
+
+// Usage example:
+// const invitationsUrl = pathWithParams(PassflowEndpointPaths.invitationsPath, { tenantID: '123' });
