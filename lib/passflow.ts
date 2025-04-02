@@ -34,7 +34,7 @@ import { DeviceService } from './device-service';
 import { AuthService, InvitationService, TenantService, UserService } from './services';
 import { StorageManager } from './storage-manager';
 import { ErrorPayload, PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
-import { parseToken } from './token-service';
+import { parseToken, TokenType } from './token-service';
 
 import type { ParsedTokens, SessionParams, Tokens } from './types';
 
@@ -422,6 +422,11 @@ export class Passflow {
   // Add getTokens method
   async getTokens(doRefresh = false): Promise<Tokens | undefined> {
     return await this.authService.getTokens(doRefresh);
+  }
+
+  // Get token from storage by key
+  getToken(tokenType: TokenType): string | undefined {
+    return this.storageManager.getToken(tokenType);
   }
 
   // User passkey methods delegated to UserService
