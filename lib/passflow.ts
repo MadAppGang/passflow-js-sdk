@@ -248,7 +248,15 @@ export class Passflow {
 
   // Auth delegation methods
   isAuthenticated(): boolean {
-    return this.parsedTokensCache ? this.authService.isAuthenticated(this.parsedTokensCache) : false;
+    const tokens = this.storageManager.getTokens();
+    if (!tokens || !tokens.access_token) return false;
+
+    const parsedTokens = {
+      access_token: parseToken(tokens.access_token),
+      refresh_token: tokens.refresh_token ? parseToken(tokens.refresh_token) : undefined,
+    };
+
+    return this.authService.isAuthenticated(parsedTokens);
   }
 
   async signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
