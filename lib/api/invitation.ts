@@ -1,6 +1,5 @@
 import { AxiosClient } from './axios-client';
 import { type PassflowConfig, type PassflowSuccessResponse, PassflowEndpointPaths, pathWithParams } from './model';
-import { TenantAPI } from './tenant';
 
 export interface RequestInviteLinkPayload {
   email?: string;
@@ -20,13 +19,20 @@ export interface InviteLinkResponse {
 export interface Invitation {
   id: string;
   token: string;
+  archived?: boolean;
+  inviter_id?: string;
   email?: string;
   tenant?: string;
   group?: string;
   role?: string;
-  status: string;
   created_at: string;
+  created_by?: string;
   expires_at: string;
+}
+
+export interface InvitationsResponse {
+  invites: Invitation[];
+  next_page_skip: string;
 }
 
 export class InvitationAPI {
@@ -42,29 +48,29 @@ export class InvitationAPI {
    * @returns Promise with invitation link and token
    */
   requestInviteLink(payload: RequestInviteLinkPayload): Promise<InviteLinkResponse> {
-    return this.axiosClient.post<InviteLinkResponse, RequestInviteLinkPayload>('/api/invitation/request', payload);
+    return this.axiosClient.post<InviteLinkResponse, RequestInviteLinkPayload>(PassflowEndpointPaths.inviteUserPath, payload);
   }
 
   /**
    * Gets a list of active invitations
    * @param options Optional parameters for filtering and pagination
-   * @returns Promise with array of invitations
+   * @returns Promise with array of invitations and next page skip token
    */
   getInvitations(options: {
     tenantID: string;
     groupID?: string;
     skip?: number | string;
     limit?: number | string;
-  }): Promise<Invitation[]> {
+  }): Promise<InvitationsResponse> {
     const params: Record<string, string> = {};
 
-    if (options.groupID) params['group_id'] = options.groupID.toString();
-    if (options.skip !== undefined) params['skip'] = options.skip.toString();
-    if (options.limit !== undefined) params['limit'] = options.limit.toString();
+    if (options.groupID) params.group_id = options.groupID.toString();
+    if (options.skip !== undefined) params.skip = options.skip.toString();
+    if (options.limit !== undefined) params.limit = options.limit.toString();
 
     const path = pathWithParams(PassflowEndpointPaths.invitationsPath, { tenantID: options.tenantID });
 
-    return this.axiosClient.get<Invitation[]>(path, { params });
+    return this.axiosClient.get<InvitationsResponse>(path, { params });
   }
 
   /**

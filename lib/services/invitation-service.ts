@@ -1,4 +1,10 @@
-import { Invitation, InvitationAPI, InviteLinkResponse, PassflowSuccessResponse, RequestInviteLinkPayload } from '../api';
+import {
+  InvitationAPI,
+  InviteLinkResponse,
+  InvitationsResponse,
+  PassflowSuccessResponse,
+  RequestInviteLinkPayload,
+} from '../api';
 
 /**
  * Service for managing invitations
@@ -18,14 +24,14 @@ export class InvitationService {
   /**
    * Gets a list of active invitations
    * @param options Optional parameters for filtering and pagination
-   * @returns Promise with array of invitations
+   * @returns Promise with array of invitations and next page skip token
    */
-  getInvitations(options?: {
-    tenant_id?: string;
-    group_id?: string;
+  getInvitations(options: {
+    tenantID: string;
+    groupID?: string;
     skip?: number | string;
     limit?: number | string;
-  }): Promise<Invitation[]> {
+  }): Promise<InvitationsResponse> {
     return this.invitationAPI.getInvitations(options);
   }
 

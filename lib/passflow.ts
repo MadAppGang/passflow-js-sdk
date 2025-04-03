@@ -38,6 +38,15 @@ import { parseToken, TokenType } from './token-service';
 
 import type { ParsedTokens, SessionParams, Tokens } from './types';
 
+/**
+ * @public
+ * Result interface for invitation list requests containing both invitations array and pagination info
+ */
+export interface InvitationsResult {
+  invitations: Invitation[];
+  nextPageSkip: string;
+}
+
 export class Passflow {
   // API clients
   private authApi: AuthAPI;
@@ -534,16 +543,20 @@ export class Passflow {
   /**
    * Gets a list of active invitations
    * @param options Optional parameters for filtering and pagination
-   * @returns Promise with array of invitations
+   * @returns Promise with array of invitations and pagination info
    */
-  async getInvitations(options?: {
-    tenant_id?: string;
-    group_id?: string;
+  async getInvitations(options: {
+    tenantID: string;
+    groupID?: string;
     skip?: number | string;
     limit?: number | string;
-  }): Promise<Invitation[]> {
+  }): Promise<InvitationsResult> {
     try {
-      return await this.invitationService.getInvitations(options);
+      const response = await this.invitationService.getInvitations(options);
+      return {
+        invitations: response.invites,
+        nextPageSkip: response.next_page_skip,
+      };
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error ? error.message : 'Failed to get invitations',
