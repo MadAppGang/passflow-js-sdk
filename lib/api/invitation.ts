@@ -1,6 +1,5 @@
 import { AxiosClient } from './axios-client';
 import { type PassflowConfig, type PassflowSuccessResponse, PassflowEndpointPaths, pathWithParams } from './model';
-import { TenantAPI } from './tenant';
 
 export interface RequestInviteLinkPayload {
   email?: string;
@@ -19,14 +18,24 @@ export interface InviteLinkResponse {
 
 export interface Invitation {
   id: string;
+  archived: boolean;
+  app_id: string;
+  inviter_id: string;
+  inviter_name: string;
   token: string;
   email?: string;
-  tenant?: string;
-  group?: string;
   role?: string;
-  status: string;
+  tenant?: string;
+  tenant_name?: string;
+  group?: string;
+  created_by: string;
   created_at: string;
   expires_at: string;
+}
+
+export interface InvitationsResponse {
+  invites: Invitation[];
+  next_page_skip?: string;
 }
 
 export class InvitationAPI {
@@ -48,14 +57,14 @@ export class InvitationAPI {
   /**
    * Gets a list of active invitations
    * @param options Optional parameters for filtering and pagination
-   * @returns Promise with array of invitations
+   * @returns Promise with invitations response containing array of invitations and pagination info
    */
   getInvitations(options: {
     tenantID: string;
     groupID?: string;
     skip?: number | string;
     limit?: number | string;
-  }): Promise<Invitation[]> {
+  }): Promise<InvitationsResponse> {
     const params: Record<string, string> = {};
 
     if (options.groupID) params['group_id'] = options.groupID.toString();
@@ -64,7 +73,7 @@ export class InvitationAPI {
 
     const path = pathWithParams(PassflowEndpointPaths.invitationsPath, { tenantID: options.tenantID });
 
-    return this.axiosClient.get<Invitation[]>(path, { params });
+    return this.axiosClient.get<InvitationsResponse>(path, { params });
   }
 
   /**

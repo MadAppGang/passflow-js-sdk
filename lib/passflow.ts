@@ -4,6 +4,7 @@ import {
   AuthAPI,
   type Invitation,
   InvitationAPI,
+  type InvitationsResponse,
   type InviteLinkResponse,
   type PassflowAuthorizationResponse,
   type PassflowConfig,
@@ -542,14 +543,14 @@ export class Passflow {
   /**
    * Gets a list of active invitations
    * @param options Optional parameters for filtering and pagination
-   * @returns Promise with array of invitations
+   * @returns Promise with invitations response containing array of invitations and pagination info
    */
-  async getInvitations(options?: {
-    tenant_id?: string;
-    group_id?: string;
+  async getInvitations(options: {
+    tenantID: string;
+    groupID?: string;
     skip?: number | string;
     limit?: number | string;
-  }): Promise<Invitation[]> {
+  }): Promise<InvitationsResponse> {
     try {
       return await this.invitationService.getInvitations(options);
     } catch (error) {

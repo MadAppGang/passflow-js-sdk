@@ -2,6 +2,7 @@ import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   Invitation,
   InvitationAPI,
+  InvitationsResponse,
   InviteLinkResponse,
   PassflowSuccessResponse,
   RequestInviteLinkPayload,
@@ -38,7 +39,11 @@ describe('InvitationService', () => {
       id: 'invitation-1',
       token: 'token-1',
       email: 'user1@example.com',
-      status: 'pending',
+      archived: false,
+      app_id: 'app-1',
+      inviter_id: 'inviter-1',
+      inviter_name: 'Inviter 1',
+      created_by: 'creator-1',
       created_at: '2023-01-01',
       expires_at: '2023-02-01',
     },
@@ -46,11 +51,20 @@ describe('InvitationService', () => {
       id: 'invitation-2',
       token: 'token-2',
       email: 'user2@example.com',
-      status: 'pending',
+      archived: false,
+      app_id: 'app-2',
+      inviter_id: 'inviter-2',
+      inviter_name: 'Inviter 2',
+      created_by: 'creator-2',
       created_at: '2023-01-02',
       expires_at: '2023-02-02',
     },
   ];
+
+  const mockInvitationsResponse: InvitationsResponse = {
+    invites: mockInvitations,
+    next_page_skip: '2',
+  };
 
   const mockSuccessResponse: PassflowSuccessResponse = {
     result: 'ok',
@@ -63,7 +77,7 @@ describe('InvitationService', () => {
     // Create mock instances
     mockInvitationApi = {
       requestInviteLink: vi.fn().mockResolvedValue(mockInviteLinkResponse),
-      getInvitations: vi.fn().mockResolvedValue(mockInvitations),
+      getInvitations: vi.fn().mockResolvedValue(mockInvitationsResponse),
       deleteInvitation: vi.fn().mockResolvedValue(mockSuccessResponse),
     };
 
@@ -87,10 +101,15 @@ describe('InvitationService', () => {
 
   describe('getInvitations', () => {
     test('should call InvitationAPI getInvitations', async () => {
-      const invitations = await invitationService.getInvitations();
+      const response = await invitationService.getInvitations({ tenant_id: 'tenant-1' });
 
-      expect(mockInvitationApi.getInvitations).toHaveBeenCalled();
-      expect(invitations).toEqual(mockInvitations);
+      expect(mockInvitationApi.getInvitations).toHaveBeenCalledWith({
+        tenantID: 'tenant-1',
+        groupID: undefined,
+        skip: undefined,
+        limit: undefined,
+      });
+      expect(response).toEqual(mockInvitationsResponse);
     });
   });
 
