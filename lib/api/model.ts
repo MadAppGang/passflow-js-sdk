@@ -1,11 +1,11 @@
-import {
+import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/types';
-import { AxiosRequestConfig } from 'axios';
+import type { AxiosRequestConfig } from 'axios';
 
-import { Tokens } from '../types';
+import type { Tokens } from '../types';
 
 export type RequestOptions<D> = {
   data?: D;
@@ -45,8 +45,9 @@ export enum PassflowEndpointPaths {
   joinInvitation = '/user/tenant/join',
   tenantPath = '/user/tenant',
   invitationsPath = '/user/tenant/:tenantID/invitations',
-  inviteUserPath = '/user/invite',
-  invitationDelete = '/user/invitation/:token',
+  requestInvitation = '/user/invite',
+  revokeInvitation = '/user/tenant/{{new_tenant}}/group/{{new_group}}/invite/{{invite_id}}',
+  invitationDelete = '/user/invite',
 }
 
 export enum PassflowAdminEndpointPaths {
@@ -207,7 +208,10 @@ export type AuthTypeStrategy = 'internal' | 'passkey' | 'webauthn' | 'fim' | 'pk
 export type AuthStrategies =
   | { type: Extract<AuthTypeStrategy, 'internal'>; strategy: InternalStrategy }
   | { type: Extract<AuthTypeStrategy, 'fim'>; strategy: FimStrategy }
-  | { type: Exclude<AuthTypeStrategy, 'internal' | 'fim'>; strategy: OtherStrategy };
+  | {
+      type: Exclude<AuthTypeStrategy, 'internal' | 'fim'>;
+      strategy: OtherStrategy;
+    };
 
 export type AppType = 'web' | 'android' | 'ios' | 'desktop' | 'other';
 
