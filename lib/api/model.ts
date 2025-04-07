@@ -45,8 +45,8 @@ export enum PassflowEndpointPaths {
   joinInvitation = '/user/tenant/join',
   tenantPath = '/user/tenant',
   invitationsPath = '/user/tenant/:tenantID/invitations',
-  invitationList = '/user/invitation/list',
-  invitationDelete = '/api/invitation/:token',
+  requestInvitation = '/user/invite',
+  revokeInvitation = '/user/tenant/{{new_tenant}}/group/{{new_group}}/invite/{{invite_id}}',
 }
 
 export enum PassflowAdminEndpointPaths {

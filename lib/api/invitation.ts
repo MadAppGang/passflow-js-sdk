@@ -51,7 +51,10 @@ export class InvitationAPI {
    * @returns Promise with invitation link and token
    */
   requestInviteLink(payload: RequestInviteLinkPayload): Promise<InviteLinkResponse> {
-    return this.axiosClient.post<InviteLinkResponse, RequestInviteLinkPayload>('/api/invitation/request', payload);
+    return this.axiosClient.post<InviteLinkResponse, RequestInviteLinkPayload>(
+      PassflowEndpointPaths.requestInvitation,
+      payload,
+    );
   }
 
   /**
