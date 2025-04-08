@@ -26,7 +26,12 @@ passflow.subscribe({
         console.log('User signed out');
         break;
       case PassflowEvent.Error:
-        console.error('Authentication error:', source?.error);
+        // Check if source is an ErrorPayload before accessing error property
+        if (source && 'error' in source) {
+          console.error('Authentication error:', source.error);
+        } else {
+          console.error('Authentication error occurred');
+        }
         break;
     }
   },
@@ -71,9 +76,9 @@ async function manageTenantAndInvitations() {
     console.log('Invitation link:', inviteLink.link);
 
     // List active invitations
-    const invitationsResponse = await passflow.getInvitations({ tenant_id: 'your-tenant-id' });
-    console.log('Active invitations:', invitationsResponse.invites);
-    console.log('Next page:', invitationsResponse.next_page_skip);
+    const invitationsResponse = await passflow.getInvitations({ tenantID: 'your-tenant-id' });
+    console.log('Active invitations:', invitationsResponse.invitations);
+    console.log('Next page:', invitationsResponse.nextPageSkip);
   } catch (error) {
     console.error('Tenant management failed:', error);
   }

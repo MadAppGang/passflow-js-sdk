@@ -35,9 +35,16 @@ export interface Invitation {
   data?: Record<string, unknown>;
 }
 
-export interface InvitationsResponse {
+// Internal API response type
+interface InvitationsAPIResponse {
   invites: Invitation[];
   next_page_skip?: string;
+}
+
+// Public interface for external use
+export interface InvitationsPaginatedList {
+  items: Invitation[];
+  nextPageSkip?: string;
 }
 
 export class InvitationAPI {
@@ -62,14 +69,14 @@ export class InvitationAPI {
   /**
    * Gets a list of active invitations
    * @param options Optional parameters for filtering and pagination
-   * @returns Promise with invitations response containing array of invitations and pagination info
+   * @returns Promise with paginated list of invitations
    */
   getInvitations(options: {
     tenantID: string;
     groupID?: string;
     skip?: number | string;
     limit?: number | string;
-  }): Promise<InvitationsResponse> {
+  }): Promise<InvitationsPaginatedList> {
     const params: Record<string, string> = {};
 
     if (options.groupID) params.group_id = options.groupID.toString();
@@ -80,17 +87,20 @@ export class InvitationAPI {
       tenantID: options.tenantID,
     });
 
-    return this.axiosClient.get<InvitationsResponse>(path, { params });
+    return this.axiosClient.get<InvitationsAPIResponse>(path, { params }).then((response) => ({
+      items: response.invites,
+      nextPageSkip: response.next_page_skip,
+    }));
   }
 
   /**
    * Deletes an invitation by token
-   * @param token The invitation token to delete
+   * @param invitationID The invitation ID to delete
    * @returns Promise with success response
    */
-  deleteInvitation(token: string): Promise<PassflowSuccessResponse> {
+  deleteInvitation(invitationID: string): Promise<PassflowSuccessResponse> {
     const path = pathWithParams(PassflowEndpointPaths.invitationDelete, {
-      token,
+      invitationID,
     });
     return this.axiosClient.delete<PassflowSuccessResponse>(path);
   }
