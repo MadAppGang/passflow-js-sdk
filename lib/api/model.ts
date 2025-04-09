@@ -47,6 +47,8 @@ export enum PassflowEndpointPaths {
   invitationsPath = '/user/tenant/:tenantID/invitations',
   requestInvitation = '/user/invite',
   invitationDelete = '/user/invite/:invitationID',
+  invitationResend = '/user/invite/:invitationID/resend',
+  invitationGetLink = '/user/invite/:invitationID/link',
 }
 
 export enum PassflowAdminEndpointPaths {

@@ -172,7 +172,7 @@ describe('AuthService', () => {
       await authService.signIn(payload);
 
       expect(mockStorageManager.saveTokens).toHaveBeenCalledWith(mockAuthResponse);
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(null, PassflowEvent.SignIn);
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.SignIn, { tokens: mockAuthResponse });
     });
   });
 
@@ -217,7 +217,7 @@ describe('AuthService', () => {
       await authService.signUp(payload);
 
       expect(mockStorageManager.saveTokens).toHaveBeenCalledWith(mockAuthResponse);
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(null, PassflowEvent.Register);
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.Register, { tokens: mockAuthResponse });
     });
   });
 
@@ -232,7 +232,7 @@ describe('AuthService', () => {
       await authService.logOut();
 
       expect(mockStorageManager.deleteTokens).toHaveBeenCalled();
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(null, PassflowEvent.SignOut);
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.SignOut, {});
     });
   });
 
@@ -250,7 +250,9 @@ describe('AuthService', () => {
         ...mockAuthResponse,
         scopes: mockScopes,
       });
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(null, PassflowEvent.Refresh);
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.Refresh, {
+        tokens: expect.objectContaining(mockAuthResponse),
+      });
     });
 
     test('should throw error if no tokens are available', async () => {

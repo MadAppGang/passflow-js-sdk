@@ -43,4 +43,22 @@ export class InvitationService {
   deleteInvitation(token: string): Promise<PassflowSuccessResponse> {
     return this.invitationAPI.deleteInvitation(token);
   }
+
+  /**
+   * Resends an invitation by token
+   * @param token The invitation token to resend
+   * @returns Promise with success response
+   */
+  resendInvitation(token: string): Promise<PassflowSuccessResponse> {
+    return this.invitationAPI.resendInvitation(token);
+  }
+
+  /**
+   * Gets a link to an invitation by id
+   * @param invitationID The invitation ID to get link
+   * @returns Promise with the link
+   */
+  getInvitationLink(invitationID: string): Promise<InviteLinkResponse> {
+    return this.invitationAPI.getInvitationLink(invitationID);
+  }
 }

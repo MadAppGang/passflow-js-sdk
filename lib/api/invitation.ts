@@ -13,7 +13,7 @@ export interface RequestInviteLinkPayload {
 
 export interface InviteLinkResponse {
   link: string;
-  token: string;
+  token?: string;
 }
 
 export interface Invitation {
@@ -43,7 +43,7 @@ interface InvitationsAPIResponse {
 
 // Public interface for external use
 export interface InvitationsPaginatedList {
-  items: Invitation[];
+  invites: Invitation[];
   nextPageSkip?: string;
 }
 
@@ -88,7 +88,7 @@ export class InvitationAPI {
     });
 
     return this.axiosClient.get<InvitationsAPIResponse>(path, { params }).then((response) => ({
-      items: response.invites,
+      invites: response.invites,
       nextPageSkip: response.next_page_skip,
     }));
   }
@@ -103,5 +103,29 @@ export class InvitationAPI {
       invitationID,
     });
     return this.axiosClient.delete<PassflowSuccessResponse>(path);
+  }
+
+  /**
+   * Resend an invitation by token
+   * @param invitationID The invitation ID to resend
+   * @returns Promise with success response
+   */
+  resendInvitation(invitationID: string): Promise<PassflowSuccessResponse> {
+    const path = pathWithParams(PassflowEndpointPaths.invitationResend, {
+      invitationID,
+    });
+    return this.axiosClient.post<PassflowSuccessResponse, unknown>(path, {});
+  }
+
+  /**
+   * Get a link to an invitation by id
+   * @param invitationID The invitation ID to get link
+   * @returns Promise with the link
+   */
+  getInvitationLink(invitationID: string): Promise<InviteLinkResponse> {
+    const path = pathWithParams(PassflowEndpointPaths.invitationGetLink, {
+      invitationID,
+    });
+    return this.axiosClient.get<InviteLinkResponse>(path);
   }
 }

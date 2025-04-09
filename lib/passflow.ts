@@ -2,8 +2,8 @@ import {
   AppAPI,
   type AppSettings,
   AuthAPI,
-  type Invitation,
   InvitationAPI,
+  InvitationsPaginatedList,
   type InviteLinkResponse,
   type PassflowAuthorizationResponse,
   type PassflowConfig,
@@ -37,15 +37,6 @@ import { type ErrorPayload, PassflowEvent, PassflowStore, type PassflowSubscribe
 import { type TokenType, parseToken } from './token-service';
 
 import type { ParsedTokens, SessionParams, Tokens } from './types';
-
-/**
- * @public
- * Result interface for invitation list requests containing both invitations array and pagination info
- */
-export interface InvitationsPaginatedList {
-  invitations: Invitation[];
-  nextPageSkip?: string;
-}
 
 export class Passflow {
   // API clients
@@ -565,11 +556,7 @@ export class Passflow {
     limit?: number | string;
   }): Promise<InvitationsPaginatedList> {
     try {
-      const apiResponse = await this.invitationService.getInvitations(options);
-      return {
-        invitations: apiResponse.items,
-        nextPageSkip: apiResponse.nextPageSkip,
-      };
+      return await this.invitationService.getInvitations(options);
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error ? error.message : 'Failed to get invitations',
@@ -586,6 +573,32 @@ export class Passflow {
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error ? error.message : 'Failed to delete invitation',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
+  }
+
+  async resendInvitation(token: string): Promise<PassflowSuccessResponse> {
+    try {
+      return await this.invitationService.resendInvitation(token);
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to resend invitation',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
+  }
+
+  async getInvitationLink(invitationID: string): Promise<InviteLinkResponse> {
+    try {
+      return await this.invitationService.getInvitationLink(invitationID);
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Failed to get invitation link',
         originalError: error,
       };
       this.subscribeStore.notify(PassflowEvent.Error, errorPayload);

@@ -2,7 +2,7 @@ import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   Invitation,
   InvitationAPI,
-  InvitationsResponse,
+  InvitationsPaginatedList,
   InviteLinkResponse,
   PassflowSuccessResponse,
   RequestInviteLinkPayload,
@@ -19,6 +19,8 @@ describe('InvitationService', () => {
     requestInviteLink: Mock;
     getInvitations: Mock;
     deleteInvitation: Mock;
+    resendInvitation: Mock;
+    getInvitationLink: Mock;
   };
 
   const mockInvitationToken = 'invitation-token-123';
@@ -61,9 +63,9 @@ describe('InvitationService', () => {
     },
   ];
 
-  const mockInvitationsResponse: InvitationsResponse = {
+  const mockInvitationsResponse: InvitationsPaginatedList = {
     invites: mockInvitations,
-    next_page_skip: '2',
+    nextPageSkip: '2',
   };
 
   const mockSuccessResponse: PassflowSuccessResponse = {
@@ -79,6 +81,8 @@ describe('InvitationService', () => {
       requestInviteLink: vi.fn().mockResolvedValue(mockInviteLinkResponse),
       getInvitations: vi.fn().mockResolvedValue(mockInvitationsResponse),
       deleteInvitation: vi.fn().mockResolvedValue(mockSuccessResponse),
+      resendInvitation: vi.fn().mockResolvedValue(mockSuccessResponse),
+      getInvitationLink: vi.fn().mockResolvedValue(mockInviteLinkResponse),
     };
 
     // Create InvitationService instance
@@ -101,7 +105,7 @@ describe('InvitationService', () => {
 
   describe('getInvitations', () => {
     test('should call InvitationAPI getInvitations', async () => {
-      const response = await invitationService.getInvitations({ tenant_id: 'tenant-1' });
+      const response = await invitationService.getInvitations({ tenantID: 'tenant-1' });
 
       expect(mockInvitationApi.getInvitations).toHaveBeenCalledWith({
         tenantID: 'tenant-1',

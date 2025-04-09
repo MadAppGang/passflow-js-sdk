@@ -77,7 +77,7 @@ async function manageTenantAndInvitations() {
 
     // List active invitations
     const invitationsResponse = await passflow.getInvitations({ tenantID: 'your-tenant-id' });
-    console.log('Active invitations:', invitationsResponse.invitations);
+    console.log('Active invitations:', invitationsResponse.invites);
     console.log('Next page:', invitationsResponse.nextPageSkip);
   } catch (error) {
     console.error('Tenant management failed:', error);

@@ -144,6 +144,8 @@ export class AuthService {
       if (status.result !== 'ok') {
         throw new Error('Logout failed');
       }
+      this.storageManager.deleteTokens();
+      this.subscribeStore.notify(PassflowEvent.SignOut, {});
     } catch (error) {
       // biome-ignore lint/suspicious/noConsole: <explanation>
       console.error(error);
