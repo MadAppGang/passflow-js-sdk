@@ -320,7 +320,7 @@ export class AuthService {
   }
 
   createFederatedAuthUrl(provider: Providers, redirect_url: string, scopes?: string[]): string {
-    const passflowPathWithProvider = `/api/auth/provider/${provider}`;
+    const passflowPathWithProvider = `/auth/federated/start/${provider}`;
 
     if (!this.appId) throw new Error('AppId is required for federated auth');
     const sscopes = scopes ?? this.scopes;
