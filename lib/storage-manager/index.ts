@@ -50,6 +50,10 @@ export class StorageManager {
     };
   }
 
+  getScopes(): string[] | undefined {
+    return this.storage.getItem(this.scopes)?.split(',') ?? undefined;
+  }
+
   deleteToken(tokenType: TokenType): void {
     const key = this.getKeyForTokenType(tokenType);
     this.storage.removeItem(key);

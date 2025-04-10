@@ -4,9 +4,17 @@ import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, In
 import axiosRetry from 'axios-retry';
 
 import { StorageManager } from '../storage-manager';
-import { TokenService, TokenType } from '../token-service';
+import { TokenService, isTokenExpired, parseToken } from '../token-service';
 
-import { PassflowConfig, PassflowError, PassflowResponseError, RequestMethod, RequestOptions } from './model';
+import {
+  PassflowAuthorizationResponse,
+  PassflowConfig,
+  PassflowEndpointPaths,
+  PassflowError,
+  PassflowResponseError,
+  RequestMethod,
+  RequestOptions,
+} from './model';
 
 export enum HttpStatuses {
   badRequest = 400,
@@ -19,6 +27,7 @@ export enum HttpStatuses {
 export class AxiosClient {
   private instance: AxiosInstance;
   protected storageManager: StorageManager;
+  private refreshPromise: Promise<AxiosResponse<PassflowAuthorizationResponse>> | null = null;
 
   tokenService: TokenService;
 
@@ -30,6 +39,8 @@ export class AxiosClient {
     Accept: 'application/json',
     'Content-Type': 'application/json',
   };
+
+  private readonly nonAccessTokenEndpoints = ['/auth/', '/settings', '/settings/'];
 
   constructor(config: PassflowConfig) {
     const { url, appId } = config;
@@ -55,10 +66,61 @@ export class AxiosClient {
 
     axiosRetry(this.instance, { retries: 3 });
 
-    this.instance.interceptors.request.use((axiosConfig: InternalAxiosRequestConfig) => {
-      const accessToken = this.storageManager.getToken(TokenType.access_token);
-      const currentToken = axiosConfig.headers.Authorization;
-      if (accessToken && !currentToken) axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${accessToken}`;
+    this.instance.interceptors.request.use(async (axiosConfig: InternalAxiosRequestConfig) => {
+      // Request to non-access token endpoints
+      if (this.nonAccessTokenEndpoints.some((endpoint) => axiosConfig.url?.includes(endpoint))) {
+        return axiosConfig;
+      }
+
+      // Request to access token endpoints
+      const tokens = this.storageManager.getTokens();
+      const scopes = this.storageManager.getScopes();
+
+      if (tokens?.access_token) {
+        const access = parseToken(tokens.access_token);
+
+        // Does it make sense to refresh the token instead of the user?
+        // Or should the user be forced to refresh the token if it is
+        // necessary before any passflow requests?
+        if (isTokenExpired(access) && tokens.refresh_token) {
+          try {
+            if (this.refreshPromise) {
+              const response = await this.refreshPromise;
+              if (response.data) {
+                axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${response.data.access_token}`;
+              }
+              return axiosConfig;
+            }
+
+            const payload = {
+              refresh_token: tokens.refresh_token,
+              scopes,
+            };
+
+            this.refreshPromise = this.instance.post<PassflowAuthorizationResponse>(PassflowEndpointPaths.refresh, payload, {
+              headers: {
+                [AUTHORIZATION_HEADER_KEY]: `Bearer ${tokens.refresh_token}`,
+              },
+            });
+
+            const response = await this.refreshPromise;
+
+            if (response.data) {
+              this.storageManager.saveTokens(response.data);
+              axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${response.data.access_token}`;
+            }
+
+            return axiosConfig;
+          } catch (error) {
+            this.refreshPromise = null;
+            return Promise.reject(error);
+          } finally {
+            this.refreshPromise = null;
+          }
+        }
+
+        axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${tokens.access_token}`;
+      }
       return axiosConfig;
     });
 
