@@ -7,6 +7,7 @@ This document describes how the Passflow SDK was refactored to improve maintaina
 ## Refactoring Approach
 
 1. **Service Extraction**: Related functionality from the large `Passflow` class was extracted into domain-specific service classes:
+
    - `AuthService`: Handles authentication-related functionality
    - `UserService`: Manages user-related operations
    - `TenantService`: Handles tenant operations
@@ -55,16 +56,19 @@ tests/
 ## Implementation Status
 
 1. ✅ Create the new service classes
+
    - ✅ AuthService
    - ✅ UserService
    - ✅ TenantService
    - ✅ InvitationService
 
 2. ✅ Refactor the `Passflow` class to use these services
+
    - ✅ Replace direct API calls with service method calls
    - ✅ Maintain the same public API
 
 3. ✅ Update dependencies and imports
+
    - ✅ Create improved store implementation
    - ✅ Update token service integration
 
@@ -108,9 +112,9 @@ this.authService = new AuthService(
   this.createTenantForNewUser,
   this.origin,
   this.url,
-  { 
-    createSession: this.createSessionCallback, 
-    expiredSession: this.expiredSessionCallback 
+  {
+    createSession: this.createSessionCallback,
+    expiredSession: this.expiredSessionCallback,
   },
   this.appId
 );
@@ -144,19 +148,19 @@ Each test file mocks the necessary dependencies to isolate the service being tes
 ## Usage Example
 
 ```typescript
-import { Passflow, PassflowEvent } from '@passflow/sdk';
+import { Passflow, PassflowEvent } from "@passflow/sdk";
 
 // Initialize SDK
 const passflow = new Passflow({
-  url: 'https://api.passflow.example',
-  appId: 'my-app-id',
+  url: "https://api.passflow.example",
+  appId: "my-app-id",
 });
 
 // Use the SDK
 await passflow.signIn({
-  email: 'user@example.com',
-  password: 'securePassword123',
+  email: "user@example.com",
+  password: "securePassword123",
 });
 ```
 
-The refactoring is now complete and fully integrated into the main codebase. The public API remains unchanged, ensuring backward compatibility while providing a more maintainable and extensible internal structure. 
+The refactoring is now complete and fully integrated into the main codebase. The public API remains unchanged, ensuring backward compatibility while providing a more maintainable and extensible internal structure.

@@ -3,7 +3,7 @@ import {
   type AppSettings,
   AuthAPI,
   InvitationAPI,
-  InvitationsPaginatedList,
+  type InvitationsPaginatedList,
   type InviteLinkResponse,
   type PassflowAuthorizationResponse,
   type PassflowConfig,
