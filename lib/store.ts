@@ -93,7 +93,7 @@ export class PassflowStore {
   notify<E extends PassflowEvent>(eventType: E, payload?: PassflowEventPayload[E]): void {
     this.subscribers.forEach((events, subscriber) => {
       if (!events || events.has(eventType)) {
-        subscriber.onAuthChange(eventType, payload);
+        subscriber.onAuthChange?.(eventType, payload);
       }
     });
   }
