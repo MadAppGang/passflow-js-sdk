@@ -163,6 +163,7 @@ export type PassflowPasswordlessSignInPayload = {
   create_tenant?: boolean;
   email?: string;
   phone?: string;
+  invite?: string;
 } & ({ email: string } | { phone: string });
 
 export type PassflowPasswordlessResponse = {
