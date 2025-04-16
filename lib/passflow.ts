@@ -533,6 +533,10 @@ export class Passflow {
   // Invitation methods delegated to InvitationService
   async requestInviteLink(payload: RequestInviteLinkPayload): Promise<InviteLinkResponse> {
     try {
+      // default is true
+      if (payload.send_to_email === undefined) {
+        payload.send_to_email = true;
+      }
       return await this.invitationService.requestInviteLink(payload);
     } catch (error) {
       const errorPayload: ErrorPayload = {
