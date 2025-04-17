@@ -415,10 +415,17 @@ export type LoginWebAppTemplateColorScheme = 'system' | 'light' | 'dark';
 
 export type LoginWebAppStyle = {
   primary_color: string;
-  content_color: string;
+  text_color: string;
+  secondary_text_color: string;
   background_color: string;
-  background_image: string;
+  card_color: string;
+  input_background_color: string;
+  input_border_color: string;
+  button_text_color: string;
+  divider_color: string;
   logo_url: string;
+  background_image: string;
+  custom_css: string;
 };
 
 export type LoginWebAppTheme = {
