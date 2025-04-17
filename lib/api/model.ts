@@ -424,6 +424,8 @@ export type LoginWebAppStyle = {
   button_text_color: string;
   divider_color: string;
   logo_url: string;
+  passkey_button_background_color: string;
+  passkey_button_text_color: string;
   background_image: string;
   custom_css: string;
 };
