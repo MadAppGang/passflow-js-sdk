@@ -10,6 +10,7 @@ import {
   PassflowAuthorizationResponse,
   PassflowConfig,
   PassflowEndpointPaths,
+  PassflowLogoutResponse,
   PassflowPasskeyAuthenticatePayload,
   PassflowPasskeyAuthenticateStartExtendedPayload,
   PassflowPasskeyAuthenticateStartPayload,
@@ -101,11 +102,11 @@ export class AuthAPI {
     );
   }
 
-  logOut(deviceId?: string, refreshToken?: string, isAdmin = false): Promise<PassflowSuccessResponse> {
+  logOut(deviceId?: string, refreshToken?: string, isAdmin = false): Promise<PassflowLogoutResponse> {
     const payload = !isAdmin ? { refresh_token: refreshToken, device: deviceId } : undefined;
     const endpoint = isAdmin ? PassflowAdminEndpointPaths.logout : PassflowEndpointPaths.logout;
 
-    return this.axiosClient.post<PassflowSuccessResponse, typeof payload>(endpoint, payload);
+    return this.axiosClient.post<PassflowLogoutResponse, typeof payload>(endpoint, payload);
   }
 
   sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {

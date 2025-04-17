@@ -79,6 +79,10 @@ export type PassflowSuccessResponse = {
   result: 'ok';
 };
 
+export type PassflowLogoutResponse = {
+  status: 'ok';
+};
+
 export type PassflowResponseError = {
   error: {
     id: string;

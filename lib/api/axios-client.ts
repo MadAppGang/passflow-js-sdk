@@ -40,13 +40,16 @@ export class AxiosClient {
   };
 
   private readonly nonAccessTokenEndpoints = ['/auth/', '/settings', '/settings/'];
+  private readonly protectedEndpoints = ['logout', 'refresh'];
 
   constructor(config: PassflowConfig) {
-    const { url, appId } = config;
+    const { url, appId, keyStoragePrefix } = config;
 
     this.url = url || PASSFLOW_CLOUD_URL;
 
-    this.storageManager = new StorageManager();
+    this.storageManager = new StorageManager({
+      prefix: keyStoragePrefix ?? '',
+    });
     this.tokenService = new TokenService();
 
     if (appId) {
@@ -65,15 +68,17 @@ export class AxiosClient {
 
     this.instance.interceptors.request.use(async (axiosConfig: InternalAxiosRequestConfig) => {
       // Request to non-access token endpoints
-      if (this.nonAccessTokenEndpoints.some((endpoint) => axiosConfig.url?.includes(endpoint))) {
+      if (this.isNonAuthEndpoint(axiosConfig.url)) {
         return axiosConfig;
       }
 
+      // Request to refresh token endpoint
       if (axiosConfig.url?.includes('refresh')) {
         if (this.refreshPromise) {
           const controller = new AbortController();
           controller.abort();
           axiosConfig.signal = controller.signal;
+          return axiosConfig;
         }
         return axiosConfig;
       }
@@ -123,6 +128,8 @@ export class AxiosClient {
         }
 
         axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${tokens.access_token}`;
+
+        return axiosConfig;
       }
       return axiosConfig;
     });
@@ -131,6 +138,14 @@ export class AxiosClient {
       (response: AxiosResponse) => response,
       (e: AxiosError) => this.handleAxiosError(e),
     );
+  }
+
+  private isProtectedEndpoint(url?: string): boolean {
+    return this.protectedEndpoints.some((endpoint) => url?.includes(endpoint));
+  }
+
+  private isNonAuthEndpoint(url?: string): boolean {
+    return this.nonAccessTokenEndpoints.some((endpoint) => url?.includes(endpoint)) && !this.isProtectedEndpoint(url);
   }
 
   // eslint-disable-next-line complexity
