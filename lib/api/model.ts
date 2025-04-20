@@ -423,6 +423,8 @@ export type LoginWebAppStyle = {
   input_border_color: string;
   button_text_color: string;
   divider_color: string;
+  federated_button_background_color: string;
+  federated_button_text_color: string;
   logo_url: string;
   passkey_button_background_color: string;
   passkey_button_text_color: string;
