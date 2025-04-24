@@ -61,6 +61,9 @@ export class Passflow {
   private tenantService: TenantService;
   private invitationService: InvitationService;
 
+  // Public services
+  public tenant: TenantService;
+
   // Session callbacks
   private createSessionCallback?: (tokens?: Tokens) => Promise<void>;
   private expiredSessionCallback?: () => Promise<void>;
@@ -116,6 +119,7 @@ export class Passflow {
     this.userService = new UserService(this.userApi, this.deviceService);
 
     this.tenantService = new TenantService(this.tenantAPI, this.scopes);
+    this.tenant = this.tenantService;
 
     this.invitationService = new InvitationService(this.invitationAPI);
 
@@ -500,9 +504,15 @@ export class Passflow {
   }
 
   // Tenant methods delegated to TenantService
+  /**
+   * Join a tenant invitation
+   * @param token The invitation token
+   * @param scopes Optional scopes to request
+   * @returns Promise with invite response
+   */
   async joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {
     try {
-      return await this.tenantService.joinInvitation(token, scopes);
+      return await this.tenant.joinInvitation(token, scopes);
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error ? error.message : 'Failed to join invitation',
@@ -513,13 +523,19 @@ export class Passflow {
     }
   }
 
+  /**
+   * Create a new tenant
+   * @param name The name of the tenant
+   * @param refreshToken Whether to refresh the token after creating the tenant
+   * @returns Promise with tenant response
+   */
   async createTenant(name: string, refreshToken?: boolean): Promise<PassflowTenantResponse> {
     try {
-      const tenant = await this.tenantService.createTenant(name);
+      const response = await this.tenant.createTenant(name);
       if (refreshToken) {
         await this.refreshToken();
       }
-      return tenant;
+      return response;
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error ? error.message : 'Failed to create tenant',
