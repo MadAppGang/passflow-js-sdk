@@ -1,7 +1,6 @@
 import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY, PASSFLOW_CLOUD_URL } from '../constants';
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import axiosRetry from 'axios-retry';
 
 import { StorageManager } from '../storage-manager';
 import { TokenService, isTokenExpired, parseToken } from '../token-service';
@@ -41,13 +40,16 @@ export class AxiosClient {
   };
 
   private readonly nonAccessTokenEndpoints = ['/auth/', '/settings', '/settings/'];
+  private readonly protectedEndpoints = ['logout', 'refresh'];
 
   constructor(config: PassflowConfig) {
-    const { url, appId } = config;
+    const { url, appId, keyStoragePrefix } = config;
 
     this.url = url || PASSFLOW_CLOUD_URL;
 
-    this.storageManager = new StorageManager();
+    this.storageManager = new StorageManager({
+      prefix: keyStoragePrefix ?? '',
+    });
     this.tokenService = new TokenService();
 
     if (appId) {
@@ -64,11 +66,20 @@ export class AxiosClient {
       headers: { ...this.defaultHeaders },
     });
 
-    axiosRetry(this.instance, { retries: 3 });
-
     this.instance.interceptors.request.use(async (axiosConfig: InternalAxiosRequestConfig) => {
       // Request to non-access token endpoints
-      if (this.nonAccessTokenEndpoints.some((endpoint) => axiosConfig.url?.includes(endpoint))) {
+      if (this.isNonAuthEndpoint(axiosConfig.url)) {
+        return axiosConfig;
+      }
+
+      // Request to refresh token endpoint
+      if (axiosConfig.url?.includes('refresh')) {
+        if (this.refreshPromise) {
+          const controller = new AbortController();
+          controller.abort();
+          axiosConfig.signal = controller.signal;
+          return axiosConfig;
+        }
         return axiosConfig;
       }
 
@@ -79,9 +90,6 @@ export class AxiosClient {
       if (tokens?.access_token) {
         const access = parseToken(tokens.access_token);
 
-        // Does it make sense to refresh the token instead of the user?
-        // Or should the user be forced to refresh the token if it is
-        // necessary before any passflow requests?
         if (isTokenExpired(access) && tokens.refresh_token) {
           try {
             if (this.refreshPromise) {
@@ -120,6 +128,8 @@ export class AxiosClient {
         }
 
         axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${tokens.access_token}`;
+
+        return axiosConfig;
       }
       return axiosConfig;
     });
@@ -128,6 +138,14 @@ export class AxiosClient {
       (response: AxiosResponse) => response,
       (e: AxiosError) => this.handleAxiosError(e),
     );
+  }
+
+  private isProtectedEndpoint(url?: string): boolean {
+    return this.protectedEndpoints.some((endpoint) => url?.includes(endpoint));
+  }
+
+  private isNonAuthEndpoint(url?: string): boolean {
+    return this.nonAccessTokenEndpoints.some((endpoint) => url?.includes(endpoint)) && !this.isProtectedEndpoint(url);
   }
 
   // eslint-disable-next-line complexity

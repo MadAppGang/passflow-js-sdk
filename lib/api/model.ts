@@ -79,6 +79,10 @@ export type PassflowSuccessResponse = {
   result: 'ok';
 };
 
+export type PassflowLogoutResponse = {
+  status: 'ok';
+};
+
 export type PassflowResponseError = {
   error: {
     id: string;
@@ -225,8 +229,8 @@ export type AppSettings = {
   description: string;
   offline: boolean;
   type: AppType;
-  redirect_urls: string[];
-  origins: string[];
+  redirect_urls: string[] | null;
+  origins: string[] | null;
   custom_email_templates: boolean;
   auth_strategies: AuthStrategies[];
   force_passwordless_login: boolean;
@@ -241,6 +245,7 @@ export type AppSettings = {
   debug_otp_code_allowed: boolean;
   debug_otp_code_for_registration: string;
 
+  login_app_theme: LoginWebAppTheme;
   login_app_settings?: unknown;
 };
 
@@ -402,6 +407,39 @@ export type PassflowTenantResponse = {
 
 export type PassflowCreateTenantPayload = {
   name: string;
+};
+
+export type LoginWebAppTemplateType = 'default' | 'simple' | 'extendable';
+
+export type LoginWebAppTemplateColorScheme = 'system' | 'light' | 'dark';
+
+export type LoginWebAppStyle = {
+  primary_color: string;
+  text_color: string;
+  secondary_text_color: string;
+  background_color: string;
+  card_color: string;
+  input_background_color: string;
+  input_border_color: string;
+  button_text_color: string;
+  divider_color: string;
+  federated_button_background_color: string;
+  federated_button_text_color: string;
+  logo_url: string;
+  passkey_button_background_color: string;
+  passkey_button_text_color: string;
+  background_image: string;
+  custom_css: string;
+};
+
+export type LoginWebAppTheme = {
+  template_type: LoginWebAppTemplateType;
+  application_name: string;
+  remove_passflow_logo: boolean;
+  description: string;
+  color_scheme: LoginWebAppTemplateColorScheme;
+  light_style: LoginWebAppStyle;
+  dark_style: LoginWebAppStyle;
 };
 
 export type PassflowCreateTokenResponse = PassflowTenantResponse;

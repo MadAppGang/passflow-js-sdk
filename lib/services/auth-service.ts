@@ -140,11 +140,10 @@ export class AuthService {
     const deviceId = this.storageManager.getDeviceId();
 
     try {
-      const status = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
-      if (status.result !== 'ok') {
+      const response = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
+      if (response.status !== 'ok') {
         throw new Error('Logout failed');
       }
-      this.storageManager.deleteTokens();
       this.subscribeStore.notify(PassflowEvent.SignOut, {});
     } catch (error) {
       // biome-ignore lint/suspicious/noConsole: <explanation>
