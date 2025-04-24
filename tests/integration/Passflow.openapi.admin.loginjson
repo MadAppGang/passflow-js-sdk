@@ -1,0 +1,1406 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Passflow",
+    "description": "",
+    "version": "1.0.0"
+  },
+  "tags": [],
+  "paths": {
+    "/admin/auth/insecure_login": {
+      "post": {
+        "summary": "Login",
+        "deprecated": false,
+        "description": "Emergency login is emergency method to login to admin panel.\n\nWhy?\n\nThe default and only way to login to admin panel is passkey. But passkey can work only when you have database connection set.  \n  \nThat is why emergency login used to setup databse connections. After that you need to use passkey login.\n\nEmergency login returns only \\`access\\` key and valid for 30 mins. Which should be enough to setup database connection. If not - login again.",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "X-Passflow-ClientID",
+            "in": "header",
+            "description": "",
+            "required": false,
+            "example": "passflow_admin_panel_id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email",
+                  "phone",
+                  "password"
+                ]
+              },
+              "example": {
+                "email": "{{admin_login}}",
+                "phone": "123423243",
+                "password": "{{admin_password}}"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token"
+                  ]
+                },
+                "examples": {
+                  "1": {
+                    "summary": "200",
+                    "value": {
+                      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB1VzVYY0MySkFvQnJHbjBIakxDTWtrWWwySSIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2OTI3NjMzOTQsImlhdCI6MTY5Mjc1OTc5NCwiaXNzIjoiaHR0cHM6Ly90ZXN0LmFvb3RoLmNvbSIsImp0aSI6IjR3WGF4ZlJzQWo0d1lmZk1jZWkwT0lxdUYzOWVrei0xSzFTaFJTdUMzZ3c9Iiwic3ViIjoiNjRhY2M2MWJhYjM2ZWI4Mzk1Y2U1ODQ3IiwidHlwZSI6Im1hbmFnZW1lbnQifQ.R6z7fUYdXU7vLN2G928MVHuN3i0noP2RU0qW5yGlWFeikWtG3DPQo7Bn0C0Ih3jlHgB3fXpBaPOo4hX6ZjXrew"
+                    }
+                  },
+                  "3": {
+                    "summary": "Success",
+                    "value": {
+                      "access_token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB1VzVYY0MySkFvQnJHbjBIakxDTWtrWWwySSIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiYW9vdGhfYWRtaW5fcGFuZWxfaWQiXSwiZXhwIjoxNzM0NTg3MjEyLCJpYXQiOjE3MzQ1ODM2MTIsImlzcyI6Imh0dHBzOi8vdGVzdC5hb290aC5jb20iLCJqdGkiOiItSGRXWE5zdHhtRzB5VExCaXQ3X1hHWE11dWtLZjVKNUQ4TTdJXzRoOHRRIiwic3ViIjoiZW1lcmdlbmN5X2FkbWluX2xvZ2luIiwidHlwZSI6Im1hbmFnZW1lbnQifQ.bpMm1vOCOw06u1_qEadGUCrZEoSCSQdDcmPaln2bOWgTLy70p075mtAqPY0I0WcsRoOU2TRff2P69mEnVZucUA"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "time": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "message",
+                        "status",
+                        "location",
+                        "time"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "id": "error.admin.panel.emergency.credentials.are.not.set",
+                    "message": "Emergency credentials are not set, you could not login with password",
+                    "status": 403,
+                    "location": "/Users/jack/mag/aooth/src/web/admin/password_login.go:38",
+                    "time": "2024-01-10T21:58:40.393874+11:00"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/admin/apps": {
+      "get": {
+        "summary": "Get apps list",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "Bearer {{admin_token}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "apps"
+                  ]
+                },
+                "example": {
+                  "apps": []
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "time": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "message",
+                        "status",
+                        "location",
+                        "time"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "id": "error.token.blocked",
+                    "message": "The token is blocked and not valid any more.",
+                    "status": 400,
+                    "location": "/Users/jack/mag/aooth/web/middleware/token.go:69",
+                    "time": "2023-08-23T13:53:53.981669+10:00"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "x-200:200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/App"
+                      }
+                    }
+                  },
+                  "required": [
+                    "apps"
+                  ]
+                },
+                "example": {
+                  "apps": [
+                    {
+                      "id": "2UMwhPDc2I58BIBYVGVg3sP1Wic",
+                      "secret": "",
+                      "active": true,
+                      "name": "The new super app",
+                      "description": "The app created in postman",
+                      "offline": true,
+                      "type": "web",
+                      "redirect_urls": [
+                        "http://localhost:8765"
+                      ],
+                      "login_app_settings": null,
+                      "custom_email_templates": false,
+                      "auth_strategies": [
+                        {
+                          "strategy": {
+                            "identity": "email",
+                            "challenge": "password",
+                            "transport": "none"
+                          },
+                          "type": "first_factor_internal"
+                        },
+                        {
+                          "strategy": {
+                            "identity": "phone",
+                            "challenge": "password",
+                            "transport": "none"
+                          },
+                          "type": "first_factor_internal"
+                        },
+                        {
+                          "strategy": {
+                            "identity": "phone",
+                            "challenge": "otm",
+                            "transport": "sms"
+                          },
+                          "type": "first_factor_internal"
+                        },
+                        {
+                          "strategy": {
+                            "identity": "email",
+                            "challenge": "magic_link",
+                            "transport": "email"
+                          },
+                          "type": "first_factor_internal"
+                        }
+                      ],
+                      "custom_sms_messages": null,
+                      "registration_allowed": true,
+                      "passwordless_registration_allowed": true,
+                      "anonymous_registration_allowed": false,
+                      "fim_merge_by_email_allowed": true,
+                      "debug_otp_code_allowed": true,
+                      "debug_otp_code_for_registration": "8765"
+                    },
+                    {
+                      "id": "2UMwhUvqQ8VayI8ih69BmwkAhD5",
+                      "secret": "",
+                      "active": true,
+                      "name": "The new super app",
+                      "description": "The app created in postman",
+                      "offline": true,
+                      "type": "web",
+                      "redirect_urls": [
+                        "http://localhost:8765"
+                      ],
+                      "login_app_settings": null,
+                      "custom_email_templates": false,
+                      "auth_strategies": [
+                        {
+                          "strategy": {
+                            "identity": "email",
+                            "challenge": "password",
+                            "transport": "none"
+                          },
+                          "type": "first_factor_internal"
+                        },
+                        {
+                          "strategy": {
+                            "identity": "phone",
+                            "challenge": "password",
+                            "transport": "none"
+                          },
+                          "type": "first_factor_internal"
+                        },
+                        {
+                          "strategy": {
+                            "identity": "phone",
+                            "challenge": "otm",
+                            "transport": "sms"
+                          },
+                          "type": "first_factor_internal"
+                        },
+                        {
+                          "strategy": {
+                            "identity": "email",
+                            "challenge": "magic_link",
+                            "transport": "email"
+                          },
+                          "type": "first_factor_internal"
+                        }
+                      ],
+                      "custom_sms_messages": null,
+                      "registration_allowed": true,
+                      "passwordless_registration_allowed": true,
+                      "anonymous_registration_allowed": false,
+                      "fim_merge_by_email_allowed": true,
+                      "debug_otp_code_allowed": true,
+                      "debug_otp_code_for_registration": "8765"
+                    },
+                    {
+                      "id": "2UMwhTzDMUAeEhYb4O8Mpz6h2Jy",
+                      "secret": "",
+                      "active": true,
+                      "name": "The new super app",
+                      "description": "The app created in postman",
+                      "offline": true,
+                      "type": "web",
+                      "redirect_urls": [
+                        "http://localhost:8765"
+                      ],
+                      "login_app_settings": null,
+                      "custom_email_templates": false,
+                      "auth_strategies": [
+                        {
+                          "strategy": {
+                            "identity": "email",
+                            "challenge": "password",
+                            "transport": "none"
+                          },
+                          "type": "first_factor_internal"
+                        },
+                        {
+                          "strategy": {
+                            "identity": "phone",
+                            "challenge": "password",
+                            "transport": "none"
+                          },
+                          "type": "first_factor_internal"
+                        },
+                        {
+                          "strategy": {
+                            "identity": "phone",
+                            "challenge": "otm",
+                            "transport": "sms"
+                          },
+                          "type": "first_factor_internal"
+                        },
+                        {
+                          "strategy": {
+                            "identity": "email",
+                            "challenge": "magic_link",
+                            "transport": "email"
+                          },
+                          "type": "first_factor_internal"
+                        }
+                      ],
+                      "custom_sms_messages": null,
+                      "registration_allowed": true,
+                      "passwordless_registration_allowed": true,
+                      "anonymous_registration_allowed": false,
+                      "fim_merge_by_email_allowed": true,
+                      "debug_otp_code_allowed": true,
+                      "debug_otp_code_for_registration": "8765"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "Create app with google",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "Bearer {{admin_token}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "offline": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "redirect_urls": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "auth_strategies": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "strategy": {
+                          "type": "object",
+                          "properties": {
+                            "fim_type": {
+                              "type": "string"
+                            },
+                            "identity": {
+                              "type": "string"
+                            },
+                            "transport": {
+                              "type": "string"
+                            },
+                            "challenge": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "identity",
+                            "transport",
+                            "challenge"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "strategy"
+                      ]
+                    }
+                  },
+                  "registration_allowed": {
+                    "type": "boolean"
+                  },
+                  "passwordless_registration_allowed": {
+                    "type": "boolean"
+                  },
+                  "anonymous_registration_allowed": {
+                    "type": "boolean"
+                  },
+                  "fim_merge_by_email_allowed": {
+                    "type": "boolean"
+                  },
+                  "debug_otp_code_allowed": {
+                    "type": "boolean"
+                  },
+                  "debug_otp_code_for_registration": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "description",
+                  "offline",
+                  "type",
+                  "redirect_urls",
+                  "auth_strategies",
+                  "registration_allowed",
+                  "passwordless_registration_allowed",
+                  "anonymous_registration_allowed",
+                  "fim_merge_by_email_allowed",
+                  "debug_otp_code_allowed",
+                  "debug_otp_code_for_registration"
+                ]
+              },
+              "example": {
+                "name": "The new super app",
+                "description": "The app created in postman",
+                "offline": true,
+                "type": "web",
+                "redirect_urls": [
+                  "http://localhost:8765",
+                  "https://jwt.io"
+                ],
+                "auth_strategies": [
+                  {
+                    "type": "first_factor_fim",
+                    "strategy": {
+                      "fim_type": "google"
+                    }
+                  },
+                  {
+                    "type": "first_factor_internal",
+                    "strategy": {
+                      "identity": "email",
+                      "transport": "none",
+                      "challenge": "password"
+                    }
+                  },
+                  {
+                    "type": "first_factor_internal",
+                    "strategy": {
+                      "identity": "phone",
+                      "transport": "none",
+                      "challenge": "password"
+                    }
+                  },
+                  {
+                    "type": "first_factor_internal",
+                    "strategy": {
+                      "identity": "phone",
+                      "transport": "sms",
+                      "challenge": "otm"
+                    }
+                  },
+                  {
+                    "type": "first_factor_internal",
+                    "strategy": {
+                      "identity": "email",
+                      "transport": "email",
+                      "challenge": "magic_link"
+                    }
+                  }
+                ],
+                "registration_allowed": true,
+                "passwordless_registration_allowed": true,
+                "anonymous_registration_allowed": false,
+                "fim_merge_by_email_allowed": true,
+                "debug_otp_code_allowed": true,
+                "debug_otp_code_for_registration": "8765"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/App"
+                },
+                "example": {
+                  "id": "2UMwhTzDMUAeEhYb4O8Mpz6h2Jy",
+                  "secret": "VMICaiKi5fAHypiHPlpGmg==",
+                  "active": true,
+                  "name": "The new super app",
+                  "description": "The app created in postman",
+                  "offline": true,
+                  "type": "web",
+                  "redirect_urls": [
+                    "http://localhost:8765"
+                  ],
+                  "login_app_settings": null,
+                  "custom_email_templates": false,
+                  "auth_strategies": [
+                    {
+                      "strategy": {
+                        "identity": "email",
+                        "challenge": "password",
+                        "transport": "none"
+                      },
+                      "type": "first_factor_internal"
+                    },
+                    {
+                      "strategy": {
+                        "identity": "phone",
+                        "challenge": "password",
+                        "transport": "none"
+                      },
+                      "type": "first_factor_internal"
+                    },
+                    {
+                      "strategy": {
+                        "identity": "phone",
+                        "challenge": "otm",
+                        "transport": "sms"
+                      },
+                      "type": "first_factor_internal"
+                    },
+                    {
+                      "strategy": {
+                        "identity": "email",
+                        "challenge": "magic_link",
+                        "transport": "email"
+                      },
+                      "type": "first_factor_internal"
+                    }
+                  ],
+                  "custom_sms_messages": null,
+                  "registration_allowed": true,
+                  "passwordless_registration_allowed": true,
+                  "anonymous_registration_allowed": false,
+                  "fim_merge_by_email_allowed": true,
+                  "debug_otp_code_allowed": true,
+                  "debug_otp_code_for_registration": "8765"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/admin/apps/new_app": {
+      "get": {
+        "summary": "Get App",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "Bearer {{admin_token}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/App"
+                },
+                "example": {
+                  "id": "2UMwhTzDMUAeEhYb4O8Mpz6h2Jy",
+                  "secret": "VMICaiKi5fAHypiHPlpGmg==",
+                  "active": true,
+                  "name": "The new super app",
+                  "description": "The app created in postman",
+                  "offline": true,
+                  "type": "web",
+                  "redirect_urls": [
+                    "http://localhost:8765"
+                  ],
+                  "login_app_settings": null,
+                  "custom_email_templates": false,
+                  "auth_strategies": [
+                    {
+                      "strategy": {
+                        "identity": "email",
+                        "challenge": "password",
+                        "transport": "none"
+                      },
+                      "type": "first_factor_internal"
+                    },
+                    {
+                      "strategy": {
+                        "identity": "phone",
+                        "challenge": "password",
+                        "transport": "none"
+                      },
+                      "type": "first_factor_internal"
+                    },
+                    {
+                      "strategy": {
+                        "identity": "phone",
+                        "challenge": "otm",
+                        "transport": "sms"
+                      },
+                      "type": "first_factor_internal"
+                    },
+                    {
+                      "strategy": {
+                        "identity": "email",
+                        "challenge": "magic_link",
+                        "transport": "email"
+                      },
+                      "type": "first_factor_internal"
+                    }
+                  ],
+                  "custom_sms_messages": null,
+                  "registration_allowed": true,
+                  "passwordless_registration_allowed": true,
+                  "anonymous_registration_allowed": false,
+                  "fim_merge_by_email_allowed": true,
+                  "debug_otp_code_allowed": true,
+                  "debug_otp_code_for_registration": "8765"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "summary": "Update App",
+        "deprecated": false,
+        "description": "Update app request upated one app by ID, the update model is the same as in create app request.\n\n**The body should include all fields**, no partial update allowed for this request.  \nIf not field included, it consider to have an empty value.",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "Bearer {{admin_token}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "offline": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "redirect_urls": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "origins": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "login_app_settings": {
+                    "type": "null"
+                  },
+                  "custom_email_templates": {
+                    "type": "boolean"
+                  },
+                  "auth_strategies": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "strategy": {
+                          "type": "object",
+                          "properties": {
+                            "fim_type": {
+                              "type": "string"
+                            },
+                            "identity": {
+                              "type": "string"
+                            },
+                            "challenge": {
+                              "type": "string"
+                            },
+                            "transport": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "identity",
+                            "challenge",
+                            "transport"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "strategy",
+                        "type"
+                      ]
+                    }
+                  },
+                  "custom_sms_messages": {
+                    "type": "null"
+                  },
+                  "registration_allowed": {
+                    "type": "boolean"
+                  },
+                  "passwordless_registration_allowed": {
+                    "type": "boolean"
+                  },
+                  "anonymous_registration_allowed": {
+                    "type": "boolean"
+                  },
+                  "create_tenant_on_registration": {
+                    "type": "string"
+                  },
+                  "fim_merge_by_email_allowed": {
+                    "type": "boolean"
+                  },
+                  "debug_otp_code_allowed": {
+                    "type": "boolean"
+                  },
+                  "debug_otp_code_for_registration": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret",
+                  "active",
+                  "name",
+                  "description",
+                  "offline",
+                  "type",
+                  "redirect_urls",
+                  "origins",
+                  "login_app_settings",
+                  "custom_email_templates",
+                  "auth_strategies",
+                  "custom_sms_messages",
+                  "registration_allowed",
+                  "passwordless_registration_allowed",
+                  "anonymous_registration_allowed",
+                  "create_tenant_on_registration",
+                  "fim_merge_by_email_allowed",
+                  "debug_otp_code_allowed",
+                  "debug_otp_code_for_registration"
+                ]
+              },
+              "example": {
+                "id": "{{new_app}}",
+                "secret": "VKSUEalmz4QR4twqS9u4Bw==",
+                "active": true,
+                "name": "The new super app",
+                "description": "The app created in postman",
+                "offline": true,
+                "type": "web",
+                "redirect_urls": [
+                  "http://localhost:5500",
+                  "https://jwt.io",
+                  "http://127.0.0.1:5500",
+                  "https://grub-evident-gnu.ngrok-free.app",
+                  "http://localhost:5173",
+                  "https://aooth.aooth.cloud"
+                ],
+                "origins": [
+                  "http://localhost:5500",
+                  "https://jwt.io",
+                  "http://127.0.0.1:5500",
+                  "http://grub-evident-gnu.ngrok-free.app",
+                  "http://localhost:5173",
+                  "https://aooth.aooth.cloud"
+                ],
+                "login_app_settings": null,
+                "custom_email_templates": false,
+                "auth_strategies": [
+                  {
+                    "strategy": {
+                      "fim_type": "google"
+                    },
+                    "type": "first_factor_fim"
+                  },
+                  {
+                    "strategy": {
+                      "identity": "email",
+                      "challenge": "password",
+                      "transport": "none"
+                    },
+                    "type": "first_factor_internal"
+                  },
+                  {
+                    "strategy": {
+                      "identity": "email",
+                      "challenge": "passkey",
+                      "transport": "none"
+                    },
+                    "type": "first_factor_internal"
+                  },
+                  {
+                    "strategy": {
+                      "identity": "phone",
+                      "challenge": "password",
+                      "transport": "none"
+                    },
+                    "type": "first_factor_internal"
+                  },
+                  {
+                    "strategy": {
+                      "identity": "phone",
+                      "challenge": "otp",
+                      "transport": "sms"
+                    },
+                    "type": "first_factor_internal"
+                  },
+                  {
+                    "strategy": {
+                      "identity": "email",
+                      "challenge": "magic_link",
+                      "transport": "email"
+                    },
+                    "type": "first_factor_internal"
+                  }
+                ],
+                "custom_sms_messages": null,
+                "registration_allowed": true,
+                "passwordless_registration_allowed": true,
+                "anonymous_registration_allowed": false,
+                "create_tenant_on_registration": "optional",
+                "fim_merge_by_email_allowed": true,
+                "debug_otp_code_allowed": true,
+                "debug_otp_code_for_registration": "8765"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/App"
+                },
+                "example": {
+                  "id": "2UMwhTzDMUAeEhYb4O8Mpz6h2Jy",
+                  "secret": "ng0gaXDHukvKvTKzgRR+kA==",
+                  "active": true,
+                  "name": "The new super app",
+                  "description": "I am updated app",
+                  "offline": false,
+                  "type": "ios",
+                  "redirect_urls": [
+                    "http://localhost:8765"
+                  ],
+                  "login_app_settings": null,
+                  "custom_email_templates": false,
+                  "auth_strategies": [
+                    {
+                      "strategy": {
+                        "identity": "email",
+                        "challenge": "password",
+                        "transport": "none"
+                      },
+                      "type": "first_factor_internal"
+                    },
+                    {
+                      "strategy": {
+                        "identity": "phone",
+                        "challenge": "password",
+                        "transport": "none"
+                      },
+                      "type": "first_factor_internal"
+                    },
+                    {
+                      "strategy": {
+                        "identity": "phone",
+                        "challenge": "otm",
+                        "transport": "sms"
+                      },
+                      "type": "first_factor_internal"
+                    },
+                    {
+                      "strategy": {
+                        "identity": "email",
+                        "challenge": "magic_link",
+                        "transport": "email"
+                      },
+                      "type": "first_factor_internal"
+                    }
+                  ],
+                  "custom_sms_messages": null,
+                  "registration_allowed": true,
+                  "passwordless_registration_allowed": true,
+                  "anonymous_registration_allowed": false,
+                  "fim_merge_by_email_allowed": true,
+                  "debug_otp_code_allowed": true,
+                  "debug_otp_code_for_registration": "8765"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Auth strategy": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "internal",
+              "passkey",
+              "webauthn",
+              "fim",
+              "pkce",
+              "anonymous"
+            ]
+          },
+          "strategy": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "identity": {
+                    "type": "string",
+                    "enum": [
+                      "id",
+                      "email",
+                      "phone",
+                      "username",
+                      "anonymous",
+                      "none"
+                    ]
+                  },
+                  "challenge": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "password",
+                      "otp",
+                      "magic_link",
+                      "recovery_codes",
+                      "guardian"
+                    ]
+                  },
+                  "transport": {
+                    "type": "string",
+                    "enum": [
+                      "email",
+                      "sms",
+                      "push",
+                      "none",
+                      "socket",
+                      "authenticator"
+                    ]
+                  }
+                },
+                "required": [
+                  "identity",
+                  "challenge",
+                  "transport"
+                ],
+                "description": "internal strategy "
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "fim_type": {
+                    "type": "string",
+                    "description": "one of supported provider name: facebook, google, etc"
+                  }
+                },
+                "required": [
+                  "fim_type"
+                ],
+                "description": "fim strategy"
+              },
+              {
+                "type": "object",
+                "properties": {},
+                "description": "other strategies - empty object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "strategy"
+        ]
+      },
+      "LoginWebAppTheme": {
+        "type": "object",
+        "properties": {
+          "template_type": {
+            "type": "string",
+            "enum": [
+              "default",
+              "simple",
+              "extendable"
+            ]
+          },
+          "application_name": {
+            "type": "string"
+          },
+          "remove_passflow_logo": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "color_scheme": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark",
+              "system"
+            ]
+          },
+          "light_style": {
+            "$ref": "#/components/schemas/LoginWebAppStyle"
+          },
+          "dark_style": {
+            "$ref": "#/components/schemas/LoginWebAppStyle"
+          }
+        },
+        "required": [
+          "application_name",
+          "light_style",
+          "dark_style",
+          "template_type",
+          "remove_passflow_logo",
+          "description",
+          "color_scheme"
+        ]
+      },
+      "LoginWebAppStyle": {
+        "type": "object",
+        "properties": {
+          "primary_color": {
+            "type": "string"
+          },
+          "text_color": {
+            "type": "string"
+          },
+          "secondary_text_color": {
+            "type": "string"
+          },
+          "background_color": {
+            "type": "string"
+          },
+          "card_color": {
+            "type": "string"
+          },
+          "input_background_color": {
+            "type": "string"
+          },
+          "input_border_color": {
+            "type": "string"
+          },
+          "button_text_color": {
+            "type": "string"
+          },
+          "divider_color": {
+            "type": "string"
+          },
+          "logo_url": {
+            "type": "string"
+          },
+          "background_image": {
+            "type": "string"
+          },
+          "custom_css": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "primary_color",
+          "text_color",
+          "secondary_text_color",
+          "background_color",
+          "card_color",
+          "input_background_color",
+          "input_border_color",
+          "button_text_color",
+          "divider_color",
+          "logo_url",
+          "background_image",
+          "custom_css"
+        ]
+      },
+      "App": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "App ID"
+          },
+          "secret": {
+            "type": "string",
+            "description": "application secret"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "app is active or not"
+          },
+          "name": {
+            "type": "string",
+            "description": "applicaiton name"
+          },
+          "description": {
+            "type": "string",
+            "description": "application descriptions"
+          },
+          "offline": {
+            "type": "boolean",
+            "description": "could the app release refresh tokens"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "web",
+              "android",
+              "ios",
+              "desktop",
+              "other"
+            ],
+            "description": "Application type"
+          },
+          "redirect_urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "the list of allowed redirect URLS"
+          },
+          "origins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "the list of allowed origins"
+          },
+          "custom_email_templates": {
+            "type": "boolean",
+            "description": "use custom email templates"
+          },
+          "login_app_theme": {
+            "$ref": "#/components/schemas/LoginWebAppTheme"
+          },
+          "auth_strategies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Auth%20strategy"
+            },
+            "description": "the list of supported auth stategies"
+          },
+          "force_passwordless_login": {
+            "type": "boolean",
+            "description": "force passwordless login as main option"
+          },
+          "pkce_enabled": {
+            "type": "boolean",
+            "description": "PKCE works for headless authentication, instead of sending tokens in URL, we use PKCE, https://oauth.net/2/pkce/"
+          },
+          "custom_sms_messages": {
+            "type": "string"
+          },
+          "registration_allowed": {
+            "type": "boolean",
+            "description": "app allows registaion"
+          },
+          "invite_only_registration": {
+            "type": "boolean",
+            "description": "registrations by invitation only"
+          },
+          "passwordless_registration_allowed": {
+            "type": "boolean",
+            "description": "app supports passwordless registration"
+          },
+          "anonymous_registration_allowed": {
+            "type": "boolean",
+            "description": "app supports anonymous login"
+          },
+          "create_tenant_on_registration": {
+            "type": "string",
+            "enum": [
+              "never",
+              "always",
+              "optional"
+            ],
+            "description": "Create tenant when user registered with app"
+          },
+          "fim_merge_by_email_allowed": {
+            "type": "boolean",
+            "description": "merge fim by email for validated email addresses"
+          },
+          "debug_otp_code_allowed": {
+            "type": "boolean",
+            "description": "allow usage of debug otp code"
+          },
+          "debug_otp_code_for_registration": {
+            "type": "string",
+            "description": "debug code for opt registration"
+          }
+        },
+        "required": [
+          "id",
+          "secret",
+          "active",
+          "name",
+          "description",
+          "offline",
+          "type",
+          "redirect_urls",
+          "origins",
+          "custom_email_templates",
+          "auth_strategies",
+          "force_passwordless_login",
+          "pkce_enabled",
+          "custom_sms_messages",
+          "registration_allowed",
+          "passwordless_registration_allowed",
+          "invite_only_registration",
+          "anonymous_registration_allowed",
+          "create_tenant_on_registration",
+          "fim_merge_by_email_allowed",
+          "debug_otp_code_allowed",
+          "debug_otp_code_for_registration"
+        ]
+      }
+    },
+    "securitySchemes": {}
+  },
+  "servers": [],
+  "security": []
+}

@@ -258,6 +258,16 @@
           }
         }
       }
+    },
+    {
+      "include": ["**/tests/**/*.ts", "**/tests/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
     }
   ]
 }
