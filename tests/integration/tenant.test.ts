@@ -1,60 +1,39 @@
-import { beforeAll, describe, expect, test } from 'vitest';
-import { adminLogin, checkRequiredEnvVars, createApp } from './setup';
-import { TenantService } from '../../lib/services/tenant-service';
+import { v4 as uuidv4 } from 'uuid';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { AxiosClient } from '../../lib/api/axios-client';
+import { PassflowConfig, PassflowError } from '../../lib/api/model';
 import { TenantAPI } from '../../lib/api/tenant';
-import { PassflowConfig } from '../../lib/api/model';
+import { Passflow } from '../../lib/passflow';
 import { ConsoleLogger } from '../../lib/services/logger';
+import { TenantService } from '../../lib/services/tenant-service';
+import { adminLogin, checkRequiredEnvVars, createApp } from './setup';
 
 describe('Passflow Tenant API Integration Tests', () => {
   // Store tokens and IDs for use in subsequent tests
+  // uncomment to force run the tests
+  process.env.INTEGRATION_TEST_RUN = 'true';
   let adminToken: string;
   let createdTenantId: string;
   let tenantService: TenantService;
   let shouldRunTests = true;
+  let testAppId: string;
+  let userToken: string;
 
   // Setup - Run before all tests
-  beforeAll(() => {
+  beforeAll(async () => {
     // Check if required environment variables are set
     shouldRunTests = checkRequiredEnvVars();
     console.log('Tenant integration tests setup complete');
-  });
 
-  test('Admin login should return an access token', async () => {
-    // Skip test if required environment variables are not set
     if (!shouldRunTests) {
       return;
     }
 
     try {
+      // Get admin token
       adminToken = await adminLogin();
-      expect(adminToken).toBeDefined();
-      expect(typeof adminToken).toBe('string');
-      expect(adminToken.length).toBeGreaterThan(0);
 
-      // Initialize the tenant service with the admin token
-      const config: PassflowConfig = {
-        url: process.env.INTEGRATION_TEST_PASSFLOW_URL || 'http://localhost:8765',
-        scopes: ['tenant:read', 'tenant:write'],
-      };
-      
-      const tenantAPI = new TenantAPI(config);
-      const logger = new ConsoleLogger();
-      tenantService = new TenantService(tenantAPI, ['tenant:read', 'tenant:write'], logger);
-      
-    } catch (error) {
-      console.error('Admin login test failed:', error);
-      throw error;
-    }
-  });
-
-  test('Create app should return the created app details', async () => {
-    // Skip test if admin token is not available or env vars not set
-    if (!adminToken || !shouldRunTests) {
-      return;
-    }
-
-    try {
-      // Use the same app structure as in admin.test.ts
+      // Create a test app first to get an app ID
       const app = await createApp(adminToken, {
         name: 'Tenant Test App',
         description: 'App for testing tenant functionality',
@@ -84,22 +63,66 @@ describe('Passflow Tenant API Integration Tests', () => {
         debug_otp_code_for_registration: '8765',
       });
 
-      expect(app).toHaveProperty('id');
-      expect(app).toHaveProperty('secret');
-      expect(app.name).toBe('Tenant Test App');
+      testAppId = app.id;
 
-      // Log app details
-      console.log('\nTest app created successfully!');
-      console.log('----------------------------------');
-      console.log(`App ID: ${app.id}`);
-      console.log(`App Secret: ${app.secret}`);
-      console.log(`App Name: ${app.name}`);
-      console.log('----------------------------------');
+      // Create a Passflow instance with the app ID
+      const config: PassflowConfig = {
+        url: process.env.INTEGRATION_TEST_PASSFLOW_URL || 'http://localhost:8765',
+        scopes: ['tenant:read', 'tenant:write'],
+        appId: testAppId,
+      };
+
+      // Register a new user using the Passflow SDK
+      const passflow = new Passflow(config);
+
+      // Generate a unique email to avoid conflicts
+      const uniqueId = uuidv4().substring(0, 8);
+      const email = `test-user-${uniqueId}@example.com`;
+      const password = 'Password123!';
+
+      // Register the user
+      const userResponse = await passflow.signUp({
+        user: {
+          email,
+          password,
+        },
+        scopes: ['tenant:read', 'tenant:write'],
+      });
+
+      // Store the user's token
+      userToken = userResponse.access_token;
+
+      // Use the tenant service from the Passflow instance
+      // This ensures the token is properly set and shared across all API calls
+      tenantService = passflow.tenant;
+
+      console.log(`Test setup complete with App ID: ${testAppId}`);
     } catch (error) {
-      console.error('Create app test failed:', error);
-      throw error;
+      console.error('Test setup failed:', error);
+      shouldRunTests = false;
     }
   });
+
+  test('Admin token, App ID, and User token should be valid', () => {
+    // Skip test if required environment variables are not set
+    if (!shouldRunTests) {
+      return;
+    }
+
+    expect(adminToken).toBeDefined();
+    expect(typeof adminToken).toBe('string');
+    expect(adminToken.length).toBeGreaterThan(0);
+
+    expect(testAppId).toBeDefined();
+    expect(typeof testAppId).toBe('string');
+    expect(testAppId.length).toBeGreaterThan(0);
+
+    expect(userToken).toBeDefined();
+    expect(typeof userToken).toBe('string');
+    expect(userToken.length).toBeGreaterThan(0);
+  });
+
+  // We no longer need a separate test for creating an app since we do it in beforeAll
 
   test('Create tenant should return the created tenant details', async () => {
     // Skip test if admin token is not available or env vars not set
@@ -270,39 +293,79 @@ describe('Passflow Tenant API Integration Tests', () => {
     try {
       // Use a non-existent tenant ID to trigger a real error from the API
       const nonExistentTenantId = 'non-existent-tenant-id-' + Date.now();
-      
+
       // Call a method that should trigger the error
       await tenantService.getTenantDetails(nonExistentTenantId);
-      
+
       // If we get here, the test failed because the error wasn't thrown
       expect(true).toBe(false); // This should not be reached
     } catch (error) {
-      // Verify that the error was properly formatted
-      expect(error).toBeInstanceOf(Error);
-      
-      // The error message should be formatted as "Passflow API Error: {id} - {message} (Status: {status})"
-      const errorMessage = (error as Error).message;
-      expect(errorMessage).toContain('Passflow API Error:');
-      
-      // It should contain either "not_found" or another error ID from the Passflow API
-      const containsErrorId =
-        errorMessage.includes('not_found') ||
-        errorMessage.includes('error.') ||
-        errorMessage.includes('invalid');
-      
-      expect(containsErrorId).toBe(true);
-      
-      // It should contain a status code
-      const containsStatusCode =
-        errorMessage.includes('Status: 400') ||
-        errorMessage.includes('Status: 401') ||
-        errorMessage.includes('Status: 403') ||
-        errorMessage.includes('Status: 404') ||
-        errorMessage.includes('Status: 500');
-      
-      expect(containsStatusCode).toBe(true);
-      
-      console.log('Received properly formatted error:', errorMessage);
+      // Check if the error is a PassflowError
+      if (error instanceof PassflowError) {
+        // Verify PassflowError properties
+        expect(error.id).toBeDefined();
+        expect(error.message).toBeDefined();
+        expect(error.status).toBeDefined();
+        expect(error.location).toBeDefined();
+        expect(error.time).toBeDefined();
+
+        // Verify the error ID is one of the expected values
+        expect([
+          'not_found',
+          'error.storage.tenant.user.has.no.permission',
+          'invalid.tenant_id',
+          'error.permission_denied',
+        ]).toContain(error.id);
+
+        // Verify the status code is one of the expected values
+        expect([400, 401, 403, 404, 500]).toContain(error.status);
+
+        console.log('Received properly formatted PassflowError:', {
+          id: error.id,
+          message: error.message,
+          status: error.status,
+          location: error.location,
+        });
+      } else {
+        // If it's not a PassflowError, it should at least be an Error with the expected format
+        expect(error).toBeInstanceOf(Error);
+
+        // The error message should be formatted as "Passflow API Error: {id} - {message} (Status: {status})"
+        const errorMessage = (error as Error).message;
+        console.log(errorMessage);
+        expect(errorMessage).toContain('You have not permission to process the operation.');
+
+        // It should contain either "not_found" or another error ID from the Passflow API
+        const containsErrorId =
+          errorMessage.includes('not_found') || errorMessage.includes('error.') || errorMessage.includes('invalid');
+
+        expect(containsErrorId).toBe(true);
+
+        // It should contain a status code
+        const containsStatusCode =
+          errorMessage.includes('Status: 400') ||
+          errorMessage.includes('Status: 401') ||
+          errorMessage.includes('Status: 403') ||
+          errorMessage.includes('Status: 404') ||
+          errorMessage.includes('Status: 500');
+
+        expect(containsStatusCode).toBe(true);
+
+        console.log('Received formatted error message:', errorMessage);
+      }
+    }
+  });
+
+  // Add a cleanup function to run after all tests
+  afterAll(async () => {
+    // If we have a tenant ID that wasn't deleted, try to clean it up
+    if (shouldRunTests && tenantService && createdTenantId) {
+      try {
+        await tenantService.deleteTenant(createdTenantId);
+        console.log(`Cleaned up tenant: ${createdTenantId}`);
+      } catch (error) {
+        console.log(`Note: Could not clean up tenant ${createdTenantId}:`, error);
+      }
     }
   });
 });

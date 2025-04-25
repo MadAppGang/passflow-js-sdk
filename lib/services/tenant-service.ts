@@ -35,7 +35,7 @@ export class TenantService {
     // Check if it's an Axios error with a response
     if (axios.isAxiosError(error) && error.response?.data) {
       const responseData = error.response.data;
-      
+
       // Check if it's a Passflow API error format
       if (
         typeof responseData === 'object' &&
@@ -51,19 +51,15 @@ export class TenantService {
           location: string;
           time: string;
         };
-        
+
         // Log the formatted error
-        this.logger.error(
-          `${context}: ${passflowError.id} - ${passflowError.message} (Status: ${passflowError.status})`
-        );
-        
+        this.logger.error(`${context}: ${passflowError.id} - ${passflowError.message} (Status: ${passflowError.status})`);
+
         // Throw a new error with the formatted message
-        throw new Error(
-          `Passflow API Error: ${passflowError.id} - ${passflowError.message} (Status: ${passflowError.status})`
-        );
+        throw new Error(`Passflow API Error: ${passflowError.id} - ${passflowError.message} (Status: ${passflowError.status})`);
       }
     }
-    
+
     // If it's not a Passflow API error, log and rethrow
     this.logger.error(`${context}:`, error);
     if (error instanceof Error) {
@@ -180,8 +176,7 @@ export class TenantService {
     try {
       return await this.tenantAPI.getGroupInfo(tenantId, groupId);
     } catch (error) {
-      console.error(`Get group info failed for tenant ID ${tenantId}, group ID ${groupId}:`, error);
-      throw error;
+      this.handlePassflowError(error, `Get group info failed for tenant ID ${tenantId}, group ID ${groupId}`);
     }
   }
 
@@ -196,8 +191,7 @@ export class TenantService {
     try {
       return await this.tenantAPI.updateGroup(tenantId, groupId, name);
     } catch (error) {
-      console.error(`Update group failed for tenant ID ${tenantId}, group ID ${groupId}:`, error);
-      throw error;
+      this.handlePassflowError(error, `Update group failed for tenant ID ${tenantId}, group ID ${groupId}`);
     }
   }
 
@@ -211,8 +205,7 @@ export class TenantService {
     try {
       return await this.tenantAPI.deleteGroup(tenantId, groupId);
     } catch (error) {
-      console.error(`Delete group failed for tenant ID ${tenantId}, group ID ${groupId}:`, error);
-      throw error;
+      this.handlePassflowError(error, `Delete group failed for tenant ID ${tenantId}, group ID ${groupId}`);
     }
   }
 
@@ -228,8 +221,10 @@ export class TenantService {
     try {
       return await this.tenantAPI.addUserToGroup(tenantId, groupId, userId, role);
     } catch (error) {
-      console.error(`Add user to group failed for tenant ID ${tenantId}, group ID ${groupId}, user ID ${userId}:`, error);
-      throw error;
+      this.handlePassflowError(
+        error,
+        `Add user to group failed for tenant ID ${tenantId}, group ID ${groupId}, user ID ${userId}`,
+      );
     }
   }
 
@@ -250,8 +245,10 @@ export class TenantService {
     try {
       return await this.tenantAPI.removeUserRolesFromGroup(tenantId, groupId, userId, roles);
     } catch (error) {
-      console.error(`Remove user roles from group failed for tenant ID ${tenantId}, group ID ${groupId}, user ID ${userId}:`, error);
-      throw error;
+      this.handlePassflowError(
+        error,
+        `Remove user roles from group failed for tenant ID ${tenantId}, group ID ${groupId}, user ID ${userId}`,
+      );
     }
   }
 
@@ -267,8 +264,10 @@ export class TenantService {
     try {
       return await this.tenantAPI.changeUserRoles(tenantId, groupId, userId, roles);
     } catch (error) {
-      console.error(`Change user roles failed for tenant ID ${tenantId}, group ID ${groupId}, user ID ${userId}:`, error);
-      throw error;
+      this.handlePassflowError(
+        error,
+        `Change user roles failed for tenant ID ${tenantId}, group ID ${groupId}, user ID ${userId}`,
+      );
     }
   }
 
@@ -283,8 +282,10 @@ export class TenantService {
     try {
       return await this.tenantAPI.deleteUserFromGroup(tenantId, groupId, userId);
     } catch (error) {
-      console.error(`Delete user from group failed for tenant ID ${tenantId}, group ID ${groupId}, user ID ${userId}:`, error);
-      throw error;
+      this.handlePassflowError(
+        error,
+        `Delete user from group failed for tenant ID ${tenantId}, group ID ${groupId}, user ID ${userId}`,
+      );
     }
   }
 
@@ -299,8 +300,7 @@ export class TenantService {
     try {
       return await this.tenantAPI.getRolesForTenant(tenantId);
     } catch (error) {
-      console.error(`Get roles for tenant failed for tenant ID ${tenantId}:`, error);
-      throw error;
+      this.handlePassflowError(error, `Get roles for tenant failed for tenant ID ${tenantId}`);
     }
   }
 
@@ -314,8 +314,7 @@ export class TenantService {
     try {
       return await this.tenantAPI.createRoleForTenant(tenantId, name);
     } catch (error) {
-      console.error(`Create role for tenant failed for tenant ID ${tenantId}:`, error);
-      throw error;
+      this.handlePassflowError(error, `Create role for tenant failed for tenant ID ${tenantId}`);
     }
   }
 
@@ -330,8 +329,7 @@ export class TenantService {
     try {
       return await this.tenantAPI.updateRole(tenantId, roleId, name);
     } catch (error) {
-      console.error(`Update role failed for tenant ID ${tenantId}, role ID ${roleId}:`, error);
-      throw error;
+      this.handlePassflowError(error, `Update role failed for tenant ID ${tenantId}, role ID ${roleId}`);
     }
   }
 
@@ -345,8 +343,7 @@ export class TenantService {
     try {
       return await this.tenantAPI.deleteRole(tenantId, roleId);
     } catch (error) {
-      console.error(`Delete role failed for tenant ID ${tenantId}, role ID ${roleId}:`, error);
-      throw error;
+      this.handlePassflowError(error, `Delete role failed for tenant ID ${tenantId}, role ID ${roleId}`);
     }
   }
 
@@ -362,8 +359,7 @@ export class TenantService {
     try {
       return await this.tenantAPI.deleteUserFromTenant(tenantId, userId);
     } catch (error) {
-      console.error(`Delete user from tenant failed for tenant ID ${tenantId}, user ID ${userId}:`, error);
-      throw error;
+      this.handlePassflowError(error, `Delete user from tenant failed for tenant ID ${tenantId}, user ID ${userId}`);
     }
   }
 
@@ -377,12 +373,16 @@ export class TenantService {
    * @param skip Number of invitations to skip
    * @returns Promise with invitations response
    */
-  async getGroupInvitations(tenantId: string, groupId: string, limit: number, skip: number): Promise<PassflowInvitationsResponse> {
+  async getGroupInvitations(
+    tenantId: string,
+    groupId: string,
+    limit: number,
+    skip: number,
+  ): Promise<PassflowInvitationsResponse> {
     try {
       return await this.tenantAPI.getGroupInvitations(tenantId, groupId, limit, skip);
     } catch (error) {
-      console.error(`Get group invitations failed for tenant ID ${tenantId}, group ID ${groupId}:`, error);
-      throw error;
+      this.handlePassflowError(error, `Get group invitations failed for tenant ID ${tenantId}, group ID ${groupId}`);
     }
   }
 
@@ -397,8 +397,7 @@ export class TenantService {
     try {
       return await this.tenantAPI.getTenantInvitations(tenantId, limit, skip);
     } catch (error) {
-      console.error(`Get tenant invitations failed for tenant ID ${tenantId}:`, error);
-      throw error;
+      this.handlePassflowError(error, `Get tenant invitations failed for tenant ID ${tenantId}`);
     }
   }
 
@@ -413,8 +412,10 @@ export class TenantService {
     try {
       return await this.tenantAPI.invalidateInviteById(tenantId, groupId, inviteId);
     } catch (error) {
-      console.error(`Invalidate invite by ID failed for tenant ID ${tenantId}, group ID ${groupId}, invite ID ${inviteId}:`, error);
-      throw error;
+      this.handlePassflowError(
+        error,
+        `Invalidate invite by ID failed for tenant ID ${tenantId}, group ID ${groupId}, invite ID ${inviteId}`,
+      );
     }
   }
 
@@ -429,8 +430,10 @@ export class TenantService {
     try {
       return await this.tenantAPI.invalidateInviteByEmail(tenantId, groupId, email);
     } catch (error) {
-      console.error(`Invalidate invite by email failed for tenant ID ${tenantId}, group ID ${groupId}, email ${email}:`, error);
-      throw error;
+      this.handlePassflowError(
+        error,
+        `Invalidate invite by email failed for tenant ID ${tenantId}, group ID ${groupId}, email ${email}`,
+      );
     }
   }
 }

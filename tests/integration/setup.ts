@@ -177,11 +177,10 @@ export async function getAppDetails(token: string, appId: string): Promise<App> 
  * @returns True if all required environment variables are set, false otherwise
  */
 export function checkRequiredEnvVars(): boolean {
-  // if (!process.env.INTEGRATION_TEST_RUN) {
-  //   console.warn('integration tests run disabled, exiting');
-  //   return false;
-  // }
+  if (!process.env.INTEGRATION_TEST_RUN) {
+    console.warn('Integration tests run disabled (INTEGRATION_TEST_RUN not set), tests will be skipped');
+    return false;
+  }
 
   return true;
 }
-
