@@ -271,7 +271,6 @@ describe('Passflow Tenant API Integration Tests', () => {
   });
 
   test('Error handling should properly format Passflow API errors', async () => {
-    return;
     // Skip test if admin token is not available or env vars not set
     if (!adminToken || !shouldRunTests || !passflow.tenant) {
       return;
