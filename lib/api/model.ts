@@ -402,7 +402,28 @@ export type PassflowInvitePayload = {
 export type PassflowTenantResponse = {
   tenant_id: string;
   tenant_name: string;
-  // add groups and tenants here
+  users?: {
+    [groupId: string]: {
+      [roleId: string]: {
+        id: string;
+        username: string;
+        email: string;
+        phone: string;
+      };
+    };
+  };
+  groups?: Array<{
+    id: string;
+    name: string;
+    default: boolean;
+    updated_at: string;
+    created_at: string;
+  }>;
+  roles?: Array<{
+    id: string;
+    tenant_id: string;
+    name: string;
+  }>;
 };
 
 export type PassflowCreateTenantPayload = {
