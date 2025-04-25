@@ -19,6 +19,9 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "vitest.nodeEnv": {
-    "INTEGRATION_TEST_RUN": "true"
+    "INTEGRATION_TEST_RUN": "true",
+    "INTEGRATION_TEST_PASSFLOW_URL": "http://localhost:8765",
+    "INTEGRATION_TEST_ADMIN_EMAIL": "admin@passflow.cloud",
+    "INTEGRATION_TEST_ADMIN_PASSWORD": "password"
   }
 }
