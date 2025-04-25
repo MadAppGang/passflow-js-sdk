@@ -96,6 +96,7 @@ export async function createApp(
     offline: boolean;
     type: string;
     redirect_urls: string[];
+    origins: string[];
     auth_strategies: Array<{
       strategy: {
         identity?: string;

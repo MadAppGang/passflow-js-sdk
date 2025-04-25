@@ -41,11 +41,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "email",
-                  "phone",
-                  "password"
-                ]
+                "required": ["email", "phone", "password"]
               },
               "example": {
                 "email": "{{admin_login}}",
@@ -67,9 +63,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "token"
-                  ]
+                  "required": ["token"]
                 },
                 "examples": {
                   "1": {
@@ -115,18 +109,10 @@
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "id",
-                        "message",
-                        "status",
-                        "location",
-                        "time"
-                      ]
+                      "required": ["id", "message", "status", "location", "time"]
                     }
                   },
-                  "required": [
-                    "error"
-                  ]
+                  "required": ["error"]
                 },
                 "example": {
                   "error": {
@@ -178,9 +164,7 @@
                       }
                     }
                   },
-                  "required": [
-                    "apps"
-                  ]
+                  "required": ["apps"]
                 },
                 "example": {
                   "apps": []
@@ -215,18 +199,10 @@
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "id",
-                        "message",
-                        "status",
-                        "location",
-                        "time"
-                      ]
+                      "required": ["id", "message", "status", "location", "time"]
                     }
                   },
-                  "required": [
-                    "error"
-                  ]
+                  "required": ["error"]
                 },
                 "example": {
                   "error": {
@@ -255,9 +231,7 @@
                       }
                     }
                   },
-                  "required": [
-                    "apps"
-                  ]
+                  "required": ["apps"]
                 },
                 "example": {
                   "apps": [
@@ -269,9 +243,7 @@
                       "description": "The app created in postman",
                       "offline": true,
                       "type": "web",
-                      "redirect_urls": [
-                        "http://localhost:8765"
-                      ],
+                      "redirect_urls": ["http://localhost:8765"],
                       "login_app_settings": null,
                       "custom_email_templates": false,
                       "auth_strategies": [
@@ -324,9 +296,7 @@
                       "description": "The app created in postman",
                       "offline": true,
                       "type": "web",
-                      "redirect_urls": [
-                        "http://localhost:8765"
-                      ],
+                      "redirect_urls": ["http://localhost:8765"],
                       "login_app_settings": null,
                       "custom_email_templates": false,
                       "auth_strategies": [
@@ -379,9 +349,7 @@
                       "description": "The app created in postman",
                       "offline": true,
                       "type": "web",
-                      "redirect_urls": [
-                        "http://localhost:8765"
-                      ],
+                      "redirect_urls": ["http://localhost:8765"],
                       "login_app_settings": null,
                       "custom_email_templates": false,
                       "auth_strategies": [
@@ -500,17 +468,10 @@
                               "type": "string"
                             }
                           },
-                          "required": [
-                            "identity",
-                            "transport",
-                            "challenge"
-                          ]
+                          "required": ["identity", "transport", "challenge"]
                         }
                       },
-                      "required": [
-                        "type",
-                        "strategy"
-                      ]
+                      "required": ["type", "strategy"]
                     }
                   },
                   "registration_allowed": {
@@ -552,10 +513,7 @@
                 "description": "The app created in postman",
                 "offline": true,
                 "type": "web",
-                "redirect_urls": [
-                  "http://localhost:8765",
-                  "https://jwt.io"
-                ],
+                "redirect_urls": ["http://localhost:8765", "https://jwt.io"],
                 "auth_strategies": [
                   {
                     "type": "first_factor_fim",
@@ -622,9 +580,7 @@
                   "description": "The app created in postman",
                   "offline": true,
                   "type": "web",
-                  "redirect_urls": [
-                    "http://localhost:8765"
-                  ],
+                  "redirect_urls": ["http://localhost:8765"],
                   "login_app_settings": null,
                   "custom_email_templates": false,
                   "auth_strategies": [
@@ -711,9 +667,7 @@
                   "description": "The app created in postman",
                   "offline": true,
                   "type": "web",
-                  "redirect_urls": [
-                    "http://localhost:8765"
-                  ],
+                  "redirect_urls": ["http://localhost:8765"],
                   "login_app_settings": null,
                   "custom_email_templates": false,
                   "auth_strategies": [
@@ -848,20 +802,13 @@
                               "type": "string"
                             }
                           },
-                          "required": [
-                            "identity",
-                            "challenge",
-                            "transport"
-                          ]
+                          "required": ["identity", "challenge", "transport"]
                         },
                         "type": {
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "strategy",
-                        "type"
-                      ]
+                      "required": ["strategy", "type"]
                     }
                   },
                   "custom_sms_messages": {
@@ -1014,9 +961,7 @@
                   "description": "I am updated app",
                   "offline": false,
                   "type": "ios",
-                  "redirect_urls": [
-                    "http://localhost:8765"
-                  ],
+                  "redirect_urls": ["http://localhost:8765"],
                   "login_app_settings": null,
                   "custom_email_templates": false,
                   "auth_strategies": [
@@ -1077,14 +1022,7 @@
         "properties": {
           "type": {
             "type": "string",
-            "enum": [
-              "internal",
-              "passkey",
-              "webauthn",
-              "fim",
-              "pkce",
-              "anonymous"
-            ]
+            "enum": ["internal", "passkey", "webauthn", "fim", "pkce", "anonymous"]
           },
           "strategy": {
             "anyOf": [
@@ -1093,43 +1031,18 @@
                 "properties": {
                   "identity": {
                     "type": "string",
-                    "enum": [
-                      "id",
-                      "email",
-                      "phone",
-                      "username",
-                      "anonymous",
-                      "none"
-                    ]
+                    "enum": ["id", "email", "phone", "username", "anonymous", "none"]
                   },
                   "challenge": {
                     "type": "string",
-                    "enum": [
-                      "none",
-                      "password",
-                      "otp",
-                      "magic_link",
-                      "recovery_codes",
-                      "guardian"
-                    ]
+                    "enum": ["none", "password", "otp", "magic_link", "recovery_codes", "guardian"]
                   },
                   "transport": {
                     "type": "string",
-                    "enum": [
-                      "email",
-                      "sms",
-                      "push",
-                      "none",
-                      "socket",
-                      "authenticator"
-                    ]
+                    "enum": ["email", "sms", "push", "none", "socket", "authenticator"]
                   }
                 },
-                "required": [
-                  "identity",
-                  "challenge",
-                  "transport"
-                ],
+                "required": ["identity", "challenge", "transport"],
                 "description": "internal strategy "
               },
               {
@@ -1140,9 +1053,7 @@
                     "description": "one of supported provider name: facebook, google, etc"
                   }
                 },
-                "required": [
-                  "fim_type"
-                ],
+                "required": ["fim_type"],
                 "description": "fim strategy"
               },
               {
@@ -1153,21 +1064,14 @@
             ]
           }
         },
-        "required": [
-          "type",
-          "strategy"
-        ]
+        "required": ["type", "strategy"]
       },
       "LoginWebAppTheme": {
         "type": "object",
         "properties": {
           "template_type": {
             "type": "string",
-            "enum": [
-              "default",
-              "simple",
-              "extendable"
-            ]
+            "enum": ["default", "simple", "extendable"]
           },
           "application_name": {
             "type": "string"
@@ -1180,11 +1084,7 @@
           },
           "color_scheme": {
             "type": "string",
-            "enum": [
-              "light",
-              "dark",
-              "system"
-            ]
+            "enum": ["light", "dark", "system"]
           },
           "light_style": {
             "$ref": "#/components/schemas/LoginWebAppStyle"
@@ -1287,13 +1187,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "web",
-              "android",
-              "ios",
-              "desktop",
-              "other"
-            ],
+            "enum": ["web", "android", "ios", "desktop", "other"],
             "description": "Application type"
           },
           "redirect_urls": {
@@ -1353,11 +1247,7 @@
           },
           "create_tenant_on_registration": {
             "type": "string",
-            "enum": [
-              "never",
-              "always",
-              "optional"
-            ],
+            "enum": ["never", "always", "optional"],
             "description": "Create tenant when user registered with app"
           },
           "fim_merge_by_email_allowed": {

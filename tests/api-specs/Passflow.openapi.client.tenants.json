@@ -1,0 +1,2229 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Passflow",
+    "description": "",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "Client API"
+    },
+    {
+      "name": "Client API/User"
+    },
+    {
+      "name": "Client API/User/Tenant"
+    },
+    {
+      "name": "Client API/User/Tenant/Group"
+    },
+    {
+      "name": "Client API/User/Tenant/Role"
+    }
+  ],
+  "paths": {
+    "/user/tenant/new_tenant/group/new_group": {
+      "get": {
+        "summary": "Group info",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "default": {
+                      "type": "boolean"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "default",
+                    "updated_at",
+                    "created_at"
+                  ]
+                },
+                "example": {
+                  "id": "2V4ZEeR61ru1lHjcGBuatOi5V3o",
+                  "name": "default",
+                  "default": true,
+                  "updated_at": "2023-09-07T14:33:22Z",
+                  "created_at": "2023-09-07T14:33:22Z"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update group",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              "example": {
+                "name": "updated group"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "updated_at",
+                    "created_at"
+                  ]
+                },
+                "example": {
+                  "id": "2V4bvDGIoTQmbHjFd2LBC1hlHRg",
+                  "name": "updated group",
+                  "updated_at": "2023-09-07T14:59:14Z",
+                  "created_at": "2023-09-07T14:55:27Z"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete group",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant/group": {
+      "post": {
+        "summary": "Create group",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              "example": {
+                "name": "new group"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "updated_at",
+                    "created_at"
+                  ]
+                },
+                "example": {
+                  "id": "2V4bvDGIoTQmbHjFd2LBC1hlHRg",
+                  "name": "new group",
+                  "updated_at": "2023-09-07T14:55:27Z",
+                  "created_at": "2023-09-07T14:55:27Z"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant/group/new_group/invite/invite_id": {
+      "delete": {
+        "summary": "Invalidate Invite by ID",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant/group/new_group/invite/email/invited_email": {
+      "delete": {
+        "summary": "Invalidate Invite by email",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant/group/new_group/add": {
+      "post": {
+        "summary": "Add user to group",
+        "deprecated": false,
+        "description": "Add some user with `user_id` indentifier, send in the body.\n\nThe requester should be a group admin.\n\nThe `role` body parameter is a new user role. Only one role could be used to add to the user. If user already in the group with different role, the new role will be attached to the user.",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "user_id",
+                  "role"
+                ]
+              },
+              "example": {
+                "user_id": "{{new_user}}",
+                "role": "admin"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant/group/new_group/remove_roles": {
+      "post": {
+        "summary": "Remove user roles from group",
+        "deprecated": false,
+        "description": "Remove user roles from group.\n\nThe requester shold be a group admin or tenant admin.\n\nif all the roles detached from the user - the user will be removed from the group.\n\nIf it was the only group user was in tenant - the user will be removed from tenant as well.",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "string"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "user_id",
+                  "roles"
+                ]
+              },
+              "example": {
+                "user_id": "{{new_user}}",
+                "roles": [
+                  "admin"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant/group/new_group/change": {
+      "post": {
+        "summary": "Change user roles",
+        "deprecated": false,
+        "description": "This API endpoint allows you to create a new group for a specific tenant. The HTTP POST request should be sent to `{{server}}/user/tenant/{{new_tenant}}/group/{{new_group}}/change`.\n\n### Request Parameters\n\n- `new_tenant` (path parameter): The unique identifier of the tenant for which the group is being created.\n- `new_group` (path parameter): The unique identifier of the new group being created.\n    \n\n`roles` body parameter is a string array with the new roles set for the user.\n\nIf user has some roles, which are not present in this parameter - they will be deleted.\n\nIf user has not roles, which present in this parameter, roles will be attached.\n\nIf roles array amty - all current roles will be removed. The user will be removed from the group.\n\n### Response\n\nThe response will be a JSON object with a `status` property indicating the status of the request.\n\n### Example\n\nRequest:\n\n```\nPOST {{server}}/user/tenant/abc123/group/xyz789/cange\n\n ```\n\nResponse:\n\n``` json\n{\n  \"status\": \"\"\n}\n\n ```\n\nPlease note that the actual response may vary depending on the server's implementation.",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "string"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "user_id",
+                  "roles"
+                ]
+              },
+              "example": {
+                "user_id": "{{new_user}}",
+                "roles": [
+                  "admin"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant/group/new_group/user2": {
+      "delete": {
+        "summary": "Delete user from group",
+        "deprecated": false,
+        "description": "Delete user from group. If the user has no membership in other groups of the tenant - he will be removed from the tenant as well.\n\nThe requester should be group admin.",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/invite_tenant/group/invite_group/invitations": {
+      "get": {
+        "summary": "Get invitations to group",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Group"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "",
+            "required": true,
+            "example": "2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "description": "",
+            "required": true,
+            "example": "1",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "archived": {
+                            "type": "boolean"
+                          },
+                          "app_id": {
+                            "type": "string"
+                          },
+                          "inviter_id": {
+                            "type": "string"
+                          },
+                          "inviter_name": {
+                            "type": "string"
+                          },
+                          "token": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "tenant": {
+                            "type": "string"
+                          },
+                          "tenant_name": {
+                            "type": "string"
+                          },
+                          "group": {
+                            "type": "string"
+                          },
+                          "created_by": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "archived",
+                          "app_id",
+                          "inviter_id",
+                          "inviter_name",
+                          "token",
+                          "email",
+                          "role",
+                          "tenant",
+                          "tenant_name",
+                          "group",
+                          "created_by",
+                          "created_at",
+                          "expires_at"
+                        ]
+                      }
+                    },
+                    "next_page_skip": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "invites",
+                    "next_page_skip"
+                  ]
+                },
+                "example": {
+                  "invites": [
+                    {
+                      "id": "2Z7i0PnVmA22PILyPkLR4vQMOZi",
+                      "archived": false,
+                      "app_id": "2XcJOzKoz7VTx3Rqs60AslDlGfM",
+                      "inviter_id": "2Z7htVfAMq3VflJedTMcX9bCvhi",
+                      "inviter_name": "Tamia",
+                      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB1VzVYY0MySkFvQnJHbjBIakxDTWtrWWwySSIsInR5cCI6IkpXVCJ9.eyJhb290aF90bSI6eyIyWjdodFhvSUR1OUZ2Uzk1aEcxdjVpU29ZcnEiOnsidGVuYW50X2lkIjoiMlo3aHRYb0lEdTlGdlM5NWhHMXY1aVNvWXJxIiwiZ3JvdXBzIjp7IjJaN2h0V2FUMVowSzlsYnRKTVFudnVoTDFGMSI6WyJ1c2VyIl19fX0sImF1ZCI6WyIyWGNKT3pLb3o3VlR4M1JxczYwQXNsRGxHZk0iXSwiZW1haWwiOiJ0ZXN0QGVtYWlsLmNvbSIsImV4cCI6MTcwMTg2NTY5NCwiaWF0IjoxNzAxNzc5Mjk0LCJpbnZpdGVyX2lkIjoiMlo3aHRWZkFNcTNWZmxKZWRUTWNYOWJDdmhpIiwiaW52aXRlcl9uYW1lIjoiVGFtaWEgTXVyaWVsIE9ybiBERFMiLCJpc3MiOiJodHRwczovL3Rlc3QuYW9vdGguY29tIiwianRpIjoiNXlaRmRrYWYzX0hNY0tiOWZBcnVXLVdjakJGRGpmYnJMdGFwR0dUVlN1WT0iLCJwYXlsb2FkIjp7ImRhdGExIjoiSSBhbSBhZGRpdGlvbmFsIGRhdGEgdG8gaW5jbHVkZSIsImRhdGEyIjpmYWxzZX0sInJlZGlyZWN0X3VybCI6Imh0dHA6Ly9teXdlYnNpdGUuY29tIiwic3ViIjoiMlo3aHRWZkFNcTNWZmxKZWRUTWNYOWJDdmhpIiwidGVuYW50X25hbWUiOiJUYW1pYSBNdXJpZWwgT3JuIEREUydzIHdvcmtzcGFjZSIsInR5cGUiOiJpbnZpdGUifQ.sBKtAtq6yw8xJV_UtZIDECQmL8ezQr288cioRUrmRxNaULOuduDSavq3zOfwd_nq-1Kxx3v7Qv42kqzopMQX8A",
+                      "email": "test@email.com",
+                      "role": "user",
+                      "tenant": "2Z7htXoIDu9FvS95hG1v5iSoYrq",
+                      "tenant_name": "Tamia Muriel Orn DDS's workspace",
+                      "group": "2Z7htWaT1Z0K9lbtJMQnvuhL1F1",
+                      "created_by": "2Z7htVfAMq3VflJedTMcX9bCvhi",
+                      "created_at": "2023-12-05T23:28:14.76669+11:00",
+                      "expires_at": "2023-12-06T23:28:14+11:00"
+                    },
+                    {
+                      "id": "2Z7i3uDIeTxJu5dJorPcrHqaVwt",
+                      "archived": false,
+                      "app_id": "2XcJOzKoz7VTx3Rqs60AslDlGfM",
+                      "inviter_id": "2Z7htVfAMq3VflJedTMcX9bCvhi",
+                      "inviter_name": "Tamia",
+                      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB1VzVYY0MySkFvQnJHbjBIakxDTWtrWWwySSIsInR5cCI6IkpXVCJ9.eyJhb290aF90bSI6eyIyWjdodFhvSUR1OUZ2Uzk1aEcxdjVpU29ZcnEiOnsidGVuYW50X2lkIjoiMlo3aHRYb0lEdTlGdlM5NWhHMXY1aVNvWXJxIiwiZ3JvdXBzIjp7IjJaN2h0V2FUMVowSzlsYnRKTVFudnVoTDFGMSI6WyJ1c2VyIl19fX0sImF1ZCI6WyIyWGNKT3pLb3o3VlR4M1JxczYwQXNsRGxHZk0iXSwiZW1haWwiOiJ0ZXN0QGVtYWlsLmNvbSIsImV4cCI6MTcwMTg2NTcyMiwiaWF0IjoxNzAxNzc5MzIyLCJpbnZpdGVyX2lkIjoiMlo3aHRWZkFNcTNWZmxKZWRUTWNYOWJDdmhpIiwiaW52aXRlcl9uYW1lIjoiVGFtaWEgTXVyaWVsIE9ybiBERFMiLCJpc3MiOiJodHRwczovL3Rlc3QuYW9vdGguY29tIiwianRpIjoiU3p5NnRLOExrZGE1NkVTdXZvSFN1S3lGSXVFUjVETkVaYkFmMnkxZWE4ST0iLCJwYXlsb2FkIjp7ImRhdGExIjoiSSBhbSBhZGRpdGlvbmFsIGRhdGEgdG8gaW5jbHVkZSIsImRhdGEyIjpmYWxzZX0sInJlZGlyZWN0X3VybCI6Imh0dHA6Ly9teXdlYnNpdGUuY29tIiwic3ViIjoiMlo3aHRWZkFNcTNWZmxKZWRUTWNYOWJDdmhpIiwidGVuYW50X25hbWUiOiJUYW1pYSBNdXJpZWwgT3JuIEREUydzIHdvcmtzcGFjZSIsInR5cGUiOiJpbnZpdGUifQ.q85wFwp5O5jWzZmAcywaGs0009dKf63qW6s2w5ooz4mfT9-yBZd9NyJeEt7eT7yHxQ5vAhmivEeVsCxFpE7BOA",
+                      "email": "test@email.com",
+                      "role": "user",
+                      "tenant": "2Z7htXoIDu9FvS95hG1v5iSoYrq",
+                      "tenant_name": "Tamia Muriel Orn DDS's workspace",
+                      "group": "2Z7htWaT1Z0K9lbtJMQnvuhL1F1",
+                      "created_by": "2Z7htVfAMq3VflJedTMcX9bCvhi",
+                      "created_at": "2023-12-05T23:28:42.136491+11:00",
+                      "expires_at": "2023-12-06T23:28:42+11:00"
+                    }
+                  ],
+                  "next_page_skip": "3"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant/role": {
+      "get": {
+        "summary": "Get roles for tenant",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Role"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "tenant_id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "tenant_id",
+                      "name"
+                    ]
+                  }
+                },
+                "example": [
+                  {
+                    "id": "2V4ZEcM78N7eFj5uEXBhJTiocjE",
+                    "tenant_id": "2V4ZEciUUcHJXJwFAjBLvyYW7s4",
+                    "name": "owner"
+                  },
+                  {
+                    "id": "2V4ZEftSpUMXuIIs9HvgZQCOIRW",
+                    "tenant_id": "2V4ZEciUUcHJXJwFAjBLvyYW7s4",
+                    "name": "admin"
+                  },
+                  {
+                    "id": "2V4ZEcNMg63YbiFMnmowZmU2Uwy",
+                    "tenant_id": "2V4ZEciUUcHJXJwFAjBLvyYW7s4",
+                    "name": "user"
+                  },
+                  {
+                    "id": "2V4ZEejpUKr7wsMSegPXdlBBBxp",
+                    "tenant_id": "2V4ZEciUUcHJXJwFAjBLvyYW7s4",
+                    "name": "guest"
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create role for tenant",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Role"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              "example": {
+                "name": "new_role"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "tenant_id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "tenant_id",
+                    "name"
+                  ]
+                },
+                "example": {
+                  "id": "2V4aCl87vqDzLtIvJ6BmRZFOPqY",
+                  "tenant_id": "2V4ZEciUUcHJXJwFAjBLvyYW7s4",
+                  "name": "new_role"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant/role/new_role": {
+      "put": {
+        "summary": "Update role",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Role"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              "example": {
+                "name": "update role name"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "tenant_id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "tenant_id",
+                    "name"
+                  ]
+                },
+                "example": {
+                  "id": "2V4ablek2rzLxGjN0d7hrYlhZ0m",
+                  "tenant_id": "2V4ZEciUUcHJXJwFAjBLvyYW7s4",
+                  "name": "update role name"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete role",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant/Role"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant": {
+      "get": {
+        "summary": "Get user tenant membership",
+        "deprecated": false,
+        "description": "This request returns user's membership: all tenants, groups and roles in those groups.\n\nThe result is an object, tenant id is a key and tenant bebmership object is a value wiht following fields:\n\n- `tenant_id`\n    \n- `tenant_name`\n    \n- `groups`\n    \n- `group_names`\n    \n\n`groups` is a map of group id as key and array of `role_id` as a value. All user's roles inside the group.\n\n`group_names` is a map - group id to group name pamming for display in UI.\n\nThe names for roles you can grab from tenant info request, as each tenant could have it's own set of roles.",
+        "tags": [
+          "Client API/User/Tenant"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "2V4WixjCGnvPbmrAVgHYO2viQhh": {
+                      "type": "object",
+                      "properties": {
+                        "tenant_id": {
+                          "type": "string"
+                        },
+                        "tenant_name": {
+                          "type": "string"
+                        },
+                        "groups": {
+                          "type": "object",
+                          "properties": {
+                            "2V4Wj0g2ElJsXPnurVSJ64QZGXn": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "2V4Wj0g2ElJsXPnurVSJ64QZGXn"
+                          ]
+                        },
+                        "group_names": {
+                          "type": "object",
+                          "properties": {
+                            "2V4Wj0g2ElJsXPnurVSJ64QZGXn": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "2V4Wj0g2ElJsXPnurVSJ64QZGXn"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tenant_id",
+                        "tenant_name",
+                        "groups",
+                        "group_names"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "2V4WixjCGnvPbmrAVgHYO2viQhh"
+                  ]
+                },
+                "example": {
+                  "2V4WixjCGnvPbmrAVgHYO2viQhh": {
+                    "tenant_id": "2V4WixjCGnvPbmrAVgHYO2viQhh",
+                    "tenant_name": "action-items",
+                    "groups": {
+                      "2V4Wj0g2ElJsXPnurVSJ64QZGXn": [
+                        "owner"
+                      ]
+                    },
+                    "group_names": {
+                      "2V4Wj0g2ElJsXPnurVSJ64QZGXn": "default"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create new tenant",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              "example": {
+                "name": "{{$randomBsNoun}}"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tenant_id": {
+                      "type": "string"
+                    },
+                    "tenant_name": {
+                      "type": "string"
+                    },
+                    "users": {
+                      "type": "object",
+                      "properties": {
+                        "2V4Y4NfX5qYe29o0X7ENGj4nhVN": {
+                          "type": "object",
+                          "properties": {
+                            "2V4Y4QeBnch2qYvIneER91uro7q": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "username": {
+                                  "type": "string"
+                                },
+                                "email": {
+                                  "type": "string"
+                                },
+                                "given_name": {
+                                  "type": "string"
+                                },
+                                "family_name": {
+                                  "type": "string"
+                                },
+                                "phone": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "username",
+                                "email",
+                                "given_name",
+                                "family_name",
+                                "phone"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "2V4Y4QeBnch2qYvIneER91uro7q"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "2V4Y4NfX5qYe29o0X7ENGj4nhVN"
+                      ]
+                    },
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "default": {
+                            "type": "boolean"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "tenant_id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "tenant_id",
+                          "name"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "tenant_id",
+                    "tenant_name",
+                    "users",
+                    "groups",
+                    "roles"
+                  ]
+                },
+                "example": {
+                  "tenant_id": "2V4Y4TOsXEpzyf6CZwzHNGr9x6X",
+                  "tenant_name": "convergence",
+                  "users": {
+                    "2V4Y4NfX5qYe29o0X7ENGj4nhVN": {
+                      "2V4Y4QeBnch2qYvIneER91uro7q": {
+                        "id": "2V4W4Io6jOmhYXuvrU96BymkuMm",
+                        "username": "Marisol_Hackett",
+                        "email": "Dax_Wilkinson94@hotmail.com",
+                        "given_name": "Elvie",
+                        "family_name": "Alton Schaden",
+                        "phone": ""
+                      }
+                    }
+                  },
+                  "groups": [
+                    {
+                      "id": "2V4Y4NfX5qYe29o0X7ENGj4nhVN",
+                      "name": "default",
+                      "default": true,
+                      "updated_at": "2023-09-07T14:23:47Z",
+                      "created_at": "2023-09-07T14:23:47Z"
+                    }
+                  ],
+                  "roles": [
+                    {
+                      "id": "2V4Y4QeBnch2qYvIneER91uro7q",
+                      "tenant_id": "2V4Y4TOsXEpzyf6CZwzHNGr9x6X",
+                      "name": "owner"
+                    },
+                    {
+                      "id": "2V4Y4T4RHqvPxnJUJlvvI3z9Tpx",
+                      "tenant_id": "2V4Y4TOsXEpzyf6CZwzHNGr9x6X",
+                      "name": "admin"
+                    },
+                    {
+                      "id": "2V4Y4QweuMWSNLQ3i2ApCifDF6c",
+                      "tenant_id": "2V4Y4TOsXEpzyf6CZwzHNGr9x6X",
+                      "name": "user"
+                    },
+                    {
+                      "id": "2V4Y4MQj86dVcKcuJsDyMiSLmTw",
+                      "tenant_id": "2V4Y4TOsXEpzyf6CZwzHNGr9x6X",
+                      "name": "guest"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/join": {
+      "post": {
+        "summary": "Join to Tenant with invite",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "token",
+                  "scopes"
+                ]
+              },
+              "example": {
+                "token": "invite-token-string",
+                "scopes": [
+                  "id",
+                  "offline"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/2diu9NyYOiGtXzHoUd2C7Cp5uMa": {
+      "get": {
+        "summary": "Tenant details",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tenant_id": {
+                      "type": "string"
+                    },
+                    "tenant_name": {
+                      "type": "string"
+                    },
+                    "users": {
+                      "type": "object",
+                      "properties": {
+                        "2V4YTKXADlTeyIrz1UOv10Xu0Tg": {
+                          "type": "object",
+                          "properties": {
+                            "2V4YTGvTEDDOMwMelxJw6uSFDcQ": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "username": {
+                                  "type": "string"
+                                },
+                                "email": {
+                                  "type": "string"
+                                },
+                                "phone": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "username",
+                                "email",
+                                "phone"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "2V4YTGvTEDDOMwMelxJw6uSFDcQ"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "2V4YTKXADlTeyIrz1UOv10Xu0Tg"
+                      ]
+                    },
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "default": {
+                            "type": "boolean"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "tenant_id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "tenant_id",
+                          "name"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "tenant_id",
+                    "tenant_name",
+                    "users",
+                    "groups",
+                    "roles"
+                  ]
+                },
+                "example": {
+                  "tenant_id": "2V4YTJryFO4UNcNx7Ypt2xArbmj",
+                  "tenant_name": "users",
+                  "users": {
+                    "2V4YTKXADlTeyIrz1UOv10Xu0Tg": {
+                      "2V4YTGvTEDDOMwMelxJw6uSFDcQ": {
+                        "id": "2V4W4Io6jOmhYXuvrU96BymkuMm",
+                        "username": "Marisol_Hackett",
+                        "email": "Dax_Wilkinson94@hotmail.com",
+                        "phone": ""
+                      }
+                    }
+                  },
+                  "groups": [
+                    {
+                      "id": "2V4YTKXADlTeyIrz1UOv10Xu0Tg",
+                      "name": "default",
+                      "default": true,
+                      "updated_at": "2023-09-07T14:27:05Z",
+                      "created_at": "2023-09-07T14:27:05Z"
+                    }
+                  ],
+                  "roles": [
+                    {
+                      "id": "2V4YTGvTEDDOMwMelxJw6uSFDcQ",
+                      "tenant_id": "2V4YTJryFO4UNcNx7Ypt2xArbmj",
+                      "name": "owner"
+                    },
+                    {
+                      "id": "2V4YTFbdZMgI8dJcAavzd75WQmb",
+                      "tenant_id": "2V4YTJryFO4UNcNx7Ypt2xArbmj",
+                      "name": "admin"
+                    },
+                    {
+                      "id": "2V4YTFF3j5Byqnzs4LrbCaqSwO7",
+                      "tenant_id": "2V4YTJryFO4UNcNx7Ypt2xArbmj",
+                      "name": "user"
+                    },
+                    {
+                      "id": "2V4YTGlbwokT6JbNPNBuSXIb8aG",
+                      "tenant_id": "2V4YTJryFO4UNcNx7Ypt2xArbmj",
+                      "name": "guest"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/invite_tenant/invitations": {
+      "get": {
+        "summary": "Get tenant invitations",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "",
+            "required": true,
+            "example": "2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "description": "",
+            "required": true,
+            "example": "1",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "archived": {
+                            "type": "boolean"
+                          },
+                          "app_id": {
+                            "type": "string"
+                          },
+                          "inviter_id": {
+                            "type": "string"
+                          },
+                          "inviter_name": {
+                            "type": "string"
+                          },
+                          "token": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "tenant": {
+                            "type": "string"
+                          },
+                          "tenant_name": {
+                            "type": "string"
+                          },
+                          "group": {
+                            "type": "string"
+                          },
+                          "created_by": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "archived",
+                          "app_id",
+                          "inviter_id",
+                          "inviter_name",
+                          "token",
+                          "email",
+                          "role",
+                          "tenant",
+                          "tenant_name",
+                          "group",
+                          "created_by",
+                          "created_at",
+                          "expires_at"
+                        ]
+                      }
+                    },
+                    "next_page_skip": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "invites",
+                    "next_page_skip"
+                  ]
+                },
+                "example": {
+                  "invites": [
+                    {
+                      "id": "2Z7i0PnVmA22PILyPkLR4vQMOZi",
+                      "archived": false,
+                      "app_id": "2XcJOzKoz7VTx3Rqs60AslDlGfM",
+                      "inviter_id": "2Z7htVfAMq3VflJedTMcX9bCvhi",
+                      "inviter_name": "Tamia",
+                      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB1VzVYY0MySkFvQnJHbjBIakxDTWtrWWwySSIsInR5cCI6IkpXVCJ9.eyJhb290aF90bSI6eyIyWjdodFhvSUR1OUZ2Uzk1aEcxdjVpU29ZcnEiOnsidGVuYW50X2lkIjoiMlo3aHRYb0lEdTlGdlM5NWhHMXY1aVNvWXJxIiwiZ3JvdXBzIjp7IjJaN2h0V2FUMVowSzlsYnRKTVFudnVoTDFGMSI6WyJ1c2VyIl19fX0sImF1ZCI6WyIyWGNKT3pLb3o3VlR4M1JxczYwQXNsRGxHZk0iXSwiZW1haWwiOiJ0ZXN0QGVtYWlsLmNvbSIsImV4cCI6MTcwMTg2NTY5NCwiaWF0IjoxNzAxNzc5Mjk0LCJpbnZpdGVyX2lkIjoiMlo3aHRWZkFNcTNWZmxKZWRUTWNYOWJDdmhpIiwiaW52aXRlcl9uYW1lIjoiVGFtaWEgTXVyaWVsIE9ybiBERFMiLCJpc3MiOiJodHRwczovL3Rlc3QuYW9vdGguY29tIiwianRpIjoiNXlaRmRrYWYzX0hNY0tiOWZBcnVXLVdjakJGRGpmYnJMdGFwR0dUVlN1WT0iLCJwYXlsb2FkIjp7ImRhdGExIjoiSSBhbSBhZGRpdGlvbmFsIGRhdGEgdG8gaW5jbHVkZSIsImRhdGEyIjpmYWxzZX0sInJlZGlyZWN0X3VybCI6Imh0dHA6Ly9teXdlYnNpdGUuY29tIiwic3ViIjoiMlo3aHRWZkFNcTNWZmxKZWRUTWNYOWJDdmhpIiwidGVuYW50X25hbWUiOiJUYW1pYSBNdXJpZWwgT3JuIEREUydzIHdvcmtzcGFjZSIsInR5cGUiOiJpbnZpdGUifQ.sBKtAtq6yw8xJV_UtZIDECQmL8ezQr288cioRUrmRxNaULOuduDSavq3zOfwd_nq-1Kxx3v7Qv42kqzopMQX8A",
+                      "email": "test@email.com",
+                      "role": "user",
+                      "tenant": "2Z7htXoIDu9FvS95hG1v5iSoYrq",
+                      "tenant_name": "Tamia Muriel Orn DDS's workspace",
+                      "group": "2Z7htWaT1Z0K9lbtJMQnvuhL1F1",
+                      "created_by": "2Z7htVfAMq3VflJedTMcX9bCvhi",
+                      "created_at": "2023-12-05T23:28:14.76669+11:00",
+                      "expires_at": "2023-12-06T23:28:14+11:00"
+                    },
+                    {
+                      "id": "2Z7i3uDIeTxJu5dJorPcrHqaVwt",
+                      "archived": false,
+                      "app_id": "2XcJOzKoz7VTx3Rqs60AslDlGfM",
+                      "inviter_id": "2Z7htVfAMq3VflJedTMcX9bCvhi",
+                      "inviter_name": "Tamia",
+                      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InB1VzVYY0MySkFvQnJHbjBIakxDTWtrWWwySSIsInR5cCI6IkpXVCJ9.eyJhb290aF90bSI6eyIyWjdodFhvSUR1OUZ2Uzk1aEcxdjVpU29ZcnEiOnsidGVuYW50X2lkIjoiMlo3aHRYb0lEdTlGdlM5NWhHMXY1aVNvWXJxIiwiZ3JvdXBzIjp7IjJaN2h0V2FUMVowSzlsYnRKTVFudnVoTDFGMSI6WyJ1c2VyIl19fX0sImF1ZCI6WyIyWGNKT3pLb3o3VlR4M1JxczYwQXNsRGxHZk0iXSwiZW1haWwiOiJ0ZXN0QGVtYWlsLmNvbSIsImV4cCI6MTcwMTg2NTcyMiwiaWF0IjoxNzAxNzc5MzIyLCJpbnZpdGVyX2lkIjoiMlo3aHRWZkFNcTNWZmxKZWRUTWNYOWJDdmhpIiwiaW52aXRlcl9uYW1lIjoiVGFtaWEgTXVyaWVsIE9ybiBERFMiLCJpc3MiOiJodHRwczovL3Rlc3QuYW9vdGguY29tIiwianRpIjoiU3p5NnRLOExrZGE1NkVTdXZvSFN1S3lGSXVFUjVETkVaYkFmMnkxZWE4ST0iLCJwYXlsb2FkIjp7ImRhdGExIjoiSSBhbSBhZGRpdGlvbmFsIGRhdGEgdG8gaW5jbHVkZSIsImRhdGEyIjpmYWxzZX0sInJlZGlyZWN0X3VybCI6Imh0dHA6Ly9teXdlYnNpdGUuY29tIiwic3ViIjoiMlo3aHRWZkFNcTNWZmxKZWRUTWNYOWJDdmhpIiwidGVuYW50X25hbWUiOiJUYW1pYSBNdXJpZWwgT3JuIEREUydzIHdvcmtzcGFjZSIsInR5cGUiOiJpbnZpdGUifQ.q85wFwp5O5jWzZmAcywaGs0009dKf63qW6s2w5ooz4mfT9-yBZd9NyJeEt7eT7yHxQ5vAhmivEeVsCxFpE7BOA",
+                      "email": "test@email.com",
+                      "role": "user",
+                      "tenant": "2Z7htXoIDu9FvS95hG1v5iSoYrq",
+                      "tenant_name": "Tamia Muriel Orn DDS's workspace",
+                      "group": "2Z7htWaT1Z0K9lbtJMQnvuhL1F1",
+                      "created_by": "2Z7htVfAMq3VflJedTMcX9bCvhi",
+                      "created_at": "2023-12-05T23:28:42.136491+11:00",
+                      "expires_at": "2023-12-06T23:28:42+11:00"
+                    }
+                  ],
+                  "next_page_skip": "3"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant": {
+      "delete": {
+        "summary": "Delete tenant",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "time": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "message",
+                        "status",
+                        "location",
+                        "time"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "id": "error.storage.tenant.user.has.no.permission",
+                    "message": "You have not permission to process the operation.",
+                    "status": 400,
+                    "location": "/Users/jack/mag/aooth/web/middleware/tenant.go:40",
+                    "time": "2023-09-08T00:31:37.504846+10:00"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update tenant",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "Client API/User/Tenant"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              "example": {
+                "name": "update_name"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "time": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "message",
+                        "status",
+                        "location",
+                        "time"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "id": "error.storage.tenant.user.has.no.permission",
+                    "message": "You have not permission to process the operation.",
+                    "status": 400,
+                    "location": "/Users/jack/mag/aooth/web/middleware/tenant.go:40",
+                    "time": "2023-09-08T00:33:02.27401+10:00"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/user/tenant/new_tenant/user/user2": {
+      "delete": {
+        "summary": "Remove user from tenant",
+        "deprecated": false,
+        "description": "Remove user from tenant, only tenant admin could initiate the action.",
+        "tags": [
+          "Client API/User/Tenant"
+        ],
+        "parameters": [
+          {
+            "name": "X-Aooth-Clientid",
+            "in": "header",
+            "description": "",
+            "required": true,
+            "example": "{{new_app}}",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "link"
+                  ]
+                },
+                "example": {
+                  "link": "http://localhost:8765/web/register?appId=2XcJOzKoz7VTx3Rqs60AslDlGfM&token=eyJhbGciOiJFUzI1NiIsImtpZCI6InB1VzVYY0MySkFvQnJHbjBIakxDTWtrWWwySSIsInR5cCI6IkpXVCJ9.eyJhb290aF90bSI6eyIyWGNKZHFEdWFPZTgydjFndWczSGhSVjBaNngiOnsidGVuYW50X2lkIjoiMlhjSmRxRHVhT2U4MnYxZ3VnM0hoUlYwWjZ4IiwiZ3JvdXBzIjp7IjJYY0pkdG5qajF3Rlg2cUxrdWxnNGhlYnNmdyI6WyJ1c2VyIl19fX0sImF1ZCI6WyIyWGNKT3pLb3o3VlR4M1JxczYwQXNsRGxHZk0iXSwiZW1haWwiOiJ3aGF0ZXZlckBtYWRhcHBnYW5nLmNvbSIsImV4cCI6MTY5OTAxMDE5NCwiaWF0IjoxNjk4OTIzNzk0LCJpbnZpdGVyX2lkIjoiMlhjSmRuVWdQTFNvUm0yZmRmamc1MkF3eDVtIiwiaW52aXRlcl9uYW1lIjoiQWxpeWFoIiwiaXNzIjoiaHR0cHM6Ly90ZXN0LmFvb3RoLmNvbSIsImp0aSI6ImpPckx0dlRRQW90REw4XzFRT1cyVUtkbEI3ZTFCd3Z0Ymg5T1A1c2hHZk09IiwicGF5bG9hZCI6eyJkYXRhMSI6IkkgYW0gYWRkaXRpb25hbCBkYXRhIHRvIGluY2x1ZGUiLCJkYXRhMiI6ZmFsc2V9LCJyZWRpcmVjdF91cmwiOiJodHRwOi8vbXl3ZWJzaXRlLmNvbSIsInN1YiI6IjJYY0pkblVnUExTb1JtMmZkZmpnNTJBd3g1bSIsInRlbmFudF9uYW1lIjoiQWxpeWFoIENocmlzdGluYSBHdWxnb3dza2kncyB3b3Jrc3BhY2UiLCJ0eXBlIjoiaW52aXRlIn0.FsrsZT7SS48Eu8hYGhd-5cpCYKCrQJEkj5eDbwNbFyN0PGHG2S6VCjZLXI61Jl-HAkEXPB-iBSEz0LcDtht7LA"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "time": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "message",
+                        "status",
+                        "location",
+                        "time"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "id": "error.user.could.not.invite",
+                    "message": "You are not able to invite anyone to the tenant and group you requested.",
+                    "status": 500,
+                    "location": "/Users/jack/mag/aooth/web/api/invites.go:45",
+                    "time": "2023-09-07T23:42:16.739105+10:00"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {},
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "servers": [],
+  "security": []
+}
