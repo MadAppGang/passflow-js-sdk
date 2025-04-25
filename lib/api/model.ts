@@ -399,31 +399,46 @@ export type PassflowInvitePayload = {
   scopes: string[];
 };
 
+export type PassflowUserWithRoles = {
+  user_id: string;
+  username: string;
+  email: string;
+  phone_number: string;
+  tenant_id: string;
+  group_id: string;
+  role_id: string;
+  preferred_username?: string;
+  given_name?: string;
+  family_name?: string;
+  nickname?: string;
+  picture?: string;
+  roles: {
+    [role_id: string]: string; // Maps role_id to role_name
+  };
+};
+
+export type PassflowGroup = {
+  id: string;
+  name: string;
+  default: boolean;
+  updated_at: string;
+  created_at: string;
+};
+
+export type PassflowRole = {
+  id: string;
+  tenant_id: string;
+  name: string;
+};
+
 export type PassflowTenantResponse = {
   tenant_id: string;
   tenant_name: string;
-  users?: {
-    [groupId: string]: {
-      [roleId: string]: {
-        id: string;
-        username: string;
-        email: string;
-        phone: string;
-      };
-    };
+  users_in_groups?: {
+    [group_id: string]: PassflowUserWithRoles[];
   };
-  groups?: Array<{
-    id: string;
-    name: string;
-    default: boolean;
-    updated_at: string;
-    created_at: string;
-  }>;
-  roles?: Array<{
-    id: string;
-    tenant_id: string;
-    name: string;
-  }>;
+  groups?: PassflowGroup[];
+  roles?: PassflowRole[];
 };
 
 export type PassflowCreateTenantPayload = {
