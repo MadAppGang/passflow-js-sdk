@@ -8,6 +8,7 @@ import {
   type PassflowAuthorizationResponse,
   type PassflowConfig,
   PassflowError,
+  PassflowFederatedAuthPayload,
   type PassflowInviteResponse,
   type PassflowPasskeyAuthenticateStartPayload,
   type PassflowPasskeyRegisterStartPayload,
@@ -23,7 +24,6 @@ import {
   type PassflowSuccessResponse,
   type PassflowTenantResponse,
   type PassflowValidationResponse,
-  type Providers,
   type RequestInviteLinkPayload,
   SettingAPI,
   TenantAPI,
@@ -306,12 +306,12 @@ export class Passflow {
     this.subscribeStore.notify(PassflowEvent.SignOut, {});
   }
 
-  federatedAuthWithPopup(provider: Providers, redirect_url: string, scopes?: string[]): void {
-    this.authService.federatedAuthWithPopup(provider, redirect_url, scopes);
+  federatedAuthWithPopup(payload: PassflowFederatedAuthPayload): void {
+    this.authService.federatedAuthWithPopup(payload);
   }
 
-  federatedAuthWithRedirect(provider: Providers, redirect_url: string, scopes?: string[]): void {
-    this.authService.federatedAuthWithRedirect(provider, redirect_url, scopes);
+  federatedAuthWithRedirect(payload: PassflowFederatedAuthPayload): void {
+    this.authService.federatedAuthWithRedirect(payload);
   }
 
   reset(error?: string) {

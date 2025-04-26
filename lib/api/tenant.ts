@@ -104,7 +104,7 @@ export class TenantAPI {
 
   joinInvitation(token: string, scopes: string[]): Promise<PassflowInviteResponse> {
     const payload = {
-      invite: token,
+      invite_token: token,
       scopes,
     };
 

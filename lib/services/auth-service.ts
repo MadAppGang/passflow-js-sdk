@@ -5,6 +5,8 @@ import {
   OS,
   PassflowAuthorizationResponse,
   PassflowError,
+  PassflowFederatedAuthExtendedPayload,
+  PassflowFederatedAuthPayload,
   PassflowPasskeyAuthenticateStartPayload,
   PassflowPasskeyRegisterStartPayload,
   PassflowPasswordlessResponse,
@@ -15,7 +17,6 @@ import {
   PassflowSignUpPayload,
   PassflowSuccessResponse,
   PassflowValidationResponse,
-  Providers,
 } from '../api';
 import { DeviceService } from '../device-service';
 import { StorageManager } from '../storage-manager';
@@ -319,16 +320,19 @@ export class AuthService {
     }
   }
 
-  createFederatedAuthUrl(provider: Providers, redirect_url: string, scopes?: string[]): string {
-    const passflowPathWithProvider = `/auth/federated/start/${provider}`;
+  createFederatedAuthUrl(payload: PassflowFederatedAuthExtendedPayload): string {
+    const passflowPathWithProvider = `/auth/federated/start/${payload.provider}`;
 
     if (!this.appId) throw new Error('AppId is required for federated auth');
-    const sscopes = scopes ?? this.scopes;
+    const sscopes = payload.scopes ?? this.scopes;
 
     const params: Record<string, string> = {
       scopes: sscopes.join(' '),
-      redirect_url: redirect_url ?? this.origin,
+      redirect_url: payload.redirect_url ?? this.origin,
       appId: this.appId,
+      ...(payload.invite_token ? { invite_token: payload.invite_token } : {}),
+      ...(payload.create_tenant ? { create_tenant: payload.create_tenant.toString() } : {}),
+      ...(payload.device ? { device: payload.device } : {}),
     };
 
     const url = new URL(passflowPathWithProvider, this.url);
@@ -338,15 +342,16 @@ export class AuthService {
     return url.toString();
   }
 
-  federatedAuthWithPopup(provider: Providers, redirect_url: string, scopes?: string[]): void {
-    this.subscribeStore.notify(PassflowEvent.SignInStart, { provider: provider });
-    const sscopes = scopes ?? this.scopes;
-    const passflowURL = this.createFederatedAuthUrl(provider, redirect_url, sscopes);
+  federatedAuthWithPopup(payload: PassflowFederatedAuthPayload): void {
+    this.subscribeStore.notify(PassflowEvent.SignInStart, { provider: payload.provider });
+    const sscopes = payload.scopes ?? this.scopes;
+    const deviceId = this.deviceService.getDeviceId();
+    const passflowURL = this.createFederatedAuthUrl({ ...payload, scopes: sscopes, device: deviceId });
 
     const popupWindow = window.open(passflowURL, '_blank', 'width=500,height=500');
 
     if (!popupWindow) {
-      this.federatedAuthWithRedirect(provider, redirect_url, sscopes);
+      this.federatedAuthWithRedirect(payload);
     } else {
       const checkInterval = setInterval(() => {
         if (popupWindow.location.href.startsWith(this.origin)) {
@@ -371,10 +376,11 @@ export class AuthService {
     }
   }
 
-  federatedAuthWithRedirect(provider: Providers, redirect_url: string, scopes?: string[]): void {
-    this.subscribeStore.notify(PassflowEvent.SignInStart, { provider: provider });
-    const sscopes = scopes ?? this.scopes;
-    const passflowURL = this.createFederatedAuthUrl(provider, redirect_url, sscopes);
+  federatedAuthWithRedirect(payload: PassflowFederatedAuthPayload): void {
+    this.subscribeStore.notify(PassflowEvent.SignInStart, { provider: payload.provider });
+    const sscopes = payload.scopes ?? this.scopes;
+    const deviceId = this.deviceService.getDeviceId();
+    const passflowURL = this.createFederatedAuthUrl({ ...payload, scopes: sscopes, device: deviceId });
     window.location.href = passflowURL;
   }
 
