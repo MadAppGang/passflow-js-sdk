@@ -512,6 +512,8 @@ export class Passflow {
   async joinInvitation(token: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
     try {
       const response = await this.tenant.joinInvitation(token, scopes);
+      response.scopes = scopes ?? this.scopes;
+      this.storageManager.saveTokens(response);
       this.setTokensCache(response);
       return response;
     } catch (error) {
