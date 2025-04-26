@@ -9,7 +9,6 @@ import {
   type PassflowConfig,
   PassflowError,
   PassflowFederatedAuthPayload,
-  type PassflowInviteResponse,
   type PassflowPasskeyAuthenticateStartPayload,
   type PassflowPasskeyRegisterStartPayload,
   type PassflowPasskeySettings,

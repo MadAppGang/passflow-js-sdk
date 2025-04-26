@@ -3,7 +3,6 @@ import {
   PassflowAuthorizationResponse,
   PassflowGroupResponse,
   PassflowInvitationsResponse,
-  PassflowInviteResponse,
   PassflowRoleResponse,
   PassflowStatusResponse,
   PassflowTenantResponse,
