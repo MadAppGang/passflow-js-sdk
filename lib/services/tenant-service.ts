@@ -1,5 +1,6 @@
 import axios from 'axios';
 import {
+  PassflowAuthorizationResponse,
   PassflowGroupResponse,
   PassflowInvitationsResponse,
   PassflowInviteResponse,
@@ -74,7 +75,7 @@ export class TenantService {
    * @param scopes Optional scopes to request
    * @returns Promise with invite response
    */
-  async joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {
+  async joinInvitation(token: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
     try {
       const sscopes = scopes ?? this.scopes;
       return await this.tenantAPI.joinInvitation(token, sscopes);

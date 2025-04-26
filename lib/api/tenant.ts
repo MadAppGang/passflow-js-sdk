@@ -1,10 +1,10 @@
 import { AxiosClient } from './axios-client';
 import {
+  PassflowAuthorizationResponse,
   PassflowConfig,
   PassflowCreateTenantPayload,
   PassflowEndpointPaths,
   PassflowInvitePayload,
-  PassflowInviteResponse,
   PassflowTenantResponse,
 } from './model';
 
@@ -102,13 +102,16 @@ export class TenantAPI {
     this.axiosClient = new AxiosClient(config);
   }
 
-  joinInvitation(token: string, scopes: string[]): Promise<PassflowInviteResponse> {
+  joinInvitation(token: string, scopes: string[]): Promise<PassflowAuthorizationResponse> {
     const payload = {
       invite_token: token,
       scopes,
     };
 
-    return this.axiosClient.post<PassflowInviteResponse, PassflowInvitePayload>(PassflowEndpointPaths.joinInvitation, payload);
+    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowInvitePayload>(
+      PassflowEndpointPaths.joinInvitation,
+      payload,
+    );
   }
 
   createTenant(name: string): Promise<PassflowTenantResponse> {

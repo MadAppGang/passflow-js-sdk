@@ -510,9 +510,11 @@ export class Passflow {
    * @param scopes Optional scopes to request
    * @returns Promise with invite response
    */
-  async joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {
+  async joinInvitation(token: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
     try {
-      return await this.tenant.joinInvitation(token, scopes);
+      const response = await this.tenant.joinInvitation(token, scopes);
+      this.setTokensCache(response);
+      return response;
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error ? error.message : 'Failed to join invitation',
