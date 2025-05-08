@@ -8,7 +8,7 @@ import {
   type PassflowAuthorizationResponse,
   type PassflowConfig,
   PassflowError,
-  type PassflowInviteResponse,
+  PassflowFederatedAuthPayload,
   type PassflowPasskeyAuthenticateStartPayload,
   type PassflowPasskeyRegisterStartPayload,
   type PassflowPasskeySettings,
@@ -23,7 +23,6 @@ import {
   type PassflowSuccessResponse,
   type PassflowTenantResponse,
   type PassflowValidationResponse,
-  type Providers,
   type RequestInviteLinkPayload,
   SettingAPI,
   TenantAPI,
@@ -306,12 +305,12 @@ export class Passflow {
     this.subscribeStore.notify(PassflowEvent.SignOut, {});
   }
 
-  federatedAuthWithPopup(provider: Providers, redirect_url: string, scopes?: string[]): void {
-    this.authService.federatedAuthWithPopup(provider, redirect_url, scopes);
+  federatedAuthWithPopup(payload: PassflowFederatedAuthPayload): void {
+    this.authService.federatedAuthWithPopup(payload);
   }
 
-  federatedAuthWithRedirect(provider: Providers, redirect_url: string, scopes?: string[]): void {
-    this.authService.federatedAuthWithRedirect(provider, redirect_url, scopes);
+  federatedAuthWithRedirect(payload: PassflowFederatedAuthPayload): void {
+    this.authService.federatedAuthWithRedirect(payload);
   }
 
   reset(error?: string) {
@@ -510,9 +509,13 @@ export class Passflow {
    * @param scopes Optional scopes to request
    * @returns Promise with invite response
    */
-  async joinInvitation(token: string, scopes?: string[]): Promise<PassflowInviteResponse> {
+  async joinInvitation(token: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
     try {
-      return await this.tenant.joinInvitation(token, scopes);
+      const response = await this.tenant.joinInvitation(token, scopes);
+      response.scopes = scopes ?? this.scopes;
+      this.storageManager.saveTokens(response);
+      this.setTokensCache(response);
+      return response;
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error ? error.message : 'Failed to join invitation',

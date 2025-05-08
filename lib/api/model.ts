@@ -116,6 +116,7 @@ export type PassflowSignInPayload = {
   email?: string;
   phone?: string;
   username?: string;
+  invite_token?: string;
 } & ({ email: string } | { phone: string } | { username: string });
 
 export type PassflowSignInExtendedPayload = PassflowSignInPayload & {
@@ -157,7 +158,7 @@ export type PassflowSignUpPayload = {
   scopes?: string[];
   create_tenant?: boolean;
   anonymous?: boolean;
-  invite?: string;
+  invite_token?: string;
 };
 
 export type PassflowPasswordlessSignInPayload = {
@@ -167,7 +168,7 @@ export type PassflowPasswordlessSignInPayload = {
   create_tenant?: boolean;
   email?: string;
   phone?: string;
-  invite?: string;
+  invite_token?: string;
 } & ({ email: string } | { phone: string });
 
 export type PassflowPasswordlessResponse = {
@@ -256,7 +257,7 @@ export enum OS {
 export type PassflowPasskeyRegisterStartPayload = {
   passkey_display_name?: string;
   passkey_username?: string;
-  invite?: string;
+  invite_token?: string;
 
   scopes: string[];
   create_tenant?: boolean;
@@ -294,11 +295,24 @@ export type PassflowPasskeyAuthenticateStartPayload = {
   relying_party_id: string;
   scopes?: string[];
   user_id?: string;
+  invite_token?: string;
 };
 
 export type PassflowPasskeyAuthenticateStartExtendedPayload = PassflowPasskeyAuthenticateStartPayload & {
   device: string;
   os: OS;
+};
+
+export type PassflowFederatedAuthPayload = {
+  provider: Providers;
+  redirect_url: string;
+  scopes?: string[];
+  invite_token?: string;
+  create_tenant?: boolean;
+};
+
+export type PassflowFederatedAuthExtendedPayload = PassflowFederatedAuthPayload & {
+  device?: string;
 };
 
 export type PassflowValidatePayload = {
@@ -395,7 +409,7 @@ export type PassflowInviteResponse = {
 };
 
 export type PassflowInvitePayload = {
-  invite: string;
+  invite_token: string;
   scopes: string[];
 };
 
