@@ -448,11 +448,25 @@ export type PassflowRole = {
 export type PassflowTenantResponse = {
   tenant_id: string;
   tenant_name: string;
-  users_in_groups?: {
-    [group_id: string]: PassflowUserWithRoles[];
-  };
+  users_in_groups?: PassflowUserInGroup[];
   groups?: PassflowGroup[];
   roles?: PassflowRole[];
+};
+
+/**
+ * Represents a user's membership in a group with their assigned roles
+ */
+export type PassflowUserInGroup = {
+  user: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  };
+  group_id: string;
+  roles?: {
+    id: string;
+  }[];
 };
 
 export type PassflowCreateTenantPayload = {

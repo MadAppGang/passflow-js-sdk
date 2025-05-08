@@ -1,11 +1,6 @@
 // lib/services/tenant-user-membership.ts
 
-import type {
-  PassflowTenantResponse,
-  PassflowUserInGroup,
-  PassflowGroup,
-  PassflowRole,
-} from '../api/model';
+import type { PassflowGroup, PassflowRole, PassflowTenantResponse, PassflowUserInGroup } from '../api/model';
 
 /**
  * Flat user representation
@@ -113,7 +108,7 @@ export class TenantUserMembership {
         memberships.push({
           userId: u.id,
           groupId: uig.group_id,
-          roleIds: uig.roles?.map(r => r.id) ?? [],
+          roleIds: uig.roles?.map((r) => r.id) ?? [],
         });
       }
     });
@@ -136,8 +131,8 @@ export class TenantUserMembership {
    */
   getUsersInGroup(groupId: string): User[] {
     return this.data.memberships
-      .filter(m => m.groupId === groupId)
-      .map(m => this.data.usersById.get(m.userId))
+      .filter((m) => m.groupId === groupId)
+      .map((m) => this.data.usersById.get(m.userId))
       .filter((u): u is User => u !== undefined);
   }
 
@@ -146,8 +141,8 @@ export class TenantUserMembership {
    */
   getGroupsForUser(userId: string): Group[] {
     return this.data.memberships
-      .filter(m => m.userId === userId)
-      .map(m => this.data.groupsById.get(m.groupId))
+      .filter((m) => m.userId === userId)
+      .map((m) => this.data.groupsById.get(m.groupId))
       .filter((g): g is Group => g !== undefined);
   }
 
@@ -155,15 +150,11 @@ export class TenantUserMembership {
    * Returns all roles that the specified user has in the specified group.
    */
   getUserRolesInGroup(userId: string, groupId: string): Role[] {
-    const membership = this.data.memberships.find(
-      m => m.userId === userId && m.groupId === groupId,
-    );
+    const membership = this.data.memberships.find((m) => m.userId === userId && m.groupId === groupId);
     if (!membership) {
       return [];
     }
-    return membership.roleIds
-      .map(roleId => this.data.rolesById.get(roleId))
-      .filter((r): r is Role => r !== undefined);
+    return membership.roleIds.map((roleId) => this.data.rolesById.get(roleId)).filter((r): r is Role => r !== undefined);
   }
 
   /**
