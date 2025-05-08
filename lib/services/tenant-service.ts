@@ -10,6 +10,7 @@ import {
   TenantAPI,
 } from '../api';
 import { Logger, getDefaultLogger } from './logger';
+import { TenantUserMembership } from './tenant-user-membership';
 
 /**
  * Service for managing tenants
@@ -103,11 +104,31 @@ export class TenantService {
    * @param tenantId Tenant ID
    * @returns Promise with tenant response
    */
+  /**
+   * Get tenant details
+   * @param tenantId Tenant ID
+   * @returns Promise with tenant response
+   */
   async getTenantDetails(tenantId: string): Promise<PassflowTenantResponse> {
     try {
-      return await this.tenantAPI.getTenantDetails(tenantId);
+      const response = await this.tenantAPI.getTenantDetails(tenantId);
+      return response;
     } catch (error) {
       this.handlePassflowError(error, `Get tenant details failed for tenant ID ${tenantId}`);
+    }
+  }
+
+  /**
+   * Get tenant details and transform into TenantUserMembership
+   * @param tenantId Tenant ID
+   * @returns Promise with TenantUserMembership instance
+   */
+  async getTenantUserMembership(tenantId: string): Promise<TenantUserMembership> {
+    try {
+      const response = await this.tenantAPI.getTenantDetails(tenantId);
+      return new TenantUserMembership(response);
+    } catch (error) {
+      this.handlePassflowError(error, `Get tenant user membership failed for tenant ID ${tenantId}`);
     }
   }
 
