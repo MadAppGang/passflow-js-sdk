@@ -30,7 +30,7 @@ import {
 } from './api';
 import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL } from './constants';
 import { DeviceService } from './device-service';
-import { AuthService, InvitationService, TenantService, UserService } from './services';
+import { AuthService, InvitationService, TenantService, TokenCacheService, UserService } from './services';
 import { StorageManager } from './storage-manager';
 import { type ErrorPayload, PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
 import { type TokenType, parseToken } from './token-service';
@@ -59,17 +59,16 @@ export class Passflow {
   private userService: UserService;
   private tenantService: TenantService;
   private invitationService: InvitationService;
+  private tokenCacheService: TokenCacheService;
 
   // Public services
   public tenant: TenantService;
 
   // Session callbacks
-  private createSessionCallback?: (tokens?: Tokens) => Promise<void>;
+  private createSessionCallback?: ({ tokens, parsedTokens }: { tokens?: Tokens; parsedTokens?: ParsedTokens }) => Promise<void>;
   private expiredSessionCallback?: () => Promise<void>;
 
   // State
-  tokensCache: Tokens | undefined;
-  parsedTokensCache: ParsedTokens | undefined;
   error?: Error;
   origin = window.location.origin;
   url: string;
@@ -95,6 +94,8 @@ export class Passflow {
     this.deviceService = new DeviceService();
     this.subscribeStore = new PassflowStore();
 
+    this.tokenCacheService = new TokenCacheService(this.storageManager, this.authApi, this.subscribeStore);
+
     this.scopes = scopes ?? DEFAULT_SCOPES;
     this.createTenantForNewUser = config.createTenantForNewUser ?? false;
 
@@ -104,6 +105,7 @@ export class Passflow {
       this.deviceService,
       this.storageManager,
       this.subscribeStore,
+      this.tokenCacheService,
       this.scopes,
       this.createTenantForNewUser,
       this.origin,
@@ -126,7 +128,13 @@ export class Passflow {
     if (config.parseQueryParams) {
       this.checkAndSetTokens();
     }
+
     this.setTokensToCacheFromLocalStorage();
+  }
+
+  // Passflow initialization
+  initialize() {
+    this.tokenCacheService.initialize();
   }
 
   // Session management
@@ -144,8 +152,10 @@ export class Passflow {
 
   private async submitSessionCheck() {
     let tokens;
+    let parsedTokens;
     try {
       tokens = await this.authService.getTokens(this.doRefreshTokens);
+      parsedTokens = this.tokenCacheService.getParsedTokenCache();
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error || error instanceof PassflowError ? error.message : 'Session check failed',
@@ -156,7 +166,7 @@ export class Passflow {
     }
 
     if (tokens && this.createSessionCallback) {
-      await this.createSessionCallback(tokens);
+      await this.createSessionCallback({ tokens, parsedTokens });
     }
 
     if (!tokens && this.expiredSessionCallback) {
@@ -194,7 +204,7 @@ export class Passflow {
         scopes,
       };
       this.storageManager.saveTokens(tokens);
-      this.setTokensCache(tokens);
+      this.tokenCacheService.setTokensCache(tokens);
       this.subscribeStore.notify(PassflowEvent.SignIn, { tokens });
       this.submitSessionCheck();
 
@@ -228,30 +238,24 @@ export class Passflow {
   private setTokensToCacheFromLocalStorage(): void {
     const tokens = this.storageManager.getTokens();
     if (tokens) {
-      this.setTokensCache(tokens);
+      this.tokenCacheService.setTokensCache(tokens);
     }
   }
 
-  setTokensCache(tokens: Tokens | undefined): void {
-    this.tokensCache = tokens;
-    if (tokens) {
-      this.parsedTokensCache = {
-        access_token: parseToken(tokens.access_token),
-        id_token: tokens.id_token ? parseToken(tokens.id_token) : undefined,
-        refresh_token: tokens.refresh_token ? parseToken(tokens.refresh_token) : undefined,
-        scopes: tokens.scopes,
-      };
-    } else {
-      this.parsedTokensCache = undefined;
-    }
+  getTokensCache() {
+    return this.tokenCacheService.getTokensCache();
   }
 
-  getTokensCache(): Tokens | undefined {
-    return this.tokensCache;
+  getTokensCacheWithRefresh() {
+    return this.tokenCacheService.getTokensCacheWithRefresh();
   }
 
-  getParsedTokenCache(): ParsedTokens | undefined {
-    return this.parsedTokensCache;
+  getParsedTokenCache() {
+    return this.tokenCacheService.getParsedTokenCache();
+  }
+
+  tokensCacheIsExpired() {
+    return this.tokenCacheService.tokensCacheIsExpired();
   }
 
   // Auth delegation methods
@@ -269,13 +273,13 @@ export class Passflow {
 
   async signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
     const response = await this.authService.signIn(payload);
-    this.setTokensCache(response);
+    this.tokenCacheService.setTokensCache(response);
     return response;
   }
 
   async signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
     const response = await this.authService.signUp(payload);
-    this.setTokensCache(response);
+    this.tokenCacheService.setTokensCache(response);
     return response;
   }
 
@@ -285,7 +289,7 @@ export class Passflow {
 
   async passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
     const response = await this.authService.passwordlessSignInComplete(payload);
-    this.setTokensCache(response);
+    this.tokenCacheService.setTokensCache(response);
     return response;
   }
 
@@ -301,7 +305,7 @@ export class Passflow {
       };
       this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
     }
-    this.setTokensCache(undefined);
+    this.tokenCacheService.setTokensCache(undefined);
     this.subscribeStore.notify(PassflowEvent.SignOut, {});
   }
 
@@ -315,7 +319,7 @@ export class Passflow {
 
   reset(error?: string) {
     this.storageManager.deleteTokens();
-    this.setTokensCache(undefined);
+    this.tokenCacheService.setTokensCache(undefined);
     this.subscribeStore.notify(PassflowEvent.SignOut, {});
     if (error) {
       this.error = new Error(error);
@@ -329,13 +333,13 @@ export class Passflow {
   }
 
   async refreshToken(): Promise<PassflowAuthorizationResponse> {
-    if (!this.parsedTokensCache?.refresh_token) {
+    if (!this.tokenCacheService.parsedTokensCache?.refresh_token) {
       throw new Error('No refresh token found');
     }
 
     try {
       const response = await this.authService.refreshToken();
-      this.setTokensCache(response);
+      this.tokenCacheService.setTokensCache(response);
       return response;
     } catch (error) {
       if (error instanceof PassflowError) {
@@ -356,7 +360,7 @@ export class Passflow {
 
   async resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
     const response = await this.authService.resetPassword(newPassword, scopes);
-    this.setTokensCache(response);
+    this.tokenCacheService.setTokensCache(response);
     return response;
   }
 
@@ -416,14 +420,14 @@ export class Passflow {
   // Passkey methods
   async passkeyRegister(payload: PassflowPasskeyRegisterStartPayload): Promise<PassflowAuthorizationResponse> {
     const response = await this.authService.passkeyRegister(payload);
-    this.setTokensCache(response);
+    this.tokenCacheService.setTokensCache(response);
     return response;
   }
 
   async passkeyAuthenticate(payload: PassflowPasskeyAuthenticateStartPayload): Promise<PassflowAuthorizationResponse> {
     const response = await this.authService.passkeyAuthenticate(payload);
     if ('access_token' in response) {
-      this.setTokensCache(response);
+      this.tokenCacheService.setTokensCache(response);
     }
     return response;
   }
@@ -431,7 +435,7 @@ export class Passflow {
   // Token management
   setTokens(tokensData: Tokens): void {
     this.storageManager.saveTokens(tokensData);
-    this.setTokensCache(tokensData);
+    this.tokenCacheService.setTokensCache(tokensData);
     this.subscribeStore.notify(PassflowEvent.SignIn, { tokens: tokensData });
   }
 
@@ -514,7 +518,7 @@ export class Passflow {
       const response = await this.tenant.joinInvitation(token, scopes);
       response.scopes = scopes ?? this.scopes;
       this.storageManager.saveTokens(response);
-      this.setTokensCache(response);
+      this.tokenCacheService.setTokensCache(response);
       return response;
     } catch (error) {
       const errorPayload: ErrorPayload = {
