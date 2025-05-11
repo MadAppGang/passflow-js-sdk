@@ -10,6 +10,7 @@ export enum PassflowEvent {
   Error = 'error',
   Refresh = 'refresh',
   RefreshStart = 'refresh:start',
+  TokenCacheExpired = 'token-cache-expired',
 }
 
 /**
@@ -34,6 +35,7 @@ export type PassflowEventPayload = {
   [PassflowEvent.Error]: ErrorPayload;
   [PassflowEvent.Refresh]: { tokens?: unknown };
   [PassflowEvent.RefreshStart]: { tokenId?: string };
+  [PassflowEvent.TokenCacheExpired]: { isExpired: boolean };
 };
 
 /**

@@ -23,6 +23,7 @@ import { StorageManager } from '../storage-manager';
 import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
 import { TokenType, isTokenExpired, parseToken } from '../token-service';
 import { ParsedTokens, Tokens } from '../types';
+import { TokenCacheService } from './token-cache-service';
 
 /**
  * Service for handling authentication related functionality
@@ -33,12 +34,13 @@ export class AuthService {
     private deviceService: DeviceService,
     private storageManager: StorageManager,
     private subscribeStore: PassflowStore,
+    private tokenCacheService: TokenCacheService,
     private scopes: string[],
     private createTenantForNewUser: boolean,
     private origin: string,
     private url: string,
     private sessionCallbacks: {
-      createSession?: (tokens?: Tokens) => Promise<void>;
+      createSession?: ({ tokens, parsedTokens }: { tokens?: Tokens; parsedTokens?: ParsedTokens }) => Promise<void>;
       expiredSession?: () => Promise<void>;
     },
     private appId?: string,
@@ -180,7 +182,12 @@ export class AuthService {
       const response = await this.authApi.refreshToken(tokens?.refresh_token ?? '', oldScopes, tokens?.access_token);
       response.scopes = oldScopes;
       this.storageManager.saveTokens(response);
+      this.tokenCacheService.setTokensCache(response);
       this.subscribeStore.notify(PassflowEvent.Refresh, { tokens: response });
+      this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
+      this.tokenCacheService.isRefreshing = false;
+      this.tokenCacheService.isExpired = false;
+      this.tokenCacheService.startTokenCheck();
       return response;
     } catch (error) {
       const errorPayload: ErrorPayload = {
@@ -464,8 +471,10 @@ export class AuthService {
    */
   async submitSessionCheck(doRefresh = false): Promise<Tokens | undefined> {
     let tokens;
+    let parsedTokens;
     try {
       tokens = await this.getTokens(doRefresh);
+      parsedTokens = this.tokenCacheService.getParsedTokenCache();
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error || error instanceof PassflowError ? error.message : 'Session check failed',
@@ -476,7 +485,7 @@ export class AuthService {
     }
 
     if (tokens && this.sessionCallbacks.createSession) {
-      await this.sessionCallbacks.createSession(tokens);
+      await this.sessionCallbacks.createSession({ tokens, parsedTokens });
     }
 
     if (!tokens && this.sessionCallbacks.expiredSession) {

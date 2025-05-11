@@ -15,7 +15,7 @@ export type ParsedTokens = {
 };
 
 export type SessionParams = {
-  createSession?: (tokens?: Tokens) => Promise<void>;
+  createSession?: ({ tokens, parsedTokens }: { tokens?: Tokens; parsedTokens?: ParsedTokens }) => Promise<void>;
   expiredSession?: () => Promise<void>;
   doRefresh?: boolean;
 };

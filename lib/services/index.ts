@@ -3,3 +3,4 @@ export * from './invitation-service';
 export * from './tenant-service';
 export * from './tenant-user-membership';
 export * from './user-service';
+export * from './token-cache-service';
