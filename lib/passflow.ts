@@ -132,11 +132,6 @@ export class Passflow {
     this.setTokensToCacheFromLocalStorage();
   }
 
-  // Passflow initialization
-  initialize() {
-    this.tokenCacheService.initialize();
-  }
-
   // Session management
   session: ({ createSession, expiredSession, doRefresh }: SessionParams) => Promise<void> = async ({
     createSession,
@@ -177,6 +172,9 @@ export class Passflow {
   // Event subscription
   subscribe(s: PassflowSubscriber, t?: PassflowEvent[]) {
     this.subscribeStore.subscribe(s, t);
+
+    // Initialize token cache service and token event listener
+    this.tokenCacheService.initialize();
   }
 
   unsubscribe(s: PassflowSubscriber, t?: PassflowEvent[]) {
