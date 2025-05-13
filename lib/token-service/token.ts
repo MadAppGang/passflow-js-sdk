@@ -9,6 +9,7 @@ export type Token = {
   sub: string;
   type: string;
   email?: string;
+  phonenumber?: string;
   passflow_tm?: RawUserMembership;
   payload?: unknown;
   membership?: UserMembership;

@@ -1,3 +1,5 @@
+import { ParsedTokens, Tokens } from './types';
+
 /**
  * Passflow event types
  */
@@ -27,13 +29,13 @@ export interface ErrorPayload {
  * Event-specific payload types
  */
 export type PassflowEventPayload = {
-  [PassflowEvent.SignIn]: { tokens?: unknown };
+  [PassflowEvent.SignIn]: { tokens?: Tokens; parsedTokens?: ParsedTokens };
   [PassflowEvent.SignInStart]: { email?: string; provider?: string };
-  [PassflowEvent.Register]: { tokens?: unknown };
+  [PassflowEvent.Register]: { tokens?: Tokens; parsedTokens?: ParsedTokens };
   [PassflowEvent.RegisterStart]: { email?: string };
   [PassflowEvent.SignOut]: { userId?: string };
   [PassflowEvent.Error]: ErrorPayload;
-  [PassflowEvent.Refresh]: { tokens?: unknown };
+  [PassflowEvent.Refresh]: { tokens?: Tokens; parsedTokens?: ParsedTokens };
   [PassflowEvent.RefreshStart]: { tokenId?: string };
   [PassflowEvent.TokenCacheExpired]: { isExpired: boolean };
 };

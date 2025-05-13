@@ -203,7 +203,7 @@ export class Passflow {
       };
       this.storageManager.saveTokens(tokens);
       this.tokenCacheService.setTokensCache(tokens);
-      this.subscribeStore.notify(PassflowEvent.SignIn, { tokens });
+      this.subscribeStore.notify(PassflowEvent.SignIn, { tokens, parsedTokens: this.getParsedTokenCache() });
       this.submitSessionCheck();
 
       urlParams.delete('access_token');
@@ -271,13 +271,13 @@ export class Passflow {
 
   async signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
     const response = await this.authService.signIn(payload);
-    this.tokenCacheService.setTokensCache(response);
+
     return response;
   }
 
   async signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
     const response = await this.authService.signUp(payload);
-    this.tokenCacheService.setTokensCache(response);
+
     return response;
   }
 
@@ -287,7 +287,7 @@ export class Passflow {
 
   async passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
     const response = await this.authService.passwordlessSignInComplete(payload);
-    this.tokenCacheService.setTokensCache(response);
+
     return response;
   }
 
@@ -337,7 +337,7 @@ export class Passflow {
 
     try {
       const response = await this.authService.refreshToken();
-      this.tokenCacheService.setTokensCache(response);
+
       return response;
     } catch (error) {
       if (error instanceof PassflowError) {
@@ -358,7 +358,7 @@ export class Passflow {
 
   async resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
     const response = await this.authService.resetPassword(newPassword, scopes);
-    this.tokenCacheService.setTokensCache(response);
+
     return response;
   }
 
@@ -418,15 +418,13 @@ export class Passflow {
   // Passkey methods
   async passkeyRegister(payload: PassflowPasskeyRegisterStartPayload): Promise<PassflowAuthorizationResponse> {
     const response = await this.authService.passkeyRegister(payload);
-    this.tokenCacheService.setTokensCache(response);
+
     return response;
   }
 
   async passkeyAuthenticate(payload: PassflowPasskeyAuthenticateStartPayload): Promise<PassflowAuthorizationResponse> {
     const response = await this.authService.passkeyAuthenticate(payload);
-    if ('access_token' in response) {
-      this.tokenCacheService.setTokensCache(response);
-    }
+
     return response;
   }
 
@@ -434,7 +432,10 @@ export class Passflow {
   setTokens(tokensData: Tokens): void {
     this.storageManager.saveTokens(tokensData);
     this.tokenCacheService.setTokensCache(tokensData);
-    this.subscribeStore.notify(PassflowEvent.SignIn, { tokens: tokensData });
+    this.subscribeStore.notify(PassflowEvent.SignIn, {
+      tokens: tokensData,
+      parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+    });
   }
 
   // Add getTokens method

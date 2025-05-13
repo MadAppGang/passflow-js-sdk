@@ -56,7 +56,11 @@ export class AuthService {
       const response = await this.authApi.signIn(payload, deviceId, os);
       response.scopes = payload.scopes;
       this.storageManager.saveTokens(response);
-      this.subscribeStore.notify(PassflowEvent.SignIn, { tokens: response });
+      this.tokenCacheService.setTokensCache(response);
+      this.subscribeStore.notify(PassflowEvent.SignIn, {
+        tokens: response,
+        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+      });
       await this.submitSessionCheck();
       return response;
     } catch (error) {
@@ -79,7 +83,11 @@ export class AuthService {
       const response = await this.authApi.signUp(payload);
       response.scopes = payload.scopes;
       this.storageManager.saveTokens(response);
-      this.subscribeStore.notify(PassflowEvent.Register, { tokens: response });
+      this.tokenCacheService.setTokensCache(response);
+      this.subscribeStore.notify(PassflowEvent.Register, {
+        tokens: response,
+        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+      });
       await this.submitSessionCheck();
       return response;
     } catch (error) {
@@ -124,7 +132,11 @@ export class AuthService {
       const response = await this.authApi.passwordlessSignInComplete(payload);
       response.scopes = payload.scopes;
       this.storageManager.saveTokens(response);
-      this.subscribeStore.notify(PassflowEvent.SignIn, { tokens: response });
+      this.tokenCacheService.setTokensCache(response);
+      this.subscribeStore.notify(PassflowEvent.SignIn, {
+        tokens: response,
+        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+      });
       await this.submitSessionCheck();
       return response;
     } catch (error) {
@@ -183,7 +195,10 @@ export class AuthService {
       response.scopes = oldScopes;
       this.storageManager.saveTokens(response);
       this.tokenCacheService.setTokensCache(response);
-      this.subscribeStore.notify(PassflowEvent.Refresh, { tokens: response });
+      this.subscribeStore.notify(PassflowEvent.Refresh, {
+        tokens: response,
+        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+      });
       this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
       this.tokenCacheService.isRefreshing = false;
       this.tokenCacheService.isExpired = false;
@@ -238,7 +253,11 @@ export class AuthService {
       const response = await this.authApi.resetPassword(newPassword, sscopes, resetToken);
       response.scopes = sscopes;
       this.storageManager.saveTokens(response);
-      this.subscribeStore.notify(PassflowEvent.SignIn, { tokens: response });
+      this.tokenCacheService.setTokensCache(response);
+      this.subscribeStore.notify(PassflowEvent.SignIn, {
+        tokens: response,
+        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+      });
       await this.submitSessionCheck();
       return response;
     } catch (error) {
@@ -275,7 +294,11 @@ export class AuthService {
       );
       responseRegisterComplete.scopes = payload.scopes;
       this.storageManager.saveTokens(responseRegisterComplete);
-      this.subscribeStore.notify(PassflowEvent.Register, { tokens: responseRegisterComplete });
+      this.tokenCacheService.setTokensCache(responseRegisterComplete);
+      this.subscribeStore.notify(PassflowEvent.Register, {
+        tokens: responseRegisterComplete,
+        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+      });
       await this.submitSessionCheck();
       return responseRegisterComplete;
     } catch (error) {
@@ -311,7 +334,11 @@ export class AuthService {
       if ('access_token' in responseAuthenticateComplete) {
         responseAuthenticateComplete.scopes = payload.scopes;
         this.storageManager.saveTokens(responseAuthenticateComplete);
-        this.subscribeStore.notify(PassflowEvent.SignIn, { tokens: responseAuthenticateComplete });
+        this.tokenCacheService.setTokensCache(responseAuthenticateComplete);
+        this.subscribeStore.notify(PassflowEvent.SignIn, {
+          tokens: responseAuthenticateComplete,
+          parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+        });
         await this.submitSessionCheck();
       }
 
@@ -374,7 +401,11 @@ export class AuthService {
             scopes: sscopes,
           };
           this.storageManager.saveTokens(tokensData);
-          this.subscribeStore.notify(PassflowEvent.SignIn, { tokens: tokensData });
+          this.tokenCacheService.setTokensCache(tokensData);
+          this.subscribeStore.notify(PassflowEvent.SignIn, {
+            tokens: tokensData,
+            parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+          });
           window.location.href = `${this.origin}`;
           clearInterval(checkInterval);
           popupWindow.close();

@@ -60,7 +60,7 @@ export class TokenCacheService {
       const response = await this.authApi.refreshToken(tokens?.refresh_token ?? '', tokens.scopes ?? [], tokens.access_token);
       this.setTokensCache(response);
 
-      this.subscribeStore.notify(PassflowEvent.Refresh, { tokens: response });
+      this.subscribeStore.notify(PassflowEvent.Refresh, { tokens: response, parsedTokens: this.getParsedTokenCache() });
       this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
       this.isExpired = false;
       this.startTokenCheck();
