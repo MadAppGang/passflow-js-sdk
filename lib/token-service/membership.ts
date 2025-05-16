@@ -46,10 +46,10 @@ export const parseMembership = (raw: RawUserMembership): UserMembership => {
       continue;
     }
     const tnt: TenantMembership = { tenant: { id: v.tenant_id, name: v.tenant_name } };
-    tnt.groups = Object.keys(v.groups).map((gk) => {
+    tnt.groups = v.groups ? Object.keys(v.groups).map((gk) => {
       const roles = v.groups[gk] || [];
-      return { group: { id: gk, name: v.group_names[gk] ?? 'unknown' }, roles };
-    });
+      return { group: { id: gk, name: (v.group_names?.[gk]) ?? 'unknown' }, roles };
+    }) : [];
     tnt.tenantRoles = tnt.groups?.find((g) => g.group.id === v.root_group_id);
     tenants.push(tnt);
   }
