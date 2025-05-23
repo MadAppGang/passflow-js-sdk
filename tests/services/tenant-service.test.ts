@@ -12,13 +12,13 @@ describe('TenantService', () => {
     // Original methods
     joinInvitation: Mock;
     createTenant: Mock;
-    
+
     // 1. Tenant Management
     getTenantDetails: Mock;
     updateTenant: Mock;
     deleteTenant: Mock;
     getUserTenantMembership: Mock;
-    
+
     // 2. Group Management
     createGroup: Mock;
     getGroupInfo: Mock;
@@ -28,16 +28,16 @@ describe('TenantService', () => {
     removeUserRolesFromGroup: Mock;
     changeUserRoles: Mock;
     deleteUserFromGroup: Mock;
-    
+
     // 3. Role Management
     getRolesForTenant: Mock;
     createRoleForTenant: Mock;
     updateRole: Mock;
     deleteRole: Mock;
-    
+
     // 4. User Management in Tenants
     deleteUserFromTenant: Mock;
-    
+
     // 5. Invitation Management
     getGroupInvitations: Mock;
     getTenantInvitations: Mock;
@@ -129,13 +129,13 @@ describe('TenantService', () => {
       // Original methods
       joinInvitation: vi.fn().mockResolvedValue(mockInviteResponse),
       createTenant: vi.fn().mockResolvedValue(mockTenantResponse),
-      
+
       // 1. Tenant Management
       getTenantDetails: vi.fn().mockResolvedValue(mockTenantResponse),
       updateTenant: vi.fn().mockResolvedValue(mockStatusResponse),
       deleteTenant: vi.fn().mockResolvedValue(mockStatusResponse),
       getUserTenantMembership: vi.fn().mockResolvedValue(mockUserTenantMembershipResponse),
-      
+
       // 2. Group Management
       createGroup: vi.fn().mockResolvedValue(mockGroupResponse),
       getGroupInfo: vi.fn().mockResolvedValue(mockGroupResponse),
@@ -145,16 +145,16 @@ describe('TenantService', () => {
       removeUserRolesFromGroup: vi.fn().mockResolvedValue(mockStatusResponse),
       changeUserRoles: vi.fn().mockResolvedValue(mockStatusResponse),
       deleteUserFromGroup: vi.fn().mockResolvedValue(mockStatusResponse),
-      
+
       // 3. Role Management
       getRolesForTenant: vi.fn().mockResolvedValue([mockRoleResponse]),
       createRoleForTenant: vi.fn().mockResolvedValue(mockRoleResponse),
       updateRole: vi.fn().mockResolvedValue(mockRoleResponse),
       deleteRole: vi.fn().mockResolvedValue(mockStatusResponse),
-      
+
       // 4. User Management in Tenants
       deleteUserFromTenant: vi.fn().mockResolvedValue(mockStatusResponse),
-      
+
       // 5. Invitation Management
       getGroupInvitations: vi.fn().mockResolvedValue(mockInvitationsResponse),
       getTenantInvitations: vi.fn().mockResolvedValue(mockInvitationsResponse),

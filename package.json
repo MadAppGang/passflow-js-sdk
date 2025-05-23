@@ -1,7 +1,7 @@
 {
   "name": "@passflow/passflow-js-sdk",
   "description": "Passflow JS SDK",
-  "version": "0.1.42",
+  "version": "0.1.43",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

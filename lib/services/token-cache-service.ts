@@ -1,8 +1,8 @@
+import { AuthAPI } from '../api';
+import { StorageManager } from '../storage-manager';
+import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
 import { isTokenExpired, parseToken } from '../token-service';
 import type { ParsedTokens, Tokens } from '../types';
-import { StorageManager } from '../storage-manager';
-import { AuthAPI } from '../api';
-import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
 
 export class TokenCacheService {
   tokensCache: Tokens | undefined;

@@ -49,13 +49,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "id",
-                    "name",
-                    "default",
-                    "updated_at",
-                    "created_at"
-                  ]
+                  "required": ["id", "name", "default", "updated_at", "created_at"]
                 },
                 "example": {
                   "id": "2V4ZEeR61ru1lHjcGBuatOi5V3o",
@@ -102,9 +96,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "name"
-                ]
+                "required": ["name"]
               },
               "example": {
                 "name": "updated group"
@@ -133,12 +125,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "id",
-                    "name",
-                    "updated_at",
-                    "created_at"
-                  ]
+                  "required": ["id", "name", "updated_at", "created_at"]
                 },
                 "example": {
                   "id": "2V4bvDGIoTQmbHjFd2LBC1hlHRg",
@@ -186,9 +173,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "status"
-                  ]
+                  "required": ["status"]
                 },
                 "example": {
                   "status": "ok"
@@ -233,9 +218,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "name"
-                ]
+                "required": ["name"]
               },
               "example": {
                 "name": "new group"
@@ -264,12 +247,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "id",
-                    "name",
-                    "updated_at",
-                    "created_at"
-                  ]
+                  "required": ["id", "name", "updated_at", "created_at"]
                 },
                 "example": {
                   "id": "2V4bvDGIoTQmbHjFd2LBC1hlHRg",
@@ -398,10 +376,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "user_id",
-                  "role"
-                ]
+                "required": ["user_id", "role"]
               },
               "example": {
                 "user_id": "{{new_user}}",
@@ -422,9 +397,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "status"
-                  ]
+                  "required": ["status"]
                 },
                 "example": {
                   "status": "ok"
@@ -475,16 +448,11 @@
                     }
                   }
                 },
-                "required": [
-                  "user_id",
-                  "roles"
-                ]
+                "required": ["user_id", "roles"]
               },
               "example": {
                 "user_id": "{{new_user}}",
-                "roles": [
-                  "admin"
-                ]
+                "roles": ["admin"]
               }
             }
           }
@@ -501,9 +469,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "status"
-                  ]
+                  "required": ["status"]
                 },
                 "example": {
                   "status": "ok"
@@ -554,16 +520,11 @@
                     }
                   }
                 },
-                "required": [
-                  "user_id",
-                  "roles"
-                ]
+                "required": ["user_id", "roles"]
               },
               "example": {
                 "user_id": "{{new_user}}",
-                "roles": [
-                  "admin"
-                ]
+                "roles": ["admin"]
               }
             }
           }
@@ -580,9 +541,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "status"
-                  ]
+                  "required": ["status"]
                 },
                 "example": {
                   "status": "ok"
@@ -629,9 +588,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "status"
-                  ]
+                  "required": ["status"]
                 },
                 "example": {
                   "status": "ok"
@@ -764,10 +721,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "invites",
-                    "next_page_skip"
-                  ]
+                  "required": ["invites", "next_page_skip"]
                 },
                 "example": {
                   "invites": [
@@ -856,11 +810,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "id",
-                      "tenant_id",
-                      "name"
-                    ]
+                    "required": ["id", "tenant_id", "name"]
                   }
                 },
                 "example": [
@@ -923,9 +873,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "name"
-                ]
+                "required": ["name"]
               },
               "example": {
                 "name": "new_role"
@@ -951,11 +899,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "id",
-                    "tenant_id",
-                    "name"
-                  ]
+                  "required": ["id", "tenant_id", "name"]
                 },
                 "example": {
                   "id": "2V4aCl87vqDzLtIvJ6BmRZFOPqY",
@@ -1002,9 +946,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "name"
-                ]
+                "required": ["name"]
               },
               "example": {
                 "name": "update role name"
@@ -1030,11 +972,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "id",
-                    "tenant_id",
-                    "name"
-                  ]
+                  "required": ["id", "tenant_id", "name"]
                 },
                 "example": {
                   "id": "2V4ablek2rzLxGjN0d7hrYlhZ0m",
@@ -1081,9 +1019,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "status"
-                  ]
+                  "required": ["status"]
                 },
                 "example": {
                   "status": "ok"
@@ -1145,9 +1081,7 @@
                               }
                             }
                           },
-                          "required": [
-                            "2V4Wj0g2ElJsXPnurVSJ64QZGXn"
-                          ]
+                          "required": ["2V4Wj0g2ElJsXPnurVSJ64QZGXn"]
                         },
                         "group_names": {
                           "type": "object",
@@ -1156,31 +1090,20 @@
                               "type": "string"
                             }
                           },
-                          "required": [
-                            "2V4Wj0g2ElJsXPnurVSJ64QZGXn"
-                          ]
+                          "required": ["2V4Wj0g2ElJsXPnurVSJ64QZGXn"]
                         }
                       },
-                      "required": [
-                        "tenant_id",
-                        "tenant_name",
-                        "groups",
-                        "group_names"
-                      ]
+                      "required": ["tenant_id", "tenant_name", "groups", "group_names"]
                     }
                   },
-                  "required": [
-                    "2V4WixjCGnvPbmrAVgHYO2viQhh"
-                  ]
+                  "required": ["2V4WixjCGnvPbmrAVgHYO2viQhh"]
                 },
                 "example": {
                   "2V4WixjCGnvPbmrAVgHYO2viQhh": {
                     "tenant_id": "2V4WixjCGnvPbmrAVgHYO2viQhh",
                     "tenant_name": "action-items",
                     "groups": {
-                      "2V4Wj0g2ElJsXPnurVSJ64QZGXn": [
-                        "owner"
-                      ]
+                      "2V4Wj0g2ElJsXPnurVSJ64QZGXn": ["owner"]
                     },
                     "group_names": {
                       "2V4Wj0g2ElJsXPnurVSJ64QZGXn": "default"
@@ -1225,9 +1148,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "name"
-                ]
+                "required": ["name"]
               },
               "example": {
                 "name": "{{$randomBsNoun}}"
@@ -1277,24 +1198,13 @@
                                   "type": "string"
                                 }
                               },
-                              "required": [
-                                "id",
-                                "username",
-                                "email",
-                                "given_name",
-                                "family_name",
-                                "phone"
-                              ]
+                              "required": ["id", "username", "email", "given_name", "family_name", "phone"]
                             }
                           },
-                          "required": [
-                            "2V4Y4QeBnch2qYvIneER91uro7q"
-                          ]
+                          "required": ["2V4Y4QeBnch2qYvIneER91uro7q"]
                         }
                       },
-                      "required": [
-                        "2V4Y4NfX5qYe29o0X7ENGj4nhVN"
-                      ]
+                      "required": ["2V4Y4NfX5qYe29o0X7ENGj4nhVN"]
                     },
                     "groups": {
                       "type": "array",
@@ -1334,21 +1244,11 @@
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "id",
-                          "tenant_id",
-                          "name"
-                        ]
+                        "required": ["id", "tenant_id", "name"]
                       }
                     }
                   },
-                  "required": [
-                    "tenant_id",
-                    "tenant_name",
-                    "users",
-                    "groups",
-                    "roles"
-                  ]
+                  "required": ["tenant_id", "tenant_name", "users", "groups", "roles"]
                 },
                 "example": {
                   "tenant_id": "2V4Y4TOsXEpzyf6CZwzHNGr9x6X",
@@ -1443,17 +1343,11 @@
                     }
                   }
                 },
-                "required": [
-                  "token",
-                  "scopes"
-                ]
+                "required": ["token", "scopes"]
               },
               "example": {
                 "token": "invite-token-string",
-                "scopes": [
-                  "id",
-                  "offline"
-                ]
+                "scopes": ["id", "offline"]
               }
             }
           }
@@ -1533,22 +1427,13 @@
                                   "type": "string"
                                 }
                               },
-                              "required": [
-                                "id",
-                                "username",
-                                "email",
-                                "phone"
-                              ]
+                              "required": ["id", "username", "email", "phone"]
                             }
                           },
-                          "required": [
-                            "2V4YTGvTEDDOMwMelxJw6uSFDcQ"
-                          ]
+                          "required": ["2V4YTGvTEDDOMwMelxJw6uSFDcQ"]
                         }
                       },
-                      "required": [
-                        "2V4YTKXADlTeyIrz1UOv10Xu0Tg"
-                      ]
+                      "required": ["2V4YTKXADlTeyIrz1UOv10Xu0Tg"]
                     },
                     "groups": {
                       "type": "array",
@@ -1588,21 +1473,11 @@
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "id",
-                          "tenant_id",
-                          "name"
-                        ]
+                        "required": ["id", "tenant_id", "name"]
                       }
                     }
                   },
-                  "required": [
-                    "tenant_id",
-                    "tenant_name",
-                    "users",
-                    "groups",
-                    "roles"
-                  ]
+                  "required": ["tenant_id", "tenant_name", "users", "groups", "roles"]
                 },
                 "example": {
                   "tenant_id": "2V4YTJryFO4UNcNx7Ypt2xArbmj",
@@ -1777,10 +1652,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "invites",
-                    "next_page_skip"
-                  ]
+                  "required": ["invites", "next_page_skip"]
                 },
                 "example": {
                   "invites": [
@@ -1861,9 +1733,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "status"
-                  ]
+                  "required": ["status"]
                 },
                 "example": {
                   "status": "ok"
@@ -1898,18 +1768,10 @@
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "id",
-                        "message",
-                        "status",
-                        "location",
-                        "time"
-                      ]
+                      "required": ["id", "message", "status", "location", "time"]
                     }
                   },
-                  "required": [
-                    "error"
-                  ]
+                  "required": ["error"]
                 },
                 "example": {
                   "error": {
@@ -1958,9 +1820,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "name"
-                ]
+                "required": ["name"]
               },
               "example": {
                 "name": "update_name"
@@ -1980,9 +1840,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "status"
-                  ]
+                  "required": ["status"]
                 },
                 "example": {
                   "status": "ok"
@@ -2017,18 +1875,10 @@
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "id",
-                        "message",
-                        "status",
-                        "location",
-                        "time"
-                      ]
+                      "required": ["id", "message", "status", "location", "time"]
                     }
                   },
-                  "required": [
-                    "error"
-                  ]
+                  "required": ["error"]
                 },
                 "example": {
                   "error": {
@@ -2081,9 +1931,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "link"
-                  ]
+                  "required": ["link"]
                 },
                 "example": {
                   "link": "http://localhost:8765/web/register?appId=2XcJOzKoz7VTx3Rqs60AslDlGfM&token=eyJhbGciOiJFUzI1NiIsImtpZCI6InB1VzVYY0MySkFvQnJHbjBIakxDTWtrWWwySSIsInR5cCI6IkpXVCJ9.eyJhb290aF90bSI6eyIyWGNKZHFEdWFPZTgydjFndWczSGhSVjBaNngiOnsidGVuYW50X2lkIjoiMlhjSmRxRHVhT2U4MnYxZ3VnM0hoUlYwWjZ4IiwiZ3JvdXBzIjp7IjJYY0pkdG5qajF3Rlg2cUxrdWxnNGhlYnNmdyI6WyJ1c2VyIl19fX0sImF1ZCI6WyIyWGNKT3pLb3o3VlR4M1JxczYwQXNsRGxHZk0iXSwiZW1haWwiOiJ3aGF0ZXZlckBtYWRhcHBnYW5nLmNvbSIsImV4cCI6MTY5OTAxMDE5NCwiaWF0IjoxNjk4OTIzNzk0LCJpbnZpdGVyX2lkIjoiMlhjSmRuVWdQTFNvUm0yZmRmamc1MkF3eDVtIiwiaW52aXRlcl9uYW1lIjoiQWxpeWFoIiwiaXNzIjoiaHR0cHM6Ly90ZXN0LmFvb3RoLmNvbSIsImp0aSI6ImpPckx0dlRRQW90REw4XzFRT1cyVUtkbEI3ZTFCd3Z0Ymg5T1A1c2hHZk09IiwicGF5bG9hZCI6eyJkYXRhMSI6IkkgYW0gYWRkaXRpb25hbCBkYXRhIHRvIGluY2x1ZGUiLCJkYXRhMiI6ZmFsc2V9LCJyZWRpcmVjdF91cmwiOiJodHRwOi8vbXl3ZWJzaXRlLmNvbSIsInN1YiI6IjJYY0pkblVnUExTb1JtMmZkZmpnNTJBd3g1bSIsInRlbmFudF9uYW1lIjoiQWxpeWFoIENocmlzdGluYSBHdWxnb3dza2kncyB3b3Jrc3BhY2UiLCJ0eXBlIjoiaW52aXRlIn0.FsrsZT7SS48Eu8hYGhd-5cpCYKCrQJEkj5eDbwNbFyN0PGHG2S6VCjZLXI61Jl-HAkEXPB-iBSEz0LcDtht7LA"
@@ -2118,18 +1966,10 @@
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "id",
-                        "message",
-                        "status",
-                        "location",
-                        "time"
-                      ]
+                      "required": ["id", "message", "status", "location", "time"]
                     }
                   },
-                  "required": [
-                    "error"
-                  ]
+                  "required": ["error"]
                 },
                 "example": {
                   "error": {

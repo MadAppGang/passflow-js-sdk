@@ -1,7 +1,14 @@
-import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY, PASSFLOW_CLOUD_URL } from '../constants';
+import {
+  APP_ID_HEADER_KEY,
+  AUTHORIZATION_HEADER_KEY,
+  DEVICE_ID_HEADER_KEY,
+  DEVICE_TYPE_HEADER_KEY,
+  PASSFLOW_CLOUD_URL,
+} from '../constants';
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
+import { DeviceService } from '../device-service';
 import { StorageManager } from '../storage-manager';
 import { TokenService, isTokenExpired, parseToken } from '../token-service';
 
@@ -26,6 +33,7 @@ export enum HttpStatuses {
 export class AxiosClient {
   private instance: AxiosInstance;
   protected storageManager: StorageManager;
+  protected deviceService: DeviceService;
   private refreshPromise: Promise<AxiosResponse<PassflowAuthorizationResponse>> | null = null;
 
   tokenService: TokenService;
@@ -50,6 +58,7 @@ export class AxiosClient {
     this.storageManager = new StorageManager({
       prefix: keyStoragePrefix ?? '',
     });
+    this.deviceService = new DeviceService();
     this.tokenService = new TokenService();
 
     if (appId) {
@@ -60,6 +69,14 @@ export class AxiosClient {
         [APP_ID_HEADER_KEY]: appId,
       };
     }
+
+    // Add device headers
+    const deviceId = this.deviceService.getDeviceId();
+    this.defaultHeaders = {
+      ...this.defaultHeaders,
+      [DEVICE_ID_HEADER_KEY]: deviceId,
+      [DEVICE_TYPE_HEADER_KEY]: 'web',
+    };
 
     this.instance = axios.create({
       baseURL: this.url,

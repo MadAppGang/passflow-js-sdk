@@ -10,6 +10,7 @@ import {
 } from '../../lib/api';
 import { DeviceService } from '../../lib/device-service';
 import { AuthService } from '../../lib/services/auth-service';
+import { TokenCacheService } from '../../lib/services/token-cache-service';
 import { StorageManager } from '../../lib/storage-manager';
 import { PassflowEvent, PassflowStore } from '../../lib/store';
 import { Token, TokenService, isTokenExpired, parseToken } from '../../lib/token-service';
@@ -55,6 +56,14 @@ describe('AuthService', () => {
   };
   let mockSubscribeStore: {
     notify: Mock;
+  };
+  let mockTokenCacheService: {
+    setTokensCache: Mock;
+    getTokensCache: Mock;
+    getParsedTokenCache: Mock;
+    tokensCacheIsExpired: Mock;
+    getTokensCacheWithRefresh: Mock;
+    initialize: Mock;
   };
 
   const mockScopes = ['profile', 'email'];
@@ -143,12 +152,23 @@ describe('AuthService', () => {
       notify: vi.fn(),
     };
 
+    mockTokenCacheService = {
+      setTokensCache: vi.fn(),
+      getTokensCache: vi.fn().mockReturnValue(mockTokens),
+      getParsedTokenCache: vi.fn().mockReturnValue(mockParsedTokens),
+      tokensCacheIsExpired: vi.fn().mockReturnValue(false),
+      getTokensCacheWithRefresh: vi.fn().mockResolvedValue(mockTokens),
+      initialize: vi.fn(),
+      startTokenCheck: vi.fn(),
+    };
+
     // Create AuthService instance
     authService = new AuthService(
       mockAuthApi as unknown as AuthAPI,
       mockDeviceService as unknown as DeviceService,
       mockStorageManager as unknown as StorageManager,
       mockSubscribeStore as unknown as PassflowStore,
+      mockTokenCacheService as unknown as TokenCacheService,
       mockScopes,
       true, // createTenantForNewUser
       mockOrigin,
@@ -173,7 +193,10 @@ describe('AuthService', () => {
       await authService.signIn(payload);
 
       expect(mockStorageManager.saveTokens).toHaveBeenCalledWith(mockAuthResponse);
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.SignIn, { tokens: mockAuthResponse });
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.SignIn, {
+        tokens: mockAuthResponse,
+        parsedTokens: mockParsedTokens,
+      });
     });
   });
 
@@ -218,7 +241,10 @@ describe('AuthService', () => {
       await authService.signUp(payload);
 
       expect(mockStorageManager.saveTokens).toHaveBeenCalledWith(mockAuthResponse);
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.Register, { tokens: mockAuthResponse });
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.Register, {
+        tokens: mockAuthResponse,
+        parsedTokens: mockParsedTokens,
+      });
     });
   });
 
@@ -253,6 +279,7 @@ describe('AuthService', () => {
       });
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.Refresh, {
         tokens: expect.objectContaining(mockAuthResponse),
+        parsedTokens: mockParsedTokens,
       });
     });
 
