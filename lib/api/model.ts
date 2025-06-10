@@ -245,7 +245,7 @@ export type AppSettings = {
   fim_merge_by_email_allowed: boolean;
   debug_otp_code_allowed: boolean;
   debug_otp_code_for_registration: string;
-  default: DefaultAppSettings;
+  defaults: DefaultAppSettings;
   login_app_theme: LoginWebAppTheme;
   login_app_settings?: unknown;
 };
