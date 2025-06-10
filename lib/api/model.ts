@@ -245,9 +245,16 @@ export type AppSettings = {
   fim_merge_by_email_allowed: boolean;
   debug_otp_code_allowed: boolean;
   debug_otp_code_for_registration: string;
-
+  default: DefaultAppSettings;
   login_app_theme: LoginWebAppTheme;
   login_app_settings?: unknown;
+};
+
+export type DefaultAppSettings = {
+  app_id: string;
+  redirect: string;
+  scopes: string[];
+  create_tenant_for_new_user: boolean;
 };
 
 export enum OS {
