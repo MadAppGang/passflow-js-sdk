@@ -2,7 +2,7 @@
 
 ## Changelog
 
-### Version 0.1.42
+### Version 0.1.44
 
 - Fixed bug related to null/undefined checks in the codebase
 
@@ -10,7 +10,7 @@
 
 - [Passflow JavaScript SDK Documentation](#passflow-javascript-sdk-documentation)
   - [Changelog](#changelog)
-    - [Version 0.1.42](#version-0142)
+    - [Version 0.1.44](#version-0144)
   - [Table of Contents](#table-of-contents)
   - [Quick Start Examples](#quick-start-examples)
     - [Basic Initialization](#basic-initialization)
