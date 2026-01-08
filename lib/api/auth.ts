@@ -1,7 +1,8 @@
 import { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/types';
 import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY } from '../constants';
 
-import { StorageManager } from '../storage-manager';
+import { DeviceService } from '../device';
+import { StorageManager } from '../storage';
 
 import { AxiosClient } from './axios-client';
 import {
@@ -33,10 +34,9 @@ import {
 
 export class AuthAPI {
   protected axiosClient: AxiosClient;
-  protected storageManager = new StorageManager();
 
-  constructor(config: PassflowConfig) {
-    this.axiosClient = new AxiosClient(config);
+  constructor(config: PassflowConfig, storageManager?: StorageManager, deviceService?: DeviceService) {
+    this.axiosClient = new AxiosClient(config, storageManager, deviceService);
   }
 
   refreshToken(refreshToken: string, scopes: string[], accessToken?: string): Promise<PassflowAuthorizationResponse> {

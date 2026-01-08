@@ -1,4 +1,4 @@
-import { Token } from '../token-service';
+import { Token } from '../token';
 
 export type Tokens = {
   access_token: string;

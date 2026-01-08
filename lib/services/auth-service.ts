@@ -18,11 +18,13 @@ import {
   PassflowSuccessResponse,
   PassflowValidationResponse,
 } from '../api';
-import { DeviceService } from '../device-service';
-import { StorageManager } from '../storage-manager';
+import { POPUP_HEIGHT, POPUP_POLL_INTERVAL_MS, POPUP_TIMEOUT_MS, POPUP_WIDTH } from '../constants';
+import { DeviceService } from '../device';
+import { StorageManager } from '../storage';
 import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
-import { TokenType, isTokenExpired, parseToken } from '../token-service';
+import { TokenType, isTokenExpired, parseToken } from '../token';
 import { ParsedTokens, Tokens } from '../types';
+import { isValidEmail, isValidPhoneNumber, isValidUsername } from '../utils/validation';
 import { TokenCacheService } from './token-cache-service';
 
 /**
@@ -47,6 +49,49 @@ export class AuthService {
   ) {}
 
   async signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
+    // Validate input before API call
+    if ('email' in payload && payload.email) {
+      if (!isValidEmail(payload.email)) {
+        const error = new Error('Invalid email format');
+        const errorPayload: ErrorPayload = {
+          message: 'Invalid email format',
+          originalError: error,
+          code: 'VALIDATION_ERROR',
+        };
+        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        throw error;
+      }
+    }
+
+    if ('username' in payload && payload.username) {
+      if (!isValidUsername(payload.username)) {
+        const error = new Error(
+          'Invalid username format. Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens',
+        );
+        const errorPayload: ErrorPayload = {
+          message:
+            'Invalid username format. Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens',
+          originalError: error,
+          code: 'VALIDATION_ERROR',
+        };
+        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        throw error;
+      }
+    }
+
+    if ('phone' in payload && payload.phone) {
+      if (!isValidPhoneNumber(payload.phone)) {
+        const error = new Error('Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)');
+        const errorPayload: ErrorPayload = {
+          message: 'Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)',
+          originalError: error,
+          code: 'VALIDATION_ERROR',
+        };
+        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        throw error;
+      }
+    }
+
     this.subscribeStore.notify(PassflowEvent.SignInStart, { email: payload.email });
     const deviceId = this.deviceService.getDeviceId();
     const os = OS.web;
@@ -59,7 +104,7 @@ export class AuthService {
       this.tokenCacheService.setTokensCache(response);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
-        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
       });
       await this.submitSessionCheck();
       return response;
@@ -75,6 +120,29 @@ export class AuthService {
   }
 
   async signUp(payload: PassflowSignUpPayload): Promise<PassflowAuthorizationResponse> {
+    // Validate user input before API call
+    if (payload.user.email && !isValidEmail(payload.user.email)) {
+      const error = new Error('Invalid email format');
+      const errorPayload: ErrorPayload = {
+        message: 'Invalid email format',
+        originalError: error,
+        code: 'VALIDATION_ERROR',
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
+
+    if (payload.user.phone_number && !isValidPhoneNumber(payload.user.phone_number)) {
+      const error = new Error('Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)');
+      const errorPayload: ErrorPayload = {
+        message: 'Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)',
+        originalError: error,
+        code: 'VALIDATION_ERROR',
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
+
     this.subscribeStore.notify(PassflowEvent.RegisterStart, { email: payload.user.email });
     payload.scopes = payload.scopes ?? this.scopes;
     payload.create_tenant = this.createTenantForNewUser;
@@ -86,7 +154,7 @@ export class AuthService {
       this.tokenCacheService.setTokensCache(response);
       this.subscribeStore.notify(PassflowEvent.Register, {
         tokens: response,
-        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
       });
       await this.submitSessionCheck();
       return response;
@@ -102,6 +170,29 @@ export class AuthService {
   }
 
   async passwordlessSignIn(payload: PassflowPasswordlessSignInPayload): Promise<PassflowPasswordlessResponse> {
+    // Validate input before API call
+    if (payload.email && !isValidEmail(payload.email)) {
+      const error = new Error('Invalid email format');
+      const errorPayload: ErrorPayload = {
+        message: 'Invalid email format',
+        originalError: error,
+        code: 'VALIDATION_ERROR',
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
+
+    if (payload.phone && !isValidPhoneNumber(payload.phone)) {
+      const error = new Error('Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)');
+      const errorPayload: ErrorPayload = {
+        message: 'Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)',
+        originalError: error,
+        code: 'VALIDATION_ERROR',
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      throw error;
+    }
+
     this.subscribeStore.notify(PassflowEvent.SignInStart, { email: payload.email });
     payload.scopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
@@ -135,7 +226,7 @@ export class AuthService {
       this.tokenCacheService.setTokensCache(response);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
-        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
       });
       await this.submitSessionCheck();
       return response;
@@ -154,18 +245,12 @@ export class AuthService {
     const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
     const deviceId = this.storageManager.getDeviceId();
 
-    try {
-      const response = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
-      if (response.status !== 'ok') {
-        throw new Error('Logout failed');
-      }
-      this.storageManager.deleteTokens();
-      this.subscribeStore.notify(PassflowEvent.SignOut, {});
-    } catch (error) {
-      // biome-ignore lint/suspicious/noConsole: <explanation>
-      console.error(error);
-      throw error;
+    const response = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
+    if (response.status !== 'ok') {
+      throw new Error('Logout failed');
     }
+    this.storageManager.deleteTokens();
+    this.subscribeStore.notify(PassflowEvent.SignOut, {});
   }
 
   async refreshToken(): Promise<PassflowAuthorizationResponse> {
@@ -197,11 +282,11 @@ export class AuthService {
       this.tokenCacheService.setTokensCache(response);
       this.subscribeStore.notify(PassflowEvent.Refresh, {
         tokens: response,
-        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
       });
       this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
       this.tokenCacheService.isRefreshing = false;
-      this.tokenCacheService.isExpired = false;
+      this.tokenCacheService.tokenExpiredFlag = false;
       this.tokenCacheService.startTokenCheck();
       return response;
     } catch (error) {
@@ -256,7 +341,7 @@ export class AuthService {
       this.tokenCacheService.setTokensCache(response);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
-        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
       });
       await this.submitSessionCheck();
       return response;
@@ -297,7 +382,7 @@ export class AuthService {
       this.tokenCacheService.setTokensCache(responseRegisterComplete);
       this.subscribeStore.notify(PassflowEvent.Register, {
         tokens: responseRegisterComplete,
-        parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
       });
       await this.submitSessionCheck();
       return responseRegisterComplete;
@@ -337,7 +422,7 @@ export class AuthService {
         this.tokenCacheService.setTokensCache(responseAuthenticateComplete);
         this.subscribeStore.notify(PassflowEvent.SignIn, {
           tokens: responseAuthenticateComplete,
-          parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+          parsedTokens: this.tokenCacheService.getParsedTokens(),
         });
         await this.submitSessionCheck();
       }
@@ -382,12 +467,41 @@ export class AuthService {
     const deviceId = this.deviceService.getDeviceId();
     const passflowURL = this.createFederatedAuthUrl({ ...payload, scopes: sscopes, device: deviceId });
 
-    const popupWindow = window.open(passflowURL, '_blank', 'width=500,height=500');
+    const popupWindow = window.open(passflowURL, '_blank', `width=${POPUP_WIDTH},height=${POPUP_HEIGHT}`);
 
     if (!popupWindow) {
       this.federatedAuthWithRedirect(payload);
-    } else {
-      const checkInterval = setInterval(() => {
+      return;
+    }
+
+    const startTime = Date.now();
+
+    const checkInterval = setInterval(() => {
+      // Check if popup was closed by user
+      if (popupWindow.closed) {
+        clearInterval(checkInterval);
+        const errorPayload: ErrorPayload = {
+          message: 'Authentication popup was closed',
+          code: 'POPUP_CLOSED',
+        };
+        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        return;
+      }
+
+      // Check for timeout
+      if (Date.now() - startTime > POPUP_TIMEOUT_MS) {
+        clearInterval(checkInterval);
+        popupWindow.close();
+        const errorPayload: ErrorPayload = {
+          message: 'Authentication popup timed out',
+          code: 'POPUP_TIMEOUT',
+        };
+        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        return;
+      }
+
+      // Try to check popup URL (may throw cross-origin error)
+      try {
         if (popupWindow.location.href.startsWith(this.origin)) {
           const urlParams = new URLSearchParams(popupWindow.location.search);
           const access_token = urlParams.get('access_token') || '';
@@ -396,22 +510,27 @@ export class AuthService {
 
           const tokensData = {
             access_token,
-            refresh_token,
-            id_token,
+            refresh_token: refresh_token || undefined,
+            id_token: id_token || undefined,
             scopes: sscopes,
           };
+
           this.storageManager.saveTokens(tokensData);
           this.tokenCacheService.setTokensCache(tokensData);
           this.subscribeStore.notify(PassflowEvent.SignIn, {
             tokens: tokensData,
-            parsedTokens: this.tokenCacheService.getParsedTokenCache(),
+            parsedTokens: this.tokenCacheService.getParsedTokens(),
           });
-          window.location.href = `${this.origin}`;
+
           clearInterval(checkInterval);
           popupWindow.close();
+          window.location.href = `${this.origin}`;
         }
-      }, 100);
-    }
+      } catch (_error) {
+        // Expected cross-origin error - popup still on auth provider domain
+        // Continue polling
+      }
+    }, POPUP_POLL_INTERVAL_MS);
   }
 
   federatedAuthWithRedirect(payload: PassflowFederatedAuthPayload): void {
@@ -423,14 +542,7 @@ export class AuthService {
   }
 
   // Helper methods for authentication UI redirect
-  authRedirectUrl(
-    options: {
-      url?: string;
-      redirectUrl?: string;
-      scopes?: string[];
-      appId?: string;
-    } = {},
-  ): string {
+  authRedirectUrl(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string } = {}): string {
     try {
       const { url, redirectUrl, scopes, appId } = options ?? {};
       const externalUrl = new URL(url ?? this.url);
@@ -456,14 +568,7 @@ export class AuthService {
     }
   }
 
-  authRedirect(
-    options: {
-      url?: string;
-      redirectUrl?: string;
-      scopes?: string[];
-      appId?: string;
-    } = {},
-  ): void {
+  authRedirect(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string } = {}): void {
     try {
       window.location.href = this.authRedirectUrl(options);
     } catch (error) {
@@ -505,7 +610,7 @@ export class AuthService {
     let parsedTokens;
     try {
       tokens = await this.getTokens(doRefresh);
-      parsedTokens = this.tokenCacheService.getParsedTokenCache();
+      parsedTokens = this.tokenCacheService.getParsedTokens();
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error || error instanceof PassflowError ? error.message : 'Session check failed',

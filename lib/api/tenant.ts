@@ -1,3 +1,6 @@
+import { DeviceService } from '../device';
+import { StorageManager } from '../storage';
+
 import { AxiosClient } from './axios-client';
 import {
   PassflowAuthorizationResponse,
@@ -98,8 +101,8 @@ export type PassflowUpdateRolePayload = {
 export class TenantAPI {
   protected axiosClient: AxiosClient;
 
-  constructor(config: PassflowConfig) {
-    this.axiosClient = new AxiosClient(config);
+  constructor(config: PassflowConfig, storageManager?: StorageManager, deviceService?: DeviceService) {
+    this.axiosClient = new AxiosClient(config, storageManager, deviceService);
   }
 
   joinInvitation(token: string, scopes: string[]): Promise<PassflowAuthorizationResponse> {

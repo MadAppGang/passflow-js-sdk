@@ -1,3 +1,13 @@
+/**
+ * Passflow Store
+ *
+ * Event subscription system using the Observer pattern.
+ * Manages authentication event notifications to subscribers.
+ * Supports filtered subscriptions for specific event types.
+ *
+ * @module store
+ */
+
 import { ParsedTokens, Tokens } from './types';
 
 /**

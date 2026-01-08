@@ -1,4 +1,14 @@
-import { TokenType } from '../token-service';
+/**
+ * Storage Manager
+ *
+ * Abstraction layer over browser localStorage for token and data persistence.
+ * Supports custom storage implementations for testing and alternative platforms.
+ * Handles key prefixing for multi-app scenarios.
+ *
+ * @module storage
+ */
+
+import { TokenType } from '../token';
 import { Tokens } from '../types';
 
 export type Storage = {

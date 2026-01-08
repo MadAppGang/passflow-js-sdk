@@ -1,10 +1,46 @@
-import { StorageManager } from '../storage-manager';
+/**
+ * Token Service
+ *
+ * JWT token parsing, validation, and utility functions.
+ * Provides platform-agnostic Base64 decoding for SSR/Node.js support.
+ * Handles token expiry calculations with configurable buffer time.
+ *
+ * @module token
+ */
+
+import { TOKEN_EXPIRY_BUFFER_SECONDS } from '../constants';
+import { StorageManager } from '../storage';
 
 import { parseMembership } from './membership';
 import { Token, TokenType } from './token';
 
+/**
+ * Decodes a Base64-encoded string in a platform-agnostic way.
+ * Works in both browser (using atob) and Node.js (using Buffer) environments.
+ *
+ * @param base64 - The Base64 string to decode
+ * @returns Decoded string
+ */
+function decodeBase64(base64: string): string {
+  // Browser environment
+  if (typeof window !== 'undefined' && typeof window.atob === 'function') {
+    return window.atob(base64);
+  }
+
+  // Node.js environment
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(base64, 'base64').toString('utf-8');
+  }
+
+  throw new Error('No Base64 decoding method available in this environment');
+}
+
 export class TokenService {
-  protected storageManager = new StorageManager();
+  protected storageManager: StorageManager;
+
+  constructor(storageManager: StorageManager) {
+    this.storageManager = storageManager;
+  }
 
   /**
    * Checks if a token is not exists or expired.
@@ -38,11 +74,13 @@ export class TokenService {
  * Checks if a token is expired.
  *
  * @param {Token} token - The token to check.
- * @returns {boolean} Returns true if the token is expired, false otherwise.
+ * @param {number} bufferSeconds - Time buffer in seconds to consider token expired early
+ *                                 This prevents race conditions where token expires during request
+ * @returns {boolean} Returns true if the token is expired or will expire within buffer time, false otherwise.
  */
-export function isTokenExpired(token: Token): boolean {
+export function isTokenExpired(token: Token, bufferSeconds = TOKEN_EXPIRY_BUFFER_SECONDS): boolean {
   const currentUnixTime = Math.floor(Date.now() / 1000);
-  return currentUnixTime > token.exp;
+  return currentUnixTime + bufferSeconds > token.exp;
 }
 
 /**
@@ -55,10 +93,17 @@ export function parseToken(tokenString: string): Token {
   const base64Url = tokenString.split('.')[1];
 
   if (!base64Url) throw new Error('Invalid token string');
+
   const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+
+  // Add padding if necessary (some JWTs don't include padding)
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+
+  // Use the platform-agnostic decoder
+  const decoded = decodeBase64(padded);
+
   const jsonPayload = decodeURIComponent(
-    window
-      .atob(base64)
+    decoded
       .split('')
       .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
       .join(''),

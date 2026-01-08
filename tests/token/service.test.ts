@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test } from 'vitest';
-import { StorageManager } from '../../lib/storage-manager';
-import { Token, TokenService, TokenType, isTokenExpired, parseToken } from '../../lib/token-service';
-import { parseMembership } from '../../lib/token-service/membership';
+import { StorageManager } from '../../lib/storage';
+import { Token, TokenService, TokenType, isTokenExpired, parseToken } from '../../lib/token';
+import { parseMembership } from '../../lib/token/membership';
 
-import { FakeStorage } from '../storage-manager/fake-storage';
+import { FakeStorage } from '../storage/fake-storage';
 
 describe('token service', () => {
   let storageManager: StorageManager;

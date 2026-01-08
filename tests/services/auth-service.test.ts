@@ -8,19 +8,19 @@ import {
   PassflowSuccessResponse,
   PassflowUserPayload,
 } from '../../lib/api';
-import { DeviceService } from '../../lib/device-service';
+import { DeviceService } from '../../lib/device';
 import { AuthService } from '../../lib/services/auth-service';
 import { TokenCacheService } from '../../lib/services/token-cache-service';
-import { StorageManager } from '../../lib/storage-manager';
+import { StorageManager } from '../../lib/storage';
 import { PassflowEvent, PassflowStore } from '../../lib/store';
-import { Token, TokenService, isTokenExpired, parseToken } from '../../lib/token-service';
+import { Token, TokenService, isTokenExpired, parseToken } from '../../lib/token';
 import { ParsedTokens, Tokens } from '../../lib/types';
 
 // Mock dependencies
 vi.mock('../../lib/api/auth');
-vi.mock('../../lib/device-service');
-vi.mock('../../lib/storage-manager');
-vi.mock('../../lib/token-service');
+vi.mock('../../lib/device');
+vi.mock('../../lib/storage');
+vi.mock('../../lib/token');
 vi.mock('../../lib/store');
 vi.mock('@simplewebauthn/browser', () => ({
   startAuthentication: vi.fn().mockResolvedValue({ id: 'auth-id' }),
@@ -59,10 +59,10 @@ describe('AuthService', () => {
   };
   let mockTokenCacheService: {
     setTokensCache: Mock;
-    getTokensCache: Mock;
-    getParsedTokenCache: Mock;
-    tokensCacheIsExpired: Mock;
-    getTokensCacheWithRefresh: Mock;
+    getTokens: Mock;
+    getParsedTokens: Mock;
+    isExpired: Mock;
+    getTokensWithRefresh: Mock;
     initialize: Mock;
   };
 
@@ -154,12 +154,14 @@ describe('AuthService', () => {
 
     mockTokenCacheService = {
       setTokensCache: vi.fn(),
-      getTokensCache: vi.fn().mockReturnValue(mockTokens),
-      getParsedTokenCache: vi.fn().mockReturnValue(mockParsedTokens),
-      tokensCacheIsExpired: vi.fn().mockReturnValue(false),
-      getTokensCacheWithRefresh: vi.fn().mockResolvedValue(mockTokens),
+      getTokens: vi.fn().mockReturnValue(mockTokens),
+      getParsedTokens: vi.fn().mockReturnValue(mockParsedTokens),
+      isExpired: vi.fn().mockReturnValue(false),
+      getTokensWithRefresh: vi.fn().mockResolvedValue(mockTokens),
       initialize: vi.fn(),
       startTokenCheck: vi.fn(),
+      isRefreshing: false,
+      tokenExpiredFlag: false,
     };
 
     // Create AuthService instance

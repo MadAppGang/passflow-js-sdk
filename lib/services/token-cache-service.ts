@@ -1,7 +1,7 @@
 import { AuthAPI } from '../api';
-import { StorageManager } from '../storage-manager';
+import { StorageManager } from '../storage';
 import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
-import { isTokenExpired, parseToken } from '../token-service';
+import { isTokenExpired, parseToken } from '../token';
 import type { ParsedTokens, Tokens } from '../types';
 
 export class TokenCacheService {
@@ -9,9 +9,10 @@ export class TokenCacheService {
   parsedTokensCache: ParsedTokens | undefined;
 
   private checkInterval: NodeJS.Timeout | null = null;
-  private readonly CHECK_INTERVAL = 10;
+  private readonly CHECK_INTERVAL = 60000; // 1 minute (was 10ms)
+  private visibilityChangeHandler: (() => void) | null = null;
   isRefreshing = false;
-  isExpired = false;
+  tokenExpiredFlag = false;
 
   constructor(
     private storageManager: StorageManager,
@@ -20,6 +21,7 @@ export class TokenCacheService {
   ) {
     this.storageManager = storageManager;
     this.authApi = authApi;
+    this.setupPageUnloadHandler();
   }
 
   initialize() {
@@ -33,7 +35,7 @@ export class TokenCacheService {
       const access = parseToken(tokens.access_token);
 
       if (isTokenExpired(access)) {
-        this.isExpired = true;
+        this.tokenExpiredFlag = true;
         this.stopTokenCheck();
         this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: true });
       } else {
@@ -60,9 +62,9 @@ export class TokenCacheService {
       const response = await this.authApi.refreshToken(tokens?.refresh_token ?? '', tokens.scopes ?? [], tokens.access_token);
       this.setTokensCache(response);
 
-      this.subscribeStore.notify(PassflowEvent.Refresh, { tokens: response, parsedTokens: this.getParsedTokenCache() });
+      this.subscribeStore.notify(PassflowEvent.Refresh, { tokens: response, parsedTokens: this.getParsedTokens() });
       this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
-      this.isExpired = false;
+      this.tokenExpiredFlag = false;
       this.startTokenCheck();
     } catch (error) {
       const errorPayload: ErrorPayload = {
@@ -81,17 +83,55 @@ export class TokenCacheService {
       clearInterval(this.checkInterval);
     }
 
-    if (this.isExpired) return;
+    if (this.tokenExpiredFlag) return;
+
+    // Setup Page Visibility API listener
+    this.setupVisibilityListener();
 
     this.checkInterval = setInterval(() => {
-      if (this.isRefreshing || this.isExpired) return;
+      // Skip check if page is hidden
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
 
-      if (this.tokensCacheIsExpired() && !this.isExpired) {
-        this.isExpired = true;
+      if (this.isRefreshing || this.tokenExpiredFlag) return;
+
+      if (this.isExpired() && !this.tokenExpiredFlag) {
+        this.tokenExpiredFlag = true;
         this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: true });
         this.stopTokenCheck();
       }
     }, this.CHECK_INTERVAL);
+  }
+
+  private setupVisibilityListener() {
+    if (typeof document === 'undefined') return;
+
+    // Remove previous listener if exists
+    if (this.visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+    }
+
+    this.visibilityChangeHandler = () => {
+      if (!document.hidden && this.checkInterval) {
+        // Page became visible, do immediate check
+        if (!this.isRefreshing && !this.tokenExpiredFlag && this.isExpired()) {
+          this.tokenExpiredFlag = true;
+          this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: true });
+          this.stopTokenCheck();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+  }
+
+  private setupPageUnloadHandler() {
+    if (typeof window === 'undefined') return;
+
+    window.addEventListener('beforeunload', () => {
+      this.destroy();
+    });
   }
 
   private stopTokenCheck() {
@@ -99,6 +139,19 @@ export class TokenCacheService {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
     }
+
+    if (this.visibilityChangeHandler && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+      this.visibilityChangeHandler = null;
+    }
+  }
+
+  /**
+   * Cleanup method to stop all intervals and remove event listeners.
+   * Should be called when the service is no longer needed.
+   */
+  destroy() {
+    this.stopTokenCheck();
   }
 
   setTokensCache(tokens: Tokens | undefined): void {
@@ -115,17 +168,17 @@ export class TokenCacheService {
     }
   }
 
-  getTokensCache() {
+  getTokens() {
     return this.tokensCache;
   }
 
-  async getTokensCacheWithRefresh() {
+  async getTokensWithRefresh() {
     try {
       if (!this.tokensCache) return this.tokensCache;
 
       const access = parseToken(this.tokensCache.access_token);
 
-      if (isTokenExpired(access) && !this.isExpired) {
+      if (isTokenExpired(access) && !this.tokenExpiredFlag) {
         await this.refreshTokensCache(this.tokensCache);
         return this.tokensCache;
       } else {
@@ -141,11 +194,11 @@ export class TokenCacheService {
     }
   }
 
-  getParsedTokenCache() {
+  getParsedTokens() {
     return this.parsedTokensCache;
   }
 
-  tokensCacheIsExpired() {
+  isExpired() {
     if (!this.tokensCache) return true;
     const access = parseToken(this.tokensCache.access_token);
     return isTokenExpired(access);

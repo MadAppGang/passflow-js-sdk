@@ -1,11 +1,11 @@
 import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
 import { OS, PassflowSuccessResponse, UserAPI } from '../../lib/api';
-import { DeviceService } from '../../lib/device-service';
+import { DeviceService } from '../../lib/device';
 import { UserService } from '../../lib/services/user-service';
 
 // Mock dependencies
 vi.mock('../../lib/api/user');
-vi.mock('../../lib/device-service');
+vi.mock('../../lib/device');
 vi.mock('@simplewebauthn/browser', () => {
   return {
     startRegistration: vi.fn().mockImplementation(() => {

@@ -17,14 +17,14 @@ vi.mock('axios', () => ({
 }));
 
 // Mock DeviceService
-vi.mock('../../lib/device-service', () => ({
+vi.mock('../../lib/device', () => ({
   DeviceService: vi.fn(() => ({
     getDeviceId: () => 'test-device-id-123',
   })),
 }));
 
 // Mock StorageManager
-vi.mock('../../lib/storage-manager', () => ({
+vi.mock('../../lib/storage', () => ({
   StorageManager: vi.fn(() => ({
     getTokens: () => null,
     getScopes: () => [],
@@ -32,7 +32,7 @@ vi.mock('../../lib/storage-manager', () => ({
 }));
 
 // Mock TokenService
-vi.mock('../../lib/token-service', () => ({
+vi.mock('../../lib/token', () => ({
   TokenService: vi.fn(() => ({})),
   isTokenExpired: vi.fn(),
   parseToken: vi.fn(),

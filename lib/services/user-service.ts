@@ -68,4 +68,4 @@ export class UserService {
 }
 
 // We need to import DeviceService after the class definition to avoid circular dependency
-import { DeviceService } from '../device-service';
+import { DeviceService } from '../device';

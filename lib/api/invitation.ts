@@ -1,3 +1,6 @@
+import { DeviceService } from '../device';
+import { StorageManager } from '../storage';
+
 import { AxiosClient } from './axios-client';
 import { type PassflowConfig, PassflowEndpointPaths, type PassflowSuccessResponse, pathWithParams } from './model';
 
@@ -50,8 +53,8 @@ export interface InvitationsPaginatedList {
 export class InvitationAPI {
   protected axiosClient: AxiosClient;
 
-  constructor(config: PassflowConfig) {
-    this.axiosClient = new AxiosClient(config);
+  constructor(config: PassflowConfig, storageManager?: StorageManager, deviceService?: DeviceService) {
+    this.axiosClient = new AxiosClient(config, storageManager, deviceService);
   }
 
   /**

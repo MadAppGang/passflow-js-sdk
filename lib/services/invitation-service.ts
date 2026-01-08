@@ -10,7 +10,7 @@ import type {
  * Service for managing invitations
  */
 export class InvitationService {
-  constructor(private invitationAPI: InvitationAPI) {}
+  constructor(private invitationApi: InvitationAPI) {}
 
   /**
    * Requests an invitation link that can be used to invite users
@@ -18,7 +18,7 @@ export class InvitationService {
    * @returns Promise with invitation link and token
    */
   requestInviteLink(payload: RequestInviteLinkPayload): Promise<InviteLinkResponse> {
-    return this.invitationAPI.requestInviteLink(payload);
+    return this.invitationApi.requestInviteLink(payload);
   }
 
   /**
@@ -32,7 +32,7 @@ export class InvitationService {
     skip?: number | string;
     limit?: number | string;
   }): Promise<InvitationsPaginatedList> {
-    return this.invitationAPI.getInvitations(options);
+    return this.invitationApi.getInvitations(options);
   }
 
   /**
@@ -41,7 +41,7 @@ export class InvitationService {
    * @returns Promise with success response
    */
   deleteInvitation(token: string): Promise<PassflowSuccessResponse> {
-    return this.invitationAPI.deleteInvitation(token);
+    return this.invitationApi.deleteInvitation(token);
   }
 
   /**
@@ -50,7 +50,7 @@ export class InvitationService {
    * @returns Promise with success response
    */
   resendInvitation(token: string): Promise<PassflowSuccessResponse> {
-    return this.invitationAPI.resendInvitation(token);
+    return this.invitationApi.resendInvitation(token);
   }
 
   /**
@@ -59,6 +59,6 @@ export class InvitationService {
    * @returns Promise with the link
    */
   getInvitationLink(invitationID: string): Promise<InviteLinkResponse> {
-    return this.invitationAPI.getInvitationLink(invitationID);
+    return this.invitationApi.getInvitationLink(invitationID);
   }
 }

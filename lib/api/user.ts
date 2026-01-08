@@ -1,5 +1,8 @@
 import { RegistrationResponseJSON } from '@simplewebauthn/types';
 
+import { DeviceService } from '../device';
+import { StorageManager } from '../storage';
+
 import { AxiosClient } from './axios-client';
 import {
   OS,
@@ -14,8 +17,8 @@ import {
 export class UserAPI {
   protected axiosClient: AxiosClient;
 
-  constructor(config: PassflowConfig) {
-    this.axiosClient = new AxiosClient(config);
+  constructor(config: PassflowConfig, storageManager?: StorageManager, deviceService?: DeviceService) {
+    this.axiosClient = new AxiosClient(config, storageManager, deviceService);
   }
 
   getUserPasskeys() {

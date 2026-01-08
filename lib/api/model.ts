@@ -113,11 +113,12 @@ export class PassflowError extends Error {
 export type PassflowSignInPayload = {
   password: string;
   scopes?: string[];
-  email?: string;
-  phone?: string;
-  username?: string;
   invite_token?: string;
-} & ({ email: string } | { phone: string } | { username: string });
+} & (
+  | { email: string; phone?: never; username?: never }
+  | { phone: string; email?: never; username?: never }
+  | { username: string; email?: never; phone?: never }
+);
 
 export type PassflowSignInExtendedPayload = PassflowSignInPayload & {
   device: string;
@@ -166,10 +167,8 @@ export type PassflowPasswordlessSignInPayload = {
   redirect_url: string;
   scopes?: string[];
   create_tenant?: boolean;
-  email?: string;
-  phone?: string;
   invite_token?: string;
-} & ({ email: string } | { phone: string });
+} & ({ email: string; phone?: never } | { phone: string; email?: never });
 
 export type PassflowPasswordlessResponse = {
   challenge_id: string;
@@ -404,12 +403,13 @@ export type PassflowUserPasskey = {
 };
 
 export type PassflowSendPasswordResetEmailPayload = {
-  email?: string;
-  phone?: string;
-  username?: string;
   reset_page_url?: string;
   redirect_url?: string;
-} & ({ email: string } | { phone: string } | { username: string });
+} & (
+  | { email: string; phone?: never; username?: never }
+  | { phone: string; email?: never; username?: never }
+  | { username: string; email?: never; phone?: never }
+);
 
 export type PassflowInviteResponse = {
   link: string;

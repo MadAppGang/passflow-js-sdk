@@ -107,12 +107,7 @@ describe('TenantAPI', () => {
 
     // Setup default mock response
     mockAxiosInstance.request.mockImplementation(
-      (config: {
-        method?: string;
-        url: string;
-        data?: unknown;
-        params?: Record<string, unknown>;
-      }) => {
+      (config: { method?: string; url: string; data?: unknown; params?: Record<string, unknown> }) => {
         // Default response
         let responseData = {};
 

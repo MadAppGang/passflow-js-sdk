@@ -1,12 +1,22 @@
+/**
+ * Device Service
+ *
+ * Manages device identification for security and tracking purposes.
+ * Generates and persists unique device IDs using UUID v4.
+ * Used for device-based authentication and session management.
+ *
+ * @module device
+ */
+
 import { v4 as uuidv4 } from 'uuid';
 
-import { StorageManager } from '../storage-manager';
+import { StorageManager } from '../storage';
 
 export class DeviceService {
   private storageManager: StorageManager;
 
-  constructor() {
-    this.storageManager = new StorageManager();
+  constructor(storageManager?: StorageManager) {
+    this.storageManager = storageManager ?? new StorageManager();
   }
 
   getDeviceId(): string {

@@ -1,8 +1,9 @@
 /// <reference types="vitest" />
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import type { Mock } from 'vitest';
-import { StorageManager } from '../../lib/storage-manager/index';
-import { TokenType } from '../../lib/token-service/token';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { StorageManager } from '../../lib/storage/index';
+import { TokenType } from '../../lib/token/token';
 import { FakeStorage } from './fake-storage';
 
 // Create a type for our mock functions
