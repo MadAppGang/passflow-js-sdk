@@ -27,3 +27,25 @@ export {
 export * from './types';
 // Re-export validation utilities
 export { isValidEmail, isValidJWTFormat, isValidPhoneNumber, isValidUsername, sanitizeErrorMessage } from './utils/validation';
+
+// Re-export Two-Factor Authentication types (explicitly for clarity)
+export type {
+  TwoFactorConfirmRequest,
+  TwoFactorConfirmResponse,
+  TwoFactorDisableRequest,
+  TwoFactorDisableResponse,
+  TwoFactorErrorCode,
+  TwoFactorPolicy,
+  TwoFactorRecoveryRequest,
+  TwoFactorRecoveryResponse,
+  TwoFactorRegenerateRequest,
+  TwoFactorRegenerateResponse,
+  TwoFactorSetupResponse,
+  TwoFactorStatusResponse,
+  TwoFactorVerifyRequest,
+  TwoFactorVerifyResponse,
+} from './api/model';
+
+// Re-export Two-Factor Authentication API client and service
+export { TwoFactorApiClient } from './api/two-factor';
+export { TwoFactorService } from './services/two-factor-service';

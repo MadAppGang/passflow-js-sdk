@@ -49,6 +49,13 @@ export enum PassflowEndpointPaths {
   invitationDelete = '/user/invite/:invitationID',
   invitationResend = '/user/invite/:invitationID/resend',
   invitationGetLink = '/user/invite/:invitationID/link',
+  twoFactor = '/user/2fa',
+  twoFactorStatus = '/user/2fa/status',
+  twoFactorSetupBegin = '/user/2fa/setup/begin',
+  twoFactorSetupConfirm = '/user/2fa/setup/confirm',
+  twoFactorVerify = '/user/2fa/verify',
+  twoFactorRecovery = '/user/2fa/recovery',
+  twoFactorRegenerateCodes = '/user/2fa/recovery-codes/regenerate',
 }
 
 export enum PassflowAdminEndpointPaths {
@@ -69,7 +76,10 @@ export type PassflowConfig = {
   keyStoragePrefix?: string;
 };
 
-export type PassflowAuthorizationResponse = Tokens;
+export type PassflowAuthorizationResponse = Tokens & {
+  requires_2fa?: boolean;
+  challenge_id?: string;
+};
 
 export type PassflowValidationResponse = Tokens & {
   redirect_url: string;
@@ -526,3 +536,89 @@ export function pathWithParams(template: string, params: Record<string, string>)
 
 // Usage example:
 // const invitationsUrl = pathWithParams(PassflowEndpointPaths.invitationsPath, { tenantID: '123' });
+
+// ============================================
+// Two-Factor Authentication Types
+// ============================================
+
+/**
+ * Two-Factor authentication policy
+ */
+export enum TwoFactorPolicy {
+  Disabled = 'disabled',
+  Optional = 'optional',
+  Required = 'required',
+}
+
+/**
+ * Two-Factor error codes
+ */
+export type TwoFactorErrorCode =
+  | 'INVALID_CODE'
+  | 'CODE_EXPIRED'
+  | 'TOO_MANY_ATTEMPTS'
+  | 'SETUP_NOT_STARTED'
+  | 'ALREADY_ENABLED'
+  | 'NOT_ENABLED'
+  | 'INVALID_RECOVERY_CODE'
+  | 'NO_RECOVERY_CODES_REMAINING'
+  | 'INVALID_CHALLENGE'
+  | 'TIME_DRIFT_DETECTED';
+
+// Request Types
+export type TwoFactorConfirmRequest = {
+  code: string;
+};
+
+export type TwoFactorVerifyRequest = {
+  code: string;
+  challenge_id: string;
+};
+
+export type TwoFactorRecoveryRequest = {
+  recovery_code: string;
+  challenge_id: string;
+};
+
+export type TwoFactorDisableRequest = {
+  code: string;
+};
+
+export type TwoFactorRegenerateRequest = {
+  code: string;
+};
+
+// Response Types
+export type TwoFactorStatusResponse = {
+  enabled: boolean;
+  policy: TwoFactorPolicy;
+  recovery_codes_remaining: number;
+};
+
+export type TwoFactorSetupResponse = {
+  secret: string;
+  qr_code: string;
+};
+
+export type TwoFactorConfirmResponse = {
+  success: true;
+  recovery_codes: string[];
+};
+
+export type TwoFactorVerifyResponse = Tokens & {
+  success: true;
+};
+
+export type TwoFactorRecoveryResponse = Tokens & {
+  success: true;
+  remaining_recovery_codes: number;
+};
+
+export type TwoFactorDisableResponse = {
+  success: true;
+};
+
+export type TwoFactorRegenerateResponse = {
+  success: true;
+  recovery_codes: string[];
+};

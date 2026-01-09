@@ -26,11 +26,19 @@ import {
   type RequestInviteLinkPayload,
   SettingAPI,
   TenantAPI,
+  TwoFactorApiClient,
+  type TwoFactorConfirmResponse,
+  type TwoFactorDisableResponse,
+  type TwoFactorRecoveryResponse,
+  type TwoFactorRegenerateResponse,
+  type TwoFactorSetupResponse,
+  type TwoFactorStatusResponse,
+  type TwoFactorVerifyResponse,
   UserAPI,
 } from './api';
 import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL, SDK_VERSION } from './constants';
 import { DeviceService } from './device';
-import { AuthService, InvitationService, TenantService, TokenCacheService, UserService } from './services';
+import { AuthService, InvitationService, TenantService, TokenCacheService, TwoFactorService, UserService } from './services';
 import { StorageManager } from './storage';
 import { type ErrorPayload, PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
 import { type TokenType } from './token';
@@ -56,6 +64,7 @@ export class Passflow {
   private settingApi: SettingAPI;
   private tenantApi: TenantAPI;
   private invitationApi: InvitationAPI;
+  private twoFactorApi: TwoFactorApiClient;
 
   // Configuration
   private scopes: string[];
@@ -71,9 +80,11 @@ export class Passflow {
   private tenantService: TenantService;
   private invitationService: InvitationService;
   private tokenCacheService: TokenCacheService;
+  private twoFactorService: TwoFactorService;
 
   // Public services
   public tenant: TenantService;
+  public twoFactor: TwoFactorService;
 
   // Session callbacks
   private createSessionCallback?: ({ tokens, parsedTokens }: { tokens?: Tokens; parsedTokens?: ParsedTokens }) => Promise<void>;
@@ -105,6 +116,7 @@ export class Passflow {
     this.settingApi = new SettingAPI(config, this.storageManager, this.deviceService);
     this.tenantApi = new TenantAPI(config, this.storageManager, this.deviceService);
     this.invitationApi = new InvitationAPI(config, this.storageManager, this.deviceService);
+    this.twoFactorApi = new TwoFactorApiClient(config, this.storageManager, this.deviceService);
 
     // Initialize PassflowStore
     this.subscribeStore = new PassflowStore();
@@ -138,6 +150,9 @@ export class Passflow {
     this.tenant = this.tenantService;
 
     this.invitationService = new InvitationService(this.invitationApi);
+
+    this.twoFactorService = new TwoFactorService(this.twoFactorApi, this.subscribeStore);
+    this.twoFactor = this.twoFactorService;
 
     // Check for tokens in query params if configured
     if (config.parseQueryParams) {
@@ -627,6 +642,7 @@ export class Passflow {
       await this.authService.logOut();
       this.storageManager.deleteTokens();
       this.tokenCacheService.setTokensCache(undefined);
+      this.twoFactorService.clearPartialAuthState();
       await this.submitSessionCheck();
       this.subscribeStore.notify(PassflowEvent.SignOut, {});
     } catch (error) {
@@ -1310,5 +1326,205 @@ export class Passflow {
    */
   authRedirect(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string } = {}): void {
     this.authService.authRedirect(options);
+  }
+
+  // Two-Factor Authentication methods
+
+  /**
+   * Get the current 2FA enrollment status for the authenticated user.
+   *
+   * @returns Promise with 2FA status including enabled state and policy
+   * @throws {PassflowError} If request fails
+   *
+   * @example
+   * ```typescript
+   * const status = await passflow.getTwoFactorStatus();
+   * console.log('2FA enabled:', status.enabled);
+   * console.log('Recovery codes remaining:', status.recovery_codes_remaining);
+   * ```
+   */
+  async getTwoFactorStatus(): Promise<TwoFactorStatusResponse> {
+    try {
+      return await this.twoFactorService.getStatus();
+    } catch (error) {
+      this.handleError(error, 'Get 2FA status');
+    }
+  }
+
+  /**
+   * Begin the 2FA setup process for the authenticated user.
+   * Returns a secret and QR code to scan with an authenticator app.
+   *
+   * @returns Promise with setup response containing secret and QR code
+   * @throws {PassflowError} If request fails
+   *
+   * @example
+   * ```typescript
+   * const setup = await passflow.beginTwoFactorSetup();
+   * console.log('Scan this QR code:', setup.qr_code);
+   * console.log('Or enter this secret:', setup.secret);
+   * ```
+   */
+  async beginTwoFactorSetup(): Promise<TwoFactorSetupResponse> {
+    try {
+      return await this.twoFactorService.beginSetup();
+    } catch (error) {
+      this.handleError(error, 'Begin 2FA setup');
+    }
+  }
+
+  /**
+   * Confirm 2FA setup by verifying a TOTP code from the authenticator app.
+   * Returns recovery codes that MUST be saved by the user.
+   *
+   * @param code - 6-digit TOTP code from authenticator app
+   * @returns Promise with confirmation response including recovery codes
+   * @throws {PassflowError} If verification fails
+   *
+   * @example
+   * ```typescript
+   * const result = await passflow.confirmTwoFactorSetup('123456');
+   * console.log('SAVE THESE RECOVERY CODES:', result.recovery_codes);
+   * // Display recovery codes to user for safekeeping
+   * ```
+   */
+  async confirmTwoFactorSetup(code: string): Promise<TwoFactorConfirmResponse> {
+    try {
+      return await this.twoFactorService.confirmSetup(code);
+    } catch (error) {
+      this.handleError(error, 'Confirm 2FA setup');
+    }
+  }
+
+  /**
+   * Verify a TOTP code during login when 2FA is required.
+   * Completes the authentication process and saves tokens.
+   *
+   * @param code - 6-digit TOTP code from authenticator app
+   * @returns Promise with verification response containing tokens
+   * @throws {PassflowError} If verification fails
+   *
+   * @example
+   * ```typescript
+   * // After signIn returns requires_2fa: true
+   * if (passflow.isTwoFactorVerificationRequired()) {
+   *   const response = await passflow.verifyTwoFactor('123456');
+   *   console.log('Authentication complete', response.access_token);
+   * }
+   * ```
+   */
+  async verifyTwoFactor(code: string): Promise<TwoFactorVerifyResponse> {
+    try {
+      const response = await this.twoFactorService.verify(code);
+
+      // Passflow layer handles token saving (NOT service layer)
+      this.storageManager.saveTokens(response);
+      this.tokenCacheService.setTokensCache(response);
+      this.subscribeStore.notify(PassflowEvent.SignIn, {
+        tokens: response,
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
+      });
+      await this.submitSessionCheck();
+      return response;
+    } catch (error) {
+      this.handleError(error, 'Verify 2FA');
+    }
+  }
+
+  /**
+   * Use a recovery code for authentication when TOTP is unavailable.
+   * Completes the authentication process and saves tokens.
+   *
+   * @param code - Recovery code from the list provided during setup
+   * @returns Promise with recovery response containing tokens and remaining codes count
+   * @throws {PassflowError} If recovery code is invalid
+   *
+   * @example
+   * ```typescript
+   * // After signIn returns requires_2fa: true
+   * const result = await passflow.useTwoFactorRecoveryCode('ABCD-1234');
+   * console.log('Authenticated with recovery code');
+   * console.log(`${result.remaining_recovery_codes} recovery codes remaining`);
+   * ```
+   */
+  async useTwoFactorRecoveryCode(code: string): Promise<TwoFactorRecoveryResponse> {
+    try {
+      const response = await this.twoFactorService.useRecoveryCode(code);
+
+      // Passflow layer handles token saving (NOT service layer)
+      this.storageManager.saveTokens(response);
+      this.tokenCacheService.setTokensCache(response);
+      this.subscribeStore.notify(PassflowEvent.SignIn, {
+        tokens: response,
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
+      });
+      await this.submitSessionCheck();
+      return response;
+    } catch (error) {
+      this.handleError(error, 'Use 2FA recovery code');
+    }
+  }
+
+  /**
+   * Disable 2FA for the authenticated user.
+   * Requires verification with a current TOTP code.
+   *
+   * @param code - Current 6-digit TOTP code for verification
+   * @returns Promise with success response
+   * @throws {PassflowError} If verification fails
+   *
+   * @example
+   * ```typescript
+   * await passflow.disableTwoFactor('123456');
+   * console.log('2FA disabled successfully');
+   * ```
+   */
+  async disableTwoFactor(code: string): Promise<TwoFactorDisableResponse> {
+    try {
+      return await this.twoFactorService.disable(code);
+    } catch (error) {
+      this.handleError(error, 'Disable 2FA');
+    }
+  }
+
+  /**
+   * Regenerate recovery codes for the authenticated user.
+   * Old recovery codes will be invalidated. Requires verification with a current TOTP code.
+   *
+   * @param code - Current 6-digit TOTP code for verification
+   * @returns Promise with response containing new recovery codes
+   * @throws {PassflowError} If verification fails
+   *
+   * @example
+   * ```typescript
+   * const result = await passflow.regenerateTwoFactorRecoveryCodes('123456');
+   * console.log('New recovery codes:', result.recovery_codes);
+   * // Display new recovery codes to user for safekeeping
+   * ```
+   */
+  async regenerateTwoFactorRecoveryCodes(code: string): Promise<TwoFactorRegenerateResponse> {
+    try {
+      return await this.twoFactorService.regenerateRecoveryCodes(code);
+    } catch (error) {
+      this.handleError(error, 'Regenerate 2FA recovery codes');
+    }
+  }
+
+  /**
+   * Check if 2FA verification is currently required (local state check).
+   * Returns true if user has signed in but needs to complete 2FA verification.
+   *
+   * @returns True if 2FA verification is pending, false otherwise
+   *
+   * @example
+   * ```typescript
+   * if (passflow.isTwoFactorVerificationRequired()) {
+   *   // Show 2FA code input UI
+   *   console.log('Please enter your 2FA code');
+   * }
+   * ```
+   */
+  isTwoFactorVerificationRequired(): boolean {
+    return this.twoFactorService.isVerificationRequired();
   }
 }

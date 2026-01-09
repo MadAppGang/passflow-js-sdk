@@ -99,6 +99,21 @@ export class AuthService {
 
     try {
       const response = await this.authApi.signIn(payload, deviceId, os);
+
+      // Check if 2FA is required
+      if ('requires_2fa' in response && response.requires_2fa === true) {
+        // Emit TwoFactorRequired event for TwoFactorService to listen to
+        this.subscribeStore.notify(PassflowEvent.TwoFactorRequired, {
+          email: payload.email || '',
+          challengeId: response.challenge_id || '',
+        });
+
+        // DO NOT save tokens or emit SignIn event
+        // Return response with requires_2fa flag
+        return response;
+      }
+
+      // Normal flow (no 2FA required)
       response.scopes = payload.scopes;
       this.storageManager.saveTokens(response);
       this.tokenCacheService.setTokensCache(response);

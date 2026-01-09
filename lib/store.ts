@@ -23,6 +23,14 @@ export enum PassflowEvent {
   Refresh = 'refresh',
   RefreshStart = 'refresh:start',
   TokenCacheExpired = 'token-cache-expired',
+  TwoFactorRequired = '2fa:required',
+  TwoFactorSetupStarted = '2fa:setup_started',
+  TwoFactorEnabled = '2fa:enabled',
+  TwoFactorDisabled = '2fa:disabled',
+  TwoFactorVerified = '2fa:verified',
+  TwoFactorRecoveryUsed = '2fa:recovery_used',
+  TwoFactorRecoveryCodesLow = '2fa:recovery_low',
+  TwoFactorRecoveryCodesExhausted = '2fa:recovery_exhausted',
 }
 
 /**
@@ -48,6 +56,14 @@ export type PassflowEventPayload = {
   [PassflowEvent.Refresh]: { tokens?: Tokens; parsedTokens?: ParsedTokens };
   [PassflowEvent.RefreshStart]: { tokenId?: string };
   [PassflowEvent.TokenCacheExpired]: { isExpired: boolean };
+  [PassflowEvent.TwoFactorRequired]: { email: string; challengeId: string };
+  [PassflowEvent.TwoFactorSetupStarted]: { secret: string };
+  [PassflowEvent.TwoFactorEnabled]: { recoveryCodes: string[]; clearRecoveryCodes: () => void };
+  [PassflowEvent.TwoFactorDisabled]: Record<string, never>;
+  [PassflowEvent.TwoFactorVerified]: { tokens?: Tokens };
+  [PassflowEvent.TwoFactorRecoveryUsed]: { tokens?: Tokens; remainingCodes: number };
+  [PassflowEvent.TwoFactorRecoveryCodesLow]: { tokens?: Tokens; remainingCodes: number };
+  [PassflowEvent.TwoFactorRecoveryCodesExhausted]: { tokens?: Tokens };
 };
 
 /**

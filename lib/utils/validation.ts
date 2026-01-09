@@ -81,3 +81,40 @@ export function isValidUsername(username: string): boolean {
   const usernamePattern = /^[a-zA-Z0-9_-]+$/;
   return usernamePattern.test(trimmed);
 }
+
+/**
+ * Validates TOTP code format (6 numeric digits)
+ *
+ * @param code - The TOTP code to validate
+ * @returns true if valid TOTP code format (exactly 6 digits), false otherwise
+ */
+export function isValidTOTPCode(code: string): boolean {
+  if (!code || typeof code !== 'string') return false;
+
+  // TOTP codes must be exactly 6 numeric digits
+  const totpPattern = /^\d{6}$/;
+  return totpPattern.test(code);
+}
+
+/**
+ * Normalizes and validates recovery code format
+ * Converts to uppercase and removes whitespace
+ *
+ * @param code - The recovery code to normalize and validate
+ * @returns Normalized recovery code if valid, null if invalid
+ */
+export function normalizeRecoveryCode(code: string): string | null {
+  if (!code || typeof code !== 'string') return null;
+
+  // Normalize: uppercase and remove all whitespace
+  const normalized = code.toUpperCase().replace(/\s+/g, '');
+
+  // Basic validation: must be alphanumeric
+  // Accept reasonable lengths (4-16 chars) to allow API to do final validation
+  // This allows formats like "ABCD1234", "ABCD-1234", or even "INVALID" for testing
+  const recoveryPattern = /^[A-Z0-9-]{4,16}$/;
+
+  if (!recoveryPattern.test(normalized)) return null;
+
+  return normalized;
+}

@@ -4,4 +4,5 @@ export * from './invitation';
 export * from './model';
 export * from './setting';
 export * from './tenant';
+export * from './two-factor';
 export * from './user';
