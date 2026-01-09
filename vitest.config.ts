@@ -14,10 +14,30 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
-      include: ['lib/services/**/*.ts'],
-      exclude: ['**/node_modules/**', '**/dist/**']
+      reporter: ['text', 'lcov', 'html'],
+      include: [
+        'lib/services/**/*.ts',
+        'lib/passflow.ts',
+        'lib/storage/**/*.ts',
+        'lib/token/**/*.ts',
+        'lib/store.ts',
+      ],
+      exclude: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/tests/**',
+        '**/*.test.ts',
+        '**/index.ts',
+      ],
+      thresholds: {
+        lines: 70,
+        functions: 60, // Lower threshold for functions - passflow.ts has many delegation methods
+        branches: 65,
+        statements: 70,
+      },
     },
+    testTimeout: 10000,
+    hookTimeout: 10000,
     include: ['**/tests/**/*.test.ts'],
   },
   resolve: {
