@@ -70,6 +70,10 @@ class MockURLSearchParams {
     this.params.set(key, value);
   }
 
+  append(key: string, value: string): void {
+    this.params.set(key, value);
+  }
+
   delete(key: string): void {
     this.params.delete(key);
   }

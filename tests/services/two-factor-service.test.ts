@@ -1,19 +1,19 @@
 import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
-import { TwoFactorService } from '../../lib/services/two-factor-service';
-import { TwoFactorApiClient } from '../../lib/api/two-factor';
-import { PassflowEvent, PassflowStore } from '../../lib/store';
-import { StorageManager } from '../../lib/storage';
-import {
-  TwoFactorStatusResponse,
-  TwoFactorSetupResponse,
-  TwoFactorConfirmResponse,
-  TwoFactorVerifyResponse,
-  TwoFactorRecoveryResponse,
-  TwoFactorDisableResponse,
-  TwoFactorRegenerateResponse,
-  TwoFactorPolicy,
-} from '../../lib/api/model';
 import { PassflowError } from '../../lib/api';
+import {
+  TwoFactorConfirmResponse,
+  TwoFactorDisableResponse,
+  TwoFactorPolicy,
+  TwoFactorRecoveryResponse,
+  TwoFactorRegenerateResponse,
+  TwoFactorSetupResponse,
+  TwoFactorStatusResponse,
+  TwoFactorVerifyResponse,
+} from '../../lib/api/model';
+import { TwoFactorApiClient } from '../../lib/api/two-factor';
+import { TwoFactorService } from '../../lib/services/two-factor-service';
+import { StorageManager } from '../../lib/storage';
+import { PassflowEvent, PassflowStore } from '../../lib/store';
 
 // Mock dependencies
 vi.mock('../../lib/api/two-factor');
@@ -99,7 +99,7 @@ describe('TwoFactorService', () => {
     twoFactorService = new TwoFactorService(
       mockTwoFactorApi as unknown as TwoFactorApiClient,
       mockSubscribeStore as unknown as PassflowStore,
-      mockStorageManager as unknown as StorageManager
+      mockStorageManager as unknown as StorageManager,
     );
   });
 
@@ -167,7 +167,7 @@ describe('TwoFactorService', () => {
         expect.objectContaining({
           message: 'Unauthorized',
           code: 'UNAUTHORIZED',
-        })
+        }),
       );
     });
   });
@@ -193,10 +193,9 @@ describe('TwoFactorService', () => {
       expect(result.secret).toBe('JBSWY3DPEHPK3PXP');
       expect(result.qr_code).toContain('data:image/png');
       expect(mockTwoFactorApi.beginSetup).toHaveBeenCalledTimes(1);
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.TwoFactorSetupStarted,
-        { secret: mockResponse.secret }
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.TwoFactorSetupStarted, {
+        secret: mockResponse.secret,
+      });
     });
 
     test('TEST-5: Begin 2FA setup when already enabled', async () => {
@@ -214,7 +213,7 @@ describe('TwoFactorService', () => {
         PassflowEvent.Error,
         expect.objectContaining({
           code: 'ALREADY_ENABLED',
-        })
+        }),
       );
     });
   });
@@ -241,7 +240,7 @@ describe('TwoFactorService', () => {
         expect.objectContaining({
           recoveryCodes: mockResponse.recovery_codes,
           clearRecoveryCodes: expect.any(Function),
-        })
+        }),
       );
     });
 
@@ -260,7 +259,7 @@ describe('TwoFactorService', () => {
         PassflowEvent.Error,
         expect.objectContaining({
           code: 'INVALID_CODE',
-        })
+        }),
       );
     });
 
@@ -279,7 +278,7 @@ describe('TwoFactorService', () => {
         PassflowEvent.Error,
         expect.objectContaining({
           code: 'TOO_MANY_ATTEMPTS',
-        })
+        }),
       );
     });
 
@@ -300,13 +299,11 @@ describe('TwoFactorService', () => {
         expect.objectContaining({
           recoveryCodes: expect.arrayContaining(['ABCD-1234', 'EFGH-5678']),
           clearRecoveryCodes: expect.any(Function),
-        })
+        }),
       );
 
       // Verify callback works
-      const eventCall = mockSubscribeStore.notify.mock.calls.find(
-        (call) => call[0] === PassflowEvent.TwoFactorEnabled
-      );
+      const eventCall = mockSubscribeStore.notify.mock.calls.find((call) => call[0] === PassflowEvent.TwoFactorEnabled);
       expect(eventCall).toBeDefined();
       const payload = eventCall[1];
 
@@ -343,10 +340,7 @@ describe('TwoFactorService', () => {
         code: '123456',
         challenge_id: 'challenge-123',
       });
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.TwoFactorVerified,
-        { tokens: mockResponse }
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.TwoFactorVerified, { tokens: mockResponse });
       expect(twoFactorService.isVerificationRequired()).toBe(false);
     });
 
@@ -367,7 +361,7 @@ describe('TwoFactorService', () => {
         PassflowEvent.Error,
         expect.objectContaining({
           code: 'INVALID_CODE',
-        })
+        }),
       );
     });
 
@@ -377,7 +371,7 @@ describe('TwoFactorService', () => {
 
       // When/Then: Throws error
       await expect(twoFactorService.verify('123456')).rejects.toThrow(
-        '2FA verification expired or not required. User must sign in first.'
+        '2FA verification expired or not required. User must sign in first.',
       );
       expect(mockTwoFactorApi.verify).not.toHaveBeenCalled();
     });
@@ -391,7 +385,7 @@ describe('TwoFactorService', () => {
 
       // When/Then: Throws error due to expiration
       await expect(twoFactorService.verify('123456')).rejects.toThrow(
-        '2FA verification expired or not required. User must sign in first.'
+        '2FA verification expired or not required. User must sign in first.',
       );
       expect(twoFactorService.isVerificationRequired()).toBe(false);
       expect(mockTwoFactorApi.verify).not.toHaveBeenCalled();
@@ -402,9 +396,7 @@ describe('TwoFactorService', () => {
       twoFactorService.setPartialAuthState('user@example.com', undefined);
 
       // When/Then: Throws error
-      await expect(twoFactorService.verify('123456')).rejects.toThrow(
-        'No challenge ID found. User must sign in first.'
-      );
+      await expect(twoFactorService.verify('123456')).rejects.toThrow('No challenge ID found. User must sign in first.');
       expect(mockTwoFactorApi.verify).not.toHaveBeenCalled();
     });
 
@@ -460,12 +452,9 @@ describe('TwoFactorService', () => {
         expect.objectContaining({
           tokens: mockResponse,
           remainingCodes: 7,
-        })
+        }),
       );
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.TwoFactorVerified,
-        { tokens: mockResponse }
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.TwoFactorVerified, { tokens: mockResponse });
     });
 
     test('TEST-17: Use recovery code with 2 remaining codes', async () => {
@@ -488,7 +477,7 @@ describe('TwoFactorService', () => {
         expect.objectContaining({
           tokens: mockResponse,
           remainingCodes: 1,
-        })
+        }),
       );
     });
 
@@ -511,7 +500,7 @@ describe('TwoFactorService', () => {
         PassflowEvent.TwoFactorRecoveryCodesExhausted,
         expect.objectContaining({
           tokens: mockResponse,
-        })
+        }),
       );
     });
 
@@ -532,7 +521,7 @@ describe('TwoFactorService', () => {
         PassflowEvent.Error,
         expect.objectContaining({
           code: 'INVALID_RECOVERY_CODE',
-        })
+        }),
       );
     });
 
@@ -541,7 +530,7 @@ describe('TwoFactorService', () => {
 
       // When/Then: Throws error
       await expect(twoFactorService.useRecoveryCode('ABCD-1234')).rejects.toThrow(
-        '2FA verification expired or not required. User must sign in first.'
+        '2FA verification expired or not required. User must sign in first.',
       );
       expect(mockTwoFactorApi.useRecoveryCode).not.toHaveBeenCalled();
     });
@@ -585,10 +574,7 @@ describe('TwoFactorService', () => {
       // Then: Returns success and emits event
       expect(result).toEqual(mockResponse);
       expect(mockTwoFactorApi.disable).toHaveBeenCalledWith({ code: '123456' });
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.TwoFactorDisabled,
-        {}
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.TwoFactorDisabled, {});
     });
 
     test('TEST-23: Disable 2FA with invalid code', async () => {
@@ -606,7 +592,7 @@ describe('TwoFactorService', () => {
         PassflowEvent.Error,
         expect.objectContaining({
           code: 'INVALID_CODE',
-        })
+        }),
       );
     });
 
@@ -625,7 +611,7 @@ describe('TwoFactorService', () => {
         PassflowEvent.Error,
         expect.objectContaining({
           code: 'NOT_ENABLED',
-        })
+        }),
       );
     });
   });
@@ -667,7 +653,7 @@ describe('TwoFactorService', () => {
         PassflowEvent.Error,
         expect.objectContaining({
           code: 'INVALID_CODE',
-        })
+        }),
       );
     });
 
@@ -686,7 +672,7 @@ describe('TwoFactorService', () => {
         PassflowEvent.Error,
         expect.objectContaining({
           code: 'NOT_ENABLED',
-        })
+        }),
       );
     });
   });
@@ -776,7 +762,7 @@ describe('TwoFactorService', () => {
       // Then: State is stored in sessionStorage
       expect(sessionStorageMock.setItem).toHaveBeenCalledWith(
         'passflow_2fa_challenge',
-        expect.stringContaining('challenge-123')
+        expect.stringContaining('challenge-123'),
       );
 
       // Verify stored data structure
@@ -803,7 +789,7 @@ describe('TwoFactorService', () => {
       const newService = new TwoFactorService(
         mockTwoFactorApi as unknown as TwoFactorApiClient,
         mockSubscribeStore as unknown as PassflowStore,
-        mockStorageManager as unknown as StorageManager
+        mockStorageManager as unknown as StorageManager,
       );
 
       // Mock the API call
@@ -837,7 +823,7 @@ describe('TwoFactorService', () => {
       const newService = new TwoFactorService(
         mockTwoFactorApi as unknown as TwoFactorApiClient,
         mockSubscribeStore as unknown as PassflowStore,
-        mockStorageManager as unknown as StorageManager
+        mockStorageManager as unknown as StorageManager,
       );
 
       // When: verify() is called
@@ -868,10 +854,9 @@ describe('TwoFactorService', () => {
       await twoFactorService.beginSetup();
 
       // Then: Event is emitted with secret
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.TwoFactorSetupStarted,
-        { secret: mockResponse.secret }
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.TwoFactorSetupStarted, {
+        secret: mockResponse.secret,
+      });
     });
 
     test('TEST-37: Emit 2fa:enabled event on confirmSetup', async () => {
@@ -891,7 +876,7 @@ describe('TwoFactorService', () => {
         expect.objectContaining({
           recoveryCodes: mockResponse.recovery_codes,
           clearRecoveryCodes: expect.any(Function),
-        })
+        }),
       );
     });
 
@@ -908,10 +893,7 @@ describe('TwoFactorService', () => {
       await twoFactorService.verify('123456');
 
       // Then: Event is emitted with tokens
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.TwoFactorVerified,
-        { tokens: mockResponse }
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.TwoFactorVerified, { tokens: mockResponse });
     });
 
     test('TEST-39: Emit 2fa:disabled event on disable', async () => {
@@ -925,10 +907,7 @@ describe('TwoFactorService', () => {
       await twoFactorService.disable('123456');
 
       // Then: Event is emitted
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.TwoFactorDisabled,
-        {}
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.TwoFactorDisabled, {});
     });
 
     test('TEST-40: Emit error event on API failures', async () => {
@@ -950,7 +929,7 @@ describe('TwoFactorService', () => {
           message: 'Invalid TOTP code',
           code: 'INVALID_CODE',
           originalError: error,
-        })
+        }),
       );
     });
   });

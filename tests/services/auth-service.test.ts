@@ -356,7 +356,7 @@ describe('AuthService', () => {
       await expect(authService.signIn(payload)).rejects.toThrow('Invalid email format');
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
         PassflowEvent.Error,
-        expect.objectContaining({ code: 'VALIDATION_ERROR' })
+        expect.objectContaining({ code: 'VALIDATION_ERROR' }),
       );
     });
 
@@ -366,7 +366,7 @@ describe('AuthService', () => {
       await expect(authService.signIn(payload)).rejects.toThrow('Invalid username format');
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
         PassflowEvent.Error,
-        expect.objectContaining({ code: 'VALIDATION_ERROR' })
+        expect.objectContaining({ code: 'VALIDATION_ERROR' }),
       );
     });
 
@@ -376,7 +376,7 @@ describe('AuthService', () => {
       await expect(authService.signIn(payload)).rejects.toThrow('Invalid phone number format');
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
         PassflowEvent.Error,
-        expect.objectContaining({ code: 'VALIDATION_ERROR' })
+        expect.objectContaining({ code: 'VALIDATION_ERROR' }),
       );
     });
 
@@ -393,7 +393,7 @@ describe('AuthService', () => {
       expect(result).toEqual(twoFaResponse);
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
         PassflowEvent.TwoFactorRequired,
-        expect.objectContaining({ challengeId: 'challenge-123' })
+        expect.objectContaining({ challengeId: 'challenge-123' }),
       );
       // Should NOT save tokens or emit SignIn
       expect(mockStorageManager.saveTokens).not.toHaveBeenCalled();
@@ -407,7 +407,7 @@ describe('AuthService', () => {
       await expect(authService.signIn(payload)).rejects.toThrow('Network error');
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
         PassflowEvent.Error,
-        expect.objectContaining({ message: 'Network error' })
+        expect.objectContaining({ message: 'Network error' }),
       );
     });
   });
@@ -455,7 +455,7 @@ describe('AuthService', () => {
       expect(mockAuthApi.passwordlessSignIn).toHaveBeenCalledWith(
         expect.objectContaining({ email: 'test@example.com', scopes: mockScopes }),
         mockDeviceId,
-        OS.web
+        OS.web,
       );
     });
 
@@ -488,10 +488,7 @@ describe('AuthService', () => {
 
       expect(mockAuthApi.passwordlessSignInComplete).toHaveBeenCalled();
       expect(mockStorageManager.saveTokens).toHaveBeenCalled();
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.SignIn,
-        expect.any(Object)
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.SignIn, expect.any(Object));
     });
 
     test('should handle passwordlessSignInComplete API error', async () => {
@@ -535,10 +532,7 @@ describe('AuthService', () => {
 
       expect(mockAuthApi.resetPassword).toHaveBeenCalledWith('newPassword123', mockScopes, undefined);
       expect(mockStorageManager.saveTokens).toHaveBeenCalled();
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.SignIn,
-        expect.any(Object)
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.SignIn, expect.any(Object));
     });
 
     test('should handle resetPassword API error', async () => {
@@ -556,10 +550,7 @@ describe('AuthService', () => {
 
       expect(mockAuthApi.passkeyRegisterStart).toHaveBeenCalled();
       expect(mockAuthApi.passkeyRegisterComplete).toHaveBeenCalled();
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.Register,
-        expect.any(Object)
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.Register, expect.any(Object));
     });
 
     test('should handle passkeyRegister API error', async () => {
@@ -579,10 +570,7 @@ describe('AuthService', () => {
 
       expect(mockAuthApi.passkeyAuthenticateStart).toHaveBeenCalled();
       expect(mockAuthApi.passkeyAuthenticateComplete).toHaveBeenCalled();
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.SignIn,
-        expect.any(Object)
-      );
+      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.SignIn, expect.any(Object));
     });
 
     test('should handle passkeyAuthenticate API error', async () => {
@@ -677,7 +665,7 @@ describe('AuthService', () => {
       expect(result).toBeUndefined();
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
         PassflowEvent.Error,
-        expect.objectContaining({ message: 'Storage error' })
+        expect.objectContaining({ message: 'Storage error' }),
       );
     });
   });
@@ -693,7 +681,7 @@ describe('AuthService', () => {
       expect(result).toBe(false);
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
         PassflowEvent.Error,
-        expect.objectContaining({ message: 'Token parsing error' })
+        expect.objectContaining({ message: 'Token parsing error' }),
       );
     });
   });

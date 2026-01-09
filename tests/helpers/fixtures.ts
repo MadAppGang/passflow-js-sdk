@@ -1,6 +1,6 @@
-import type { Tokens, ParsedTokens } from '../../lib/types';
-import type { Token } from '../../lib/token';
 import type { PassflowAuthorizationResponse, PassflowLogoutResponse, PassflowSuccessResponse } from '../../lib/api';
+import type { Token } from '../../lib/token';
+import type { ParsedTokens, Tokens } from '../../lib/types';
 
 /**
  * JWT Token Parts

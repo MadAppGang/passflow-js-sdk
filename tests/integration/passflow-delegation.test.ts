@@ -7,12 +7,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { Passflow } from '../../lib/passflow';
 import { PassflowEvent } from '../../lib/store';
-import {
-  VALID_TOKENS,
-  VALID_ACCESS_TOKEN,
-  TEST_CONFIG,
-  AUTH_RESPONSE,
-} from '../helpers/fixtures';
+import { AUTH_RESPONSE, TEST_CONFIG, VALID_ACCESS_TOKEN, VALID_TOKENS } from '../helpers/fixtures';
 
 // Mock WebAuthn
 vi.mock('@simplewebauthn/browser', () => ({

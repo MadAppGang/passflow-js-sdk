@@ -10,17 +10,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { TokenCacheService } from '../../lib/services/token-cache-service';
 import { PassflowEvent, PassflowStore } from '../../lib/store';
-import {
-  createMockAuthApi,
-  createMockStorageManager,
-  createMockPassflowStore,
-} from '../helpers/mocks';
-import {
-  VALID_TOKENS,
-  EXPIRED_TOKENS,
-  FULLY_EXPIRED_TOKENS,
-  AUTH_RESPONSE,
-} from '../helpers/fixtures';
+import { AUTH_RESPONSE, EXPIRED_TOKENS, FULLY_EXPIRED_TOKENS, VALID_TOKENS } from '../helpers/fixtures';
+import { createMockAuthApi, createMockPassflowStore, createMockStorageManager } from '../helpers/mocks';
 
 describe('TokenCacheService', () => {
   let tokenCacheService: TokenCacheService;
@@ -36,11 +27,7 @@ describe('TokenCacheService', () => {
     mockAuthApi = createMockAuthApi();
     mockStore = createMockPassflowStore();
 
-    tokenCacheService = new TokenCacheService(
-      mockStorageManager as any,
-      mockAuthApi as any,
-      mockStore as any
-    );
+    tokenCacheService = new TokenCacheService(mockStorageManager as any, mockAuthApi as any, mockStore as any);
   });
 
   afterEach(() => {
@@ -166,10 +153,7 @@ describe('TokenCacheService', () => {
       tokenCacheService.initialize();
 
       expect(tokenCacheService.tokenExpiredFlag).toBe(true);
-      expect(mockStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.TokenCacheExpired,
-        { isExpired: true }
-      );
+      expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.TokenCacheExpired, { isExpired: true });
     });
 
     test('notifies error on storage exception', () => {
@@ -179,10 +163,7 @@ describe('TokenCacheService', () => {
 
       tokenCacheService.initialize();
 
-      expect(mockStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.Error,
-        expect.objectContaining({ message: 'Storage error' })
-      );
+      expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.Error, expect.objectContaining({ message: 'Storage error' }));
       expect(tokenCacheService.tokensCache).toBeUndefined();
     });
   });
@@ -212,7 +193,7 @@ describe('TokenCacheService', () => {
       expect(mockAuthApi.refreshToken).toHaveBeenCalledWith(
         EXPIRED_TOKENS.refresh_token,
         EXPIRED_TOKENS.scopes,
-        EXPIRED_TOKENS.access_token
+        EXPIRED_TOKENS.access_token,
       );
     });
 
@@ -233,7 +214,7 @@ describe('TokenCacheService', () => {
 
       expect(mockStore.notify).toHaveBeenCalledWith(
         PassflowEvent.Error,
-        expect.objectContaining({ message: 'Refresh failed' })
+        expect.objectContaining({ message: 'Refresh failed' }),
       );
     });
   });
@@ -247,10 +228,7 @@ describe('TokenCacheService', () => {
       vi.advanceTimersByTime(60000);
 
       // Since tokens are valid, no expiration should be notified
-      expect(mockStore.notify).not.toHaveBeenCalledWith(
-        PassflowEvent.TokenCacheExpired,
-        expect.anything()
-      );
+      expect(mockStore.notify).not.toHaveBeenCalledWith(PassflowEvent.TokenCacheExpired, expect.anything());
     });
 
     test('startTokenCheck clears previous interval', () => {
@@ -269,10 +247,7 @@ describe('TokenCacheService', () => {
       vi.advanceTimersByTime(60000);
 
       // Should not notify since check shouldn't run
-      expect(mockStore.notify).not.toHaveBeenCalledWith(
-        PassflowEvent.TokenCacheExpired,
-        expect.anything()
-      );
+      expect(mockStore.notify).not.toHaveBeenCalledWith(PassflowEvent.TokenCacheExpired, expect.anything());
     });
 
     test('interval detects token expiration', () => {
@@ -282,10 +257,7 @@ describe('TokenCacheService', () => {
       vi.advanceTimersByTime(60000);
 
       expect(tokenCacheService.tokenExpiredFlag).toBe(true);
-      expect(mockStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.TokenCacheExpired,
-        { isExpired: true }
-      );
+      expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.TokenCacheExpired, { isExpired: true });
     });
   });
 
@@ -309,10 +281,7 @@ describe('TokenCacheService', () => {
       await tokenCacheService.getTokensWithRefresh();
 
       expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.RefreshStart, {});
-      expect(mockStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.Refresh,
-        expect.objectContaining({ tokens: AUTH_RESPONSE })
-      );
+      expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.Refresh, expect.objectContaining({ tokens: AUTH_RESPONSE }));
     });
 
     test('prevents concurrent refresh calls', async () => {
@@ -348,10 +317,7 @@ describe('TokenCacheService', () => {
       await tokenCacheService.getTokensWithRefresh();
 
       expect(tokenCacheService.tokenExpiredFlag).toBe(false);
-      expect(mockStore.notify).toHaveBeenCalledWith(
-        PassflowEvent.TokenCacheExpired,
-        { isExpired: false }
-      );
+      expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.TokenCacheExpired, { isExpired: false });
     });
 
     test('clears cache on refresh error', async () => {

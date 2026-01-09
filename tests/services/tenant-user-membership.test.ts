@@ -5,8 +5,8 @@
  * raw Passflow tenant data into a flat, queryable structure.
  */
 import { describe, expect, test } from 'vitest';
-import { TenantUserMembership } from '../../lib/services/tenant-user-membership';
 import type { PassflowTenantResponse } from '../../lib/api/model';
+import { TenantUserMembership } from '../../lib/services/tenant-user-membership';
 
 describe('TenantUserMembership', () => {
   const createMockTenantResponse = (): PassflowTenantResponse => ({
@@ -148,7 +148,7 @@ describe('TenantUserMembership', () => {
 
       // user-1 appears in both groups but should only be in users array once
       expect(data.users).toHaveLength(2);
-      expect(data.users.filter(u => u.id === 'user-1')).toHaveLength(1);
+      expect(data.users.filter((u) => u.id === 'user-1')).toHaveLength(1);
     });
   });
 
@@ -178,7 +178,7 @@ describe('TenantUserMembership', () => {
 
       const groups = membership.getGroupsForUser('user-1');
       expect(groups).toHaveLength(2);
-      expect(groups.map(g => g.name).sort()).toEqual(['Admins', 'Users']);
+      expect(groups.map((g) => g.name).sort()).toEqual(['Admins', 'Users']);
     });
 
     test('returns single group for user in one group', () => {

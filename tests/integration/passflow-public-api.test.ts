@@ -8,13 +8,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { Passflow } from '../../lib/passflow';
 import { PassflowEvent } from '../../lib/store';
 import { TokenType } from '../../lib/token';
-import {
-  VALID_TOKENS,
-  VALID_ACCESS_TOKEN,
-  VALID_REFRESH_TOKEN,
-  VALID_ID_TOKEN,
-  TEST_CONFIG,
-} from '../helpers/fixtures';
+import { TEST_CONFIG, VALID_ACCESS_TOKEN, VALID_ID_TOKEN, VALID_REFRESH_TOKEN, VALID_TOKENS } from '../helpers/fixtures';
 
 // Mock WebAuthn
 vi.mock('@simplewebauthn/browser', () => ({
@@ -119,9 +113,7 @@ describe('Passflow Public API (Integration)', () => {
     test('subscribe() with specific events', () => {
       const subscriber = { onAuthChange: vi.fn() };
 
-      expect(() =>
-        passflow.subscribe(subscriber, [PassflowEvent.SignIn, PassflowEvent.SignOut])
-      ).not.toThrow();
+      expect(() => passflow.subscribe(subscriber, [PassflowEvent.SignIn, PassflowEvent.SignOut])).not.toThrow();
     });
 
     test('unsubscribe() removes subscriber without error', () => {

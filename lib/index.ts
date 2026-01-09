@@ -49,3 +49,18 @@ export type {
 // Re-export Two-Factor Authentication API client and service
 export { TwoFactorApiClient } from './api/two-factor';
 export { TwoFactorService } from './services/two-factor-service';
+
+// Re-export M2M (Machine-to-Machine) Authentication module
+export { M2MClient, M2MError, M2MNetworkError, M2MTokenParseError, M2MConfigError, M2MErrorCodes, M2M_DEFAULTS } from './m2m';
+export type {
+  M2MClientConfig,
+  M2MTokenRequestOptions,
+  M2MTokenRequestInfo,
+  M2MTokenResponse,
+  M2MErrorResponse,
+  M2MTokenClaims,
+  M2MErrorCode,
+  M2MTokenCache,
+  RetryStrategy,
+  M2MRateLimitInfo,
+} from './m2m';
