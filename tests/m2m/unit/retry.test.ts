@@ -7,6 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { M2MClient } from '../../../lib/m2m/client';
+import { M2MError } from '../../../lib/m2m/errors';
 import type { RetryStrategy } from '../../../lib/m2m/types';
 import {
   OAUTH_ERROR_INVALID_CLIENT,
@@ -103,8 +104,8 @@ describe('M2MClient - Retry Logic', () => {
       try {
         await client.getToken();
         expect.fail('Should have thrown');
-      } catch (error: any) {
-        expect(error.code).toBe('invalid_scope');
+      } catch (error) {
+        expect((error as M2MError).code).toBe('invalid_scope');
       }
 
       // Only one attempt should be made
@@ -119,8 +120,8 @@ describe('M2MClient - Retry Logic', () => {
       try {
         await client.getToken();
         expect.fail('Should have thrown');
-      } catch (error: any) {
-        expect(error.code).toBe('invalid_client');
+      } catch (error) {
+        expect((error as M2MError).code).toBe('invalid_client');
       }
 
       // Only one attempt should be made
@@ -135,8 +136,8 @@ describe('M2MClient - Retry Logic', () => {
       try {
         await client.getToken();
         expect.fail('Should have thrown');
-      } catch (error: any) {
-        expect(error.code).toBe('invalid_scope');
+      } catch (error) {
+        expect((error as M2MError).code).toBe('invalid_scope');
       }
 
       // Only one attempt should be made
@@ -159,7 +160,7 @@ describe('M2MClient - Retry Logic', () => {
       await vi.advanceTimersByTimeAsync(1000); // First retry
       await vi.advanceTimersByTimeAsync(2000); // Second retry
 
-      const error = await promise;
+      const error = (await promise) as M2MError;
       expect(error.code).toBe('server_error');
 
       // Should try 3 times total (initial + 2 retries)
@@ -175,8 +176,8 @@ describe('M2MClient - Retry Logic', () => {
       try {
         await client.getToken();
         expect.fail('Should have thrown');
-      } catch (error: any) {
-        expect(error.code).toBe('server_error');
+      } catch (error) {
+        expect((error as M2MError).code).toBe('server_error');
       }
 
       // Should only try once (no retries with retries=1)
@@ -195,7 +196,7 @@ describe('M2MClient - Retry Logic', () => {
       // Advance through retry delay
       await vi.advanceTimersByTimeAsync(1000);
 
-      const error = await promise;
+      const error = (await promise) as M2MError;
       expect(error.code).toBe('server_error');
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -224,7 +225,7 @@ describe('M2MClient - Retry Logic', () => {
       await vi.advanceTimersByTimeAsync(2000);
       await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
 
-      const error = await promise;
+      const error = (await promise) as M2MError;
       expect(error.code).toBe('server_error');
 
       // Verify exponential backoff pattern: 1s, 2s
@@ -262,7 +263,7 @@ describe('M2MClient - Retry Logic', () => {
       // Second retry not allowed by custom strategy
       await vi.advanceTimersByTimeAsync(1000);
 
-      const error = await promise;
+      const error = (await promise) as M2MError;
       expect(error.code).toBe('server_error');
 
       // Custom strategy only allows 2 attempts
@@ -296,7 +297,7 @@ describe('M2MClient - Retry Logic', () => {
       await vi.advanceTimersByTimeAsync(100);
       await vi.advanceTimersByTimeAsync(100);
 
-      const error = await promise;
+      const error = (await promise) as M2MError;
       expect(error.code).toBe('server_error');
 
       // Should be called after each error
@@ -375,7 +376,7 @@ describe('M2MClient - Retry Logic', () => {
       try {
         await client.getToken();
         expect.fail('Should have thrown');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.rateLimitInfo).toBeDefined();
         expect(error.rateLimitInfo.limit).toBe(100);
         expect(error.rateLimitInfo.remaining).toBe(0);
@@ -397,8 +398,8 @@ describe('M2MClient - Retry Logic', () => {
       try {
         await client.getToken();
         expect.fail('Should have thrown');
-      } catch (error: any) {
-        expect(error.code).toBe('rate_limit_exceeded');
+      } catch (error) {
+        expect((error as M2MError).code).toBe('rate_limit_exceeded');
         expect(error.rateLimitInfo).toEqual({
           limit: 1000,
           remaining: 0,

@@ -21,6 +21,14 @@ import {
   TwoFactorVerifyResponse,
 } from './model';
 
+/** Backend response format (snake_case) for magic link validation */
+interface TwoFactorSetupMagicLinkBackendResponse {
+  session_token?: string;
+  user_id?: string;
+  expires_in?: number;
+  app_id?: string | null;
+}
+
 /**
  * API client for Two-Factor Authentication operations
  */
@@ -152,12 +160,13 @@ export class TwoFactorApiClient {
       })
       .then((response) => {
         // Transform snake_case backend response to camelCase
+        const backendResponse = response as unknown as TwoFactorSetupMagicLinkBackendResponse;
         return {
           success: true,
-          sessionToken: (response as any).session_token,
-          userId: (response as any).user_id,
-          expiresIn: (response as any).expires_in,
-          appId: (response as any).app_id,
+          sessionToken: backendResponse.session_token,
+          userId: backendResponse.user_id,
+          expiresIn: backendResponse.expires_in,
+          appId: backendResponse.app_id,
         };
       })
       .catch((error) => {

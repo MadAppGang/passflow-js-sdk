@@ -23,7 +23,7 @@
     "dev": "pnpm vite",
     "watch": "vite build --watch",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
-    "build:dts": "tsc --build tsconfig.json",
+    "build:dts": "tsc --build tsconfig.build.json",
     "build": "pnpm clean && pnpm vite build && pnpm build:dts",
     "test": "vitest run --reporter=default",
     "test:services": "vitest run tests/services",
@@ -38,6 +38,7 @@
   "devDependencies": {
     "@babel/core": "^7.28.6",
     "@biomejs/biome": "1.9.4",
+    "@types/node": "^25.0.9",
     "@types/sinon": "^17.0.4",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-vue": "^5.2.4",

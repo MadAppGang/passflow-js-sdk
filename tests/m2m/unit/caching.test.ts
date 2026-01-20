@@ -239,7 +239,8 @@ describe('M2MClient - Caching', () => {
 
       // Check TTL stored in cache
       const cacheKey = cache.getLastKey();
-      const ttl = cache.getTTL(cacheKey!);
+      expect(cacheKey).toBeDefined();
+      const ttl = cache.getTTL(cacheKey as string);
 
       // TTL should match expires_in (with small tolerance for execution time)
       expect(ttl).toBeGreaterThanOrEqual(3599);
@@ -280,7 +281,8 @@ describe('M2MClient - Caching', () => {
 
       // Cache should return null
       const cacheKey = cache.getLastKey();
-      const cached = await cache.get(cacheKey!);
+      expect(cacheKey).toBeDefined();
+      const cached = await cache.get(cacheKey as string);
       expect(cached).toBeNull();
     });
 
@@ -374,7 +376,8 @@ describe('M2MClient - Caching', () => {
 
       // Verify TTL was set correctly
       const cacheKey = cache.getLastKey();
-      const ttl = cache.getTTL(cacheKey!);
+      expect(cacheKey).toBeDefined();
+      const ttl = cache.getTTL(cacheKey as string);
       expect(ttl).toBeGreaterThanOrEqual(7199);
       expect(ttl).toBeLessThanOrEqual(7200);
     });

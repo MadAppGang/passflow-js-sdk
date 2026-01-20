@@ -282,7 +282,7 @@ describe('TenantUserMembership', () => {
         ],
         users_in_groups: [
           {
-            user: undefined as any,
+            user: undefined as unknown as PassflowTenantResponse['users_in_groups'][0]['user'],
             group_id: 'group-1',
             roles: [],
           },
@@ -328,7 +328,7 @@ describe('TenantUserMembership', () => {
             name: 'NoDefault',
             updated_at: '2024-01-01T00:00:00Z',
             created_at: '2024-01-01T00:00:00Z',
-          } as any,
+          } as unknown as PassflowTenantResponse['groups'][0],
         ],
       };
 

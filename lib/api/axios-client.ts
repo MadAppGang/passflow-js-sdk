@@ -223,6 +223,8 @@ export class AxiosClient {
       document.cookie = 'passflow_test=; expires=Thu, 01 Jan 1970 00:00:00 UTC';
 
       if (!cookiesEnabled && this.tokenDeliveryManager.isCookieMode()) {
+        // Cookies disabled but cookie mode requested - server will handle fallback
+        // No action needed as server sends token_delivery header to switch modes
       }
     } catch (_error) {
       // Cookie detection failed (likely SSR or restrictive environment)

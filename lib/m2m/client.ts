@@ -36,28 +36,30 @@ import { M2M_DEFAULTS } from './types';
 class InMemoryCache implements M2MTokenCache {
   private cache: Map<string, { token: M2MTokenResponse; expiresAt: number }> = new Map();
 
-  async get(key: string): Promise<M2MTokenResponse | null> {
+  get(key: string): Promise<M2MTokenResponse | null> {
     const entry = this.cache.get(key);
-    if (!entry) return null;
+    if (!entry) return Promise.resolve(null);
 
     // Check if expired
     if (Date.now() >= entry.expiresAt) {
       this.cache.delete(key);
-      return null;
+      return Promise.resolve(null);
     }
 
-    return entry.token;
+    return Promise.resolve(entry.token);
   }
 
-  async set(key: string, token: M2MTokenResponse, ttl: number): Promise<void> {
+  set(key: string, token: M2MTokenResponse, ttl: number): Promise<void> {
     this.cache.set(key, {
       token,
       expiresAt: Date.now() + ttl * 1000,
     });
+    return Promise.resolve();
   }
 
-  async delete(key: string): Promise<void> {
+  delete(key: string): Promise<void> {
     this.cache.delete(key);
+    return Promise.resolve();
   }
 }
 

@@ -1,1 +1,9 @@
-{ "extends": "./tsconfig.json", "exclude": ["dist", "node_modules", "tests", "**/*.test.ts"] }
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["lib"],
+  "exclude": ["dist", "node_modules", "tests", "**/*.test.ts"]
+}

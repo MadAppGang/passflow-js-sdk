@@ -91,5 +91,4 @@ class MockURLSearchParams {
   }
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 global.URLSearchParams = MockURLSearchParams as any;

@@ -21,55 +21,57 @@ export class FakeCache implements M2MTokenCache {
   /**
    * Get cached token by key
    */
-  async get(key: string): Promise<M2MTokenResponse | null> {
+  get(key: string): Promise<M2MTokenResponse | null> {
     this.callCounts.get++;
     this.lastKey = key;
 
     if (this.shouldThrowError) {
-      throw new Error(this.errorMessage);
+      return Promise.reject(new Error(this.errorMessage));
     }
 
     const entry = this.cache.get(key);
-    if (!entry) return null;
+    if (!entry) return Promise.resolve(null);
 
     // Check if expired
     if (Date.now() >= entry.expiresAt) {
       this.cache.delete(key);
-      return null;
+      return Promise.resolve(null);
     }
 
-    return entry.token;
+    return Promise.resolve(entry.token);
   }
 
   /**
    * Cache a token with TTL
    */
-  async set(key: string, token: M2MTokenResponse, ttl: number): Promise<void> {
+  set(key: string, token: M2MTokenResponse, ttl: number): Promise<void> {
     this.callCounts.set++;
     this.lastKey = key;
 
     if (this.shouldThrowError) {
-      throw new Error(this.errorMessage);
+      return Promise.reject(new Error(this.errorMessage));
     }
 
     this.cache.set(key, {
       token,
       expiresAt: Date.now() + ttl * 1000,
     });
+    return Promise.resolve();
   }
 
   /**
    * Delete cached token
    */
-  async delete(key: string): Promise<void> {
+  delete(key: string): Promise<void> {
     this.callCounts.delete++;
     this.lastKey = key;
 
     if (this.shouldThrowError) {
-      throw new Error(this.errorMessage);
+      return Promise.reject(new Error(this.errorMessage));
     }
 
     this.cache.delete(key);
+    return Promise.resolve();
   }
 
   // ========== Inspection Methods ==========

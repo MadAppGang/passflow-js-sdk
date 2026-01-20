@@ -408,8 +408,13 @@ export class AuthService {
         });
 
         if (!response.ok) {
+          // Logout endpoint returned error - ignore and continue with local cleanup
+          // Server-side session cleanup is best-effort, local cleanup is critical
         }
-      } catch (_error) {}
+      } catch (_error) {
+        // Network error during logout - ignore and continue with local cleanup
+        // User experience is better if we silently handle logout failures
+      }
     } else {
       // Regular mode: call passflow logout API
       const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
@@ -423,7 +428,10 @@ export class AuthService {
         if (response.status !== 'ok') {
           throw new Error('Logout failed');
         }
-      } catch (_error) {}
+      } catch (_error) {
+        // Logout API call failed - ignore and continue with local cleanup
+        // User experience is better if we silently handle logout failures
+      }
     }
 
     // Clear all local state (both modes)

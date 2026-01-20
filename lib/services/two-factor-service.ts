@@ -24,6 +24,18 @@ interface PartialAuthState {
   expiresAt: number;
 }
 
+/** Payload for TwoFactorRequired event */
+interface TwoFactorRequiredPayload {
+  email: string;
+  challengeId: string;
+  tfaToken: string;
+}
+
+/** Error with optional id field */
+interface ErrorWithId extends Error {
+  id?: string;
+}
+
 /**
  * Service for managing Two-Factor Authentication
  */
@@ -46,9 +58,9 @@ export class TwoFactorService {
     // Listen for TwoFactorRequired event from AuthService
     // Create a subscriber that handles the TwoFactorRequired event
     const eventSubscriber = {
-      onAuthChange: (event: PassflowEvent, payload?: any) => {
+      onAuthChange: (event: PassflowEvent, payload?: unknown) => {
         if (event === PassflowEvent.TwoFactorRequired) {
-          const tfPayload = payload as { email: string; challengeId: string; tfaToken: string };
+          const tfPayload = payload as TwoFactorRequiredPayload;
           this.setPartialAuthState(tfPayload.email, tfPayload.challengeId, tfPayload.tfaToken);
         }
       },
@@ -62,10 +74,11 @@ export class TwoFactorService {
    * Helper method to ensure errors are properly emitted to subscribers
    */
   private emitErrorAndThrow(error: unknown, context: string): never {
+    const errorWithId = error as ErrorWithId;
     const errorPayload = {
       message: error instanceof Error ? error.message : `${context} failed`,
       originalError: error,
-      code: (error as any)?.id || undefined,
+      code: errorWithId?.id || undefined,
     };
     this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
     throw error;

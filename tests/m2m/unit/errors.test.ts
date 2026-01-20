@@ -281,10 +281,8 @@ describe('M2MClient - Error Handling', () => {
         status: 200,
         statusText: 'OK',
         headers: new Headers(),
-        json: async () => {
-          throw new SyntaxError('Unexpected token in JSON');
-        },
-        text: async () => 'not json',
+        json: () => Promise.reject(new SyntaxError('Unexpected token in JSON')),
+        text: () => Promise.resolve('not json'),
       });
 
       await expect(client.getToken()).rejects.toThrow();

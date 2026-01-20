@@ -8,8 +8,10 @@
  * - Visibility/page lifecycle management
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import type { AuthAPI } from '../../lib/api/auth';
 import { TokenCacheService } from '../../lib/services/token-cache-service';
-import { PassflowEvent, PassflowStore } from '../../lib/store';
+import type { StorageManager } from '../../lib/storage';
+import { PassflowEvent, type PassflowStore } from '../../lib/store';
 import { AUTH_RESPONSE, COOKIE_MODE_TOKENS, EXPIRED_TOKENS, FULLY_EXPIRED_TOKENS, VALID_TOKENS } from '../helpers/fixtures';
 import { createMockAuthApi, createMockPassflowStore, createMockStorageManager } from '../helpers/mocks';
 
@@ -27,7 +29,11 @@ describe('TokenCacheService', () => {
     mockAuthApi = createMockAuthApi();
     mockStore = createMockPassflowStore();
 
-    tokenCacheService = new TokenCacheService(mockStorageManager as any, mockAuthApi as any, mockStore as any);
+    tokenCacheService = new TokenCacheService(
+      mockStorageManager as unknown as StorageManager,
+      mockAuthApi as unknown as AuthAPI,
+      mockStore as unknown as PassflowStore,
+    );
   });
 
   afterEach(() => {
