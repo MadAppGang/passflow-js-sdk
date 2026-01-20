@@ -207,7 +207,7 @@ describe('storage manager', () => {
             id_token: 'id123',
             refresh_token: 'refresh123',
           },
-          TokenDeliveryMode.Cookie
+          TokenDeliveryMode.Cookie,
         );
 
         // ID token should be saved with namespaced key
@@ -228,7 +228,7 @@ describe('storage manager', () => {
             id_token: 'id123',
             refresh_token: 'refresh123',
           },
-          TokenDeliveryMode.JsonBody
+          TokenDeliveryMode.JsonBody,
         );
 
         // All tokens should be saved

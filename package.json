@@ -1,7 +1,7 @@
 {
   "name": "@passflow/core",
   "description": "Passflow JS SDK",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -18,9 +18,7 @@
       }
     }
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "dev": "pnpm vite",
     "watch": "vite build --watch",

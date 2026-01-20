@@ -36,7 +36,7 @@ describe('TwoFactorService', () => {
     notify: Mock;
     subscribe: Mock;
   };
-  let mockStorageManager: {
+  let _mockStorageManager: {
     saveTokens: Mock;
     getTokens: Mock;
     deleteTokens: Mock;
@@ -89,7 +89,7 @@ describe('TwoFactorService', () => {
     };
 
     // Create mock storage manager
-    mockStorageManager = {
+    _mockStorageManager = {
       saveTokens: vi.fn(),
       getTokens: vi.fn(),
       deleteTokens: vi.fn(),

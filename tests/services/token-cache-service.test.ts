@@ -301,7 +301,7 @@ describe('TokenCacheService', () => {
       const refresh2 = tokenCacheService.getTokensWithRefresh();
 
       // Resolve the refresh
-      resolveRefresh!(AUTH_RESPONSE);
+      resolveRefresh?.(AUTH_RESPONSE);
 
       await Promise.all([refresh1, refresh2]);
 

@@ -310,7 +310,7 @@ describe('M2MClient - Retry Logic', () => {
       const getDelaySpy = vi.fn((attempt) => attempt * 200);
 
       const customStrategy: RetryStrategy = {
-        shouldRetry: (error, attempt) => attempt < 3,
+        shouldRetry: (_error, attempt) => attempt < 3,
         getDelay: getDelaySpy,
       };
 

@@ -223,9 +223,8 @@ export class AxiosClient {
       document.cookie = 'passflow_test=; expires=Thu, 01 Jan 1970 00:00:00 UTC';
 
       if (!cookiesEnabled && this.tokenDeliveryManager.isCookieMode()) {
-        console.warn('[Passflow SDK] Cookies are blocked. Cookie mode may not work.');
       }
-    } catch (error) {
+    } catch (_error) {
       // Cookie detection failed (likely SSR or restrictive environment)
       // Silent fail - will attempt cookie mode anyway if server requests it
     }

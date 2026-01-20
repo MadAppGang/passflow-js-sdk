@@ -2,7 +2,6 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import axios from 'axios';
 import {
   AuthAPI,
-  TokenExchangeConfig,
   OS,
   PassflowAuthorizationResponse,
   PassflowError,
@@ -18,13 +17,14 @@ import {
   PassflowSignUpPayload,
   PassflowSuccessResponse,
   PassflowValidationResponse,
+  TokenExchangeConfig,
 } from '../api';
 import { POPUP_HEIGHT, POPUP_POLL_INTERVAL_MS, POPUP_TIMEOUT_MS, POPUP_WIDTH } from '../constants';
 import { DeviceService } from '../device';
 import { StorageManager } from '../storage';
 import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
-import { TokenDeliveryManager, TokenDeliveryMode } from '../token/delivery-manager';
 import { TokenType, isTokenExpired, parseToken } from '../token';
+import { TokenDeliveryManager, TokenDeliveryMode } from '../token/delivery-manager';
 import { ParsedTokens, Tokens } from '../types';
 import { isValidEmail, isValidPhoneNumber, isValidUsername } from '../utils/validation';
 import { TokenCacheService } from './token-cache-service';
@@ -99,7 +99,7 @@ export class AuthService {
 
         this.tokenDeliveryManager.setSessionInvalid();
         return false;
-      } catch (error) {
+      } catch (_error) {
         this.tokenDeliveryManager.setSessionInvalid();
         return false;
       }
@@ -127,7 +127,7 @@ export class AuthService {
         this.tokenDeliveryManager.setSessionInvalid();
         return false;
       }
-    } catch (error) {
+    } catch (_error) {
       // Session invalid or network error
       this.tokenDeliveryManager.setSessionInvalid();
       return false;
@@ -173,36 +173,26 @@ export class AuthService {
    */
   private async forwardTokensToBFF(tokens: PassflowAuthorizationResponse): Promise<void> {
     if (!this.tokenExchangeConfig?.callbackUrl) {
-      console.warn('[Passflow SDK] BFF mode enabled but callbackUrl not configured');
       return;
     }
+    const response = await fetch(this.tokenExchangeConfig.callbackUrl, {
+      method: 'POST',
+      credentials: 'include', // Include/set httpOnly cookies
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        id_token: tokens.id_token,
+        // expires_in is returned by the server but not typed in the SDK
+        expires_in: (tokens as Record<string, unknown>).expires_in,
+      }),
+    });
 
-    try {
-      const response = await fetch(this.tokenExchangeConfig.callbackUrl, {
-        method: 'POST',
-        credentials: 'include', // Include/set httpOnly cookies
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          id_token: tokens.id_token,
-          // expires_in is returned by the server but not typed in the SDK
-          expires_in: (tokens as Record<string, unknown>).expires_in,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        console.error('[Passflow SDK] Failed to forward tokens to BFF:', error);
-        throw new Error(`BFF token storage failed: ${response.status}`);
-      }
-
-      console.log('[Passflow SDK] Tokens forwarded to BFF successfully');
-    } catch (error) {
-      console.error('[Passflow SDK] Error forwarding tokens to BFF:', error);
-      throw error;
+    if (!response.ok) {
+      const _error = await response.text();
+      throw new Error(`BFF token storage failed: ${response.status}`);
     }
   }
 
@@ -419,11 +409,8 @@ export class AuthService {
         });
 
         if (!response.ok) {
-          console.warn('[Passflow SDK] BFF logout failed:', await response.text());
         }
-      } catch (error) {
-        console.warn('[Passflow SDK] BFF logout error:', error);
-      }
+      } catch (_error) {}
     } else {
       // Regular mode: call passflow logout API
       const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
@@ -437,11 +424,7 @@ export class AuthService {
         if (response.status !== 'ok') {
           throw new Error('Logout failed');
         }
-      } catch (error) {
-        // IMPORTANT: Even if logout API fails, clear local state
-        // Can't clear HttpOnly cookies from client, but server should invalidate them
-        console.warn('[Passflow SDK] Logout API failed, clearing local state anyway:', error);
-      }
+      } catch (_error) {}
     }
 
     // Clear all local state (both modes)
