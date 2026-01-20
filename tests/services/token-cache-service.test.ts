@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { TokenCacheService } from '../../lib/services/token-cache-service';
 import { PassflowEvent, PassflowStore } from '../../lib/store';
-import { AUTH_RESPONSE, EXPIRED_TOKENS, FULLY_EXPIRED_TOKENS, VALID_TOKENS } from '../helpers/fixtures';
+import { AUTH_RESPONSE, COOKIE_MODE_TOKENS, EXPIRED_TOKENS, FULLY_EXPIRED_TOKENS, VALID_TOKENS } from '../helpers/fixtures';
 import { createMockAuthApi, createMockPassflowStore, createMockStorageManager } from '../helpers/mocks';
 
 describe('TokenCacheService', () => {
@@ -336,6 +336,71 @@ describe('TokenCacheService', () => {
       await tokenCacheService.getTokensWithRefresh();
 
       expect(tokenCacheService.isRefreshing).toBe(false);
+    });
+  });
+
+  describe('Cookie Mode Support', () => {
+    test('setTokensCache handles tokens with only ID token (cookie mode)', () => {
+      tokenCacheService.setTokensCache(COOKIE_MODE_TOKENS);
+
+      expect(tokenCacheService.tokensCache).toEqual(COOKIE_MODE_TOKENS);
+      expect(tokenCacheService.parsedTokensCache).toBeDefined();
+      expect(tokenCacheService.parsedTokensCache?.access_token).toBeUndefined();
+      expect(tokenCacheService.parsedTokensCache?.refresh_token).toBeUndefined();
+      expect(tokenCacheService.parsedTokensCache?.id_token).toBeDefined();
+    });
+
+    test('getParsedTokens returns partial data in cookie mode', () => {
+      tokenCacheService.setTokensCache(COOKIE_MODE_TOKENS);
+
+      const parsed = tokenCacheService.getParsedTokens();
+      expect(parsed).toBeDefined();
+      expect(parsed?.access_token).toBeUndefined();
+      expect(parsed?.id_token).toBeDefined();
+      expect(parsed?.id_token?.email).toBe('test@example.com');
+    });
+
+    test('isExpired returns false when no access_token (cookie mode)', () => {
+      tokenCacheService.setTokensCache(COOKIE_MODE_TOKENS);
+
+      // In cookie mode, we cannot check expiry client-side
+      // Return false and let server validate via 401
+      expect(tokenCacheService.isExpired()).toBe(false);
+    });
+
+    test('initialize caches tokens when only ID token present (cookie mode)', () => {
+      mockStorageManager.getTokens.mockReturnValue(COOKIE_MODE_TOKENS);
+
+      tokenCacheService.initialize();
+
+      expect(tokenCacheService.tokensCache).toEqual(COOKIE_MODE_TOKENS);
+      expect(tokenCacheService.parsedTokensCache?.id_token).toBeDefined();
+      expect(tokenCacheService.tokenExpiredFlag).toBe(false);
+    });
+
+    test('getTokensWithRefresh returns tokens without refresh in cookie mode', async () => {
+      tokenCacheService.setTokensCache(COOKIE_MODE_TOKENS);
+
+      const result = await tokenCacheService.getTokensWithRefresh();
+
+      // Should return tokens without attempting refresh
+      // (server handles refresh via 401 and axios interceptor)
+      expect(result).toEqual(COOKIE_MODE_TOKENS);
+      expect(mockAuthApi.refreshToken).not.toHaveBeenCalled();
+    });
+
+    test('parses all available tokens in partial cookie mode response', () => {
+      const partialTokens = {
+        id_token: COOKIE_MODE_TOKENS.id_token,
+        access_token: VALID_TOKENS.access_token, // Server may still send access_token
+        scopes: COOKIE_MODE_TOKENS.scopes,
+      };
+
+      tokenCacheService.setTokensCache(partialTokens);
+
+      expect(tokenCacheService.parsedTokensCache?.access_token).toBeDefined();
+      expect(tokenCacheService.parsedTokensCache?.id_token).toBeDefined();
+      expect(tokenCacheService.parsedTokensCache?.refresh_token).toBeUndefined();
     });
   });
 });

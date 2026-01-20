@@ -105,6 +105,10 @@ export class TenantAPI {
     this.axiosClient = new AxiosClient(config, storageManager, deviceService);
   }
 
+  setAppId(appId: string): void {
+    this.axiosClient.setAppId(appId);
+  }
+
   joinInvitation(token: string, scopes: string[]): Promise<PassflowAuthorizationResponse> {
     const payload = {
       invite_token: token,

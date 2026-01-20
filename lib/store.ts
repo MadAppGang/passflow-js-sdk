@@ -19,6 +19,7 @@ export enum PassflowEvent {
   Register = 'register',
   RegisterStart = 'register:start',
   SignOut = 'signout',
+  SessionRestored = 'session:restored',
   Error = 'error',
   Refresh = 'refresh',
   RefreshStart = 'refresh:start',
@@ -31,6 +32,8 @@ export enum PassflowEvent {
   TwoFactorRecoveryUsed = '2fa:recovery_used',
   TwoFactorRecoveryCodesLow = '2fa:recovery_low',
   TwoFactorRecoveryCodesExhausted = '2fa:recovery_exhausted',
+  TwoFactorSetupMagicLinkValidated = '2fa:magic_link_validated',
+  TwoFactorSetupMagicLinkFailed = '2fa:magic_link_failed',
 }
 
 /**
@@ -52,11 +55,12 @@ export type PassflowEventPayload = {
   [PassflowEvent.Register]: { tokens?: Tokens; parsedTokens?: ParsedTokens };
   [PassflowEvent.RegisterStart]: { email?: string };
   [PassflowEvent.SignOut]: { userId?: string };
+  [PassflowEvent.SessionRestored]: { id: string; email?: string; username?: string; [key: string]: unknown };
   [PassflowEvent.Error]: ErrorPayload;
   [PassflowEvent.Refresh]: { tokens?: Tokens; parsedTokens?: ParsedTokens };
   [PassflowEvent.RefreshStart]: { tokenId?: string };
   [PassflowEvent.TokenCacheExpired]: { isExpired: boolean };
-  [PassflowEvent.TwoFactorRequired]: { email: string; challengeId: string };
+  [PassflowEvent.TwoFactorRequired]: { email: string; challengeId: string; tfaToken: string };
   [PassflowEvent.TwoFactorSetupStarted]: { secret: string };
   [PassflowEvent.TwoFactorEnabled]: { recoveryCodes: string[]; clearRecoveryCodes: () => void };
   [PassflowEvent.TwoFactorDisabled]: Record<string, never>;
@@ -64,6 +68,19 @@ export type PassflowEventPayload = {
   [PassflowEvent.TwoFactorRecoveryUsed]: { tokens?: Tokens; remainingCodes: number };
   [PassflowEvent.TwoFactorRecoveryCodesLow]: { tokens?: Tokens; remainingCodes: number };
   [PassflowEvent.TwoFactorRecoveryCodesExhausted]: { tokens?: Tokens };
+  [PassflowEvent.TwoFactorSetupMagicLinkValidated]: {
+    userId: string;
+    appId?: string | null;
+    expiresIn: number;
+    sessionToken: string;
+  };
+  [PassflowEvent.TwoFactorSetupMagicLinkFailed]: {
+    error: {
+      code: 'INVALID_TOKEN' | 'EXPIRED_TOKEN' | 'REVOKED_TOKEN' | 'RATE_LIMITED' | 'SERVER_ERROR';
+      message: string;
+      retryAfter?: number;
+    };
+  };
 };
 
 /**

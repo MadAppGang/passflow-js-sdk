@@ -11,6 +11,7 @@ import {
 import { DeviceService } from '../device';
 import { StorageManager } from '../storage';
 import { TokenService, isTokenExpired, parseToken } from '../token';
+import { TokenDeliveryManager } from '../token/delivery-manager';
 
 import {
   PassflowAuthorizationResponse,
@@ -39,12 +40,13 @@ export class AxiosClient {
   private instance: AxiosInstance;
   protected storageManager: StorageManager;
   protected deviceService: DeviceService;
+  protected tokenDeliveryManager: TokenDeliveryManager;
   private refreshPromise: Promise<AxiosResponse<PassflowAuthorizationResponse>> | null = null;
   private isRefreshing = false;
 
   tokenService: TokenService;
 
-  origin = window.location.origin;
+  origin = typeof window !== 'undefined' ? window.location.origin : '';
   url: string;
   appId?: string;
 
@@ -69,6 +71,7 @@ export class AxiosClient {
       });
     this.deviceService = deviceService ?? new DeviceService(this.storageManager);
     this.tokenService = new TokenService(this.storageManager);
+    this.tokenDeliveryManager = new TokenDeliveryManager(this.storageManager);
 
     if (appId) {
       this.appId = appId;
@@ -87,6 +90,9 @@ export class AxiosClient {
       [DEVICE_TYPE_HEADER_KEY]: 'web',
     };
 
+    // Detect cookie capability
+    this.detectCookieSupport();
+
     this.instance = axios.create({
       baseURL: this.url,
       headers: { ...this.defaultHeaders },
@@ -98,6 +104,22 @@ export class AxiosClient {
         return axiosConfig;
       }
 
+      // Cookie mode handling
+      if (this.tokenDeliveryManager.isCookieMode()) {
+        // Browser automatically sends HttpOnly cookies
+        // Do NOT add Authorization header
+        axiosConfig.withCredentials = true;
+
+        // Add CSRF token if available
+        const csrfToken = this.storageManager.getCsrfToken();
+        if (csrfToken) {
+          axiosConfig.headers['X-CSRF-Token'] = csrfToken;
+        }
+
+        return axiosConfig;
+      }
+
+      // JSON mode: existing token handling
       // Request to refresh token endpoint
       if (axiosConfig.url?.includes('refresh')) {
         if (this.isRefreshing) {
@@ -112,7 +134,6 @@ export class AxiosClient {
 
       // Request to access token endpoints
       const tokens = this.storageManager.getTokens();
-      const scopes = this.storageManager.getScopes();
 
       if (tokens?.access_token) {
         const access = parseToken(tokens.access_token);
@@ -120,42 +141,29 @@ export class AxiosClient {
         // Check if token is expired with buffer
         if (isTokenExpired(access, TOKEN_EXPIRY_BUFFER_SECONDS) && tokens.refresh_token) {
           try {
-            // If refresh is already in progress, wait for it
+            // Single-flight pattern: reuse in-flight refresh
             if (this.refreshPromise) {
               const response = await this.refreshPromise;
-              if (response.data) {
-                // Use the new token from the completed refresh
+              // After refresh completes, get new token
+              if (response?.data?.access_token) {
                 axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${response.data.access_token}`;
               }
               return axiosConfig;
             }
 
-            // Start new refresh
-            this.isRefreshing = true;
-            const payload = {
-              refresh_token: tokens.refresh_token,
-              scopes,
-            };
+            // Start new refresh using single-flight pattern
+            this.refreshPromise = this.refreshTokens();
 
-            this.refreshPromise = this.instance.post<PassflowAuthorizationResponse>(PassflowEndpointPaths.refresh, payload, {
-              headers: {
-                [AUTHORIZATION_HEADER_KEY]: `Bearer ${tokens.refresh_token}`,
-              },
-            });
-
-            const response = await this.refreshPromise;
-
-            if (response.data) {
-              // Update storage BEFORE processing queued requests
-              this.storageManager.saveTokens(response.data);
-              axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${response.data.access_token}`;
+            try {
+              const response = await this.refreshPromise;
+              // After refresh completes, get new token
+              if (response?.data?.access_token) {
+                axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${response.data.access_token}`;
+              }
+              return axiosConfig;
+            } finally {
+              this.refreshPromise = null;
             }
-
-            // Clear refresh state immediately after successful refresh
-            this.refreshPromise = null;
-            this.isRefreshing = false;
-
-            return axiosConfig;
           } catch (error) {
             // On failure, clear refresh state immediately so future requests can retry
             this.refreshPromise = null;
@@ -176,6 +184,11 @@ export class AxiosClient {
     this.instance.interceptors.response.use(
       (response: AxiosResponse) => response,
       async (e: AxiosError) => {
+        // Mark session as invalid on 401
+        if (e.response?.status === HttpStatuses.unauthorized) {
+          this.tokenDeliveryManager.setSessionInvalid();
+        }
+
         // Handle rate limiting with retry logic
         if (e.response?.status === HttpStatuses.tooManyRequests) {
           return await this.handleRateLimitError(e);
@@ -191,6 +204,91 @@ export class AxiosClient {
 
   private isNonAuthEndpoint(url?: string): boolean {
     return this.nonAccessTokenEndpoints.some((endpoint) => url?.includes(endpoint)) && !this.isProtectedEndpoint(url);
+  }
+
+  /**
+   * Detect if cookies are supported/enabled in the browser
+   * Falls back to JSON mode if cookies are blocked
+   */
+  private detectCookieSupport(): void {
+    // Only run in browser environment
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    try {
+      // Test if cookies are enabled
+      document.cookie = 'passflow_test=1; SameSite=Lax';
+      const cookiesEnabled = document.cookie.indexOf('passflow_test=1') !== -1;
+      document.cookie = 'passflow_test=; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+
+      if (!cookiesEnabled && this.tokenDeliveryManager.isCookieMode()) {
+        console.warn('[Passflow SDK] Cookies are blocked. Cookie mode may not work.');
+      }
+    } catch (error) {
+      // Cookie detection failed (likely SSR or restrictive environment)
+      // Silent fail - will attempt cookie mode anyway if server requests it
+    }
+  }
+
+  /**
+   * Refresh tokens using single-flight pattern to prevent race conditions
+   * Supports both cookie mode and JSON mode
+   */
+  private async refreshTokens(): Promise<AxiosResponse<PassflowAuthorizationResponse>> {
+    if (this.tokenDeliveryManager.isCookieMode()) {
+      // Cookie mode: call /auth/refresh with credentials:'include'
+      // Server reads refresh token from HttpOnly cookie
+      const response = await this.instance.post<PassflowAuthorizationResponse>(
+        PassflowEndpointPaths.refresh,
+        {}, // Empty body
+        { withCredentials: true },
+      );
+
+      // Mark session as valid after successful refresh
+      this.tokenDeliveryManager.setSessionValid();
+
+      // Extract CSRF token if present
+      if (response.data.csrf_token) {
+        this.storageManager.setCsrfToken(response.data.csrf_token);
+      }
+
+      // Save ID token if present (other tokens are in HttpOnly cookies)
+      if (response.data.id_token) {
+        this.storageManager.setIdToken(response.data.id_token);
+      }
+
+      return response;
+    } else {
+      // JSON mode: existing refresh logic
+      const tokens = this.storageManager.getTokens();
+      const scopes = this.storageManager.getScopes();
+
+      if (!tokens?.refresh_token) {
+        throw new Error('No refresh token available');
+      }
+
+      this.isRefreshing = true;
+      const payload = {
+        refresh_token: tokens.refresh_token,
+        scopes,
+      };
+
+      const response = await this.instance.post<PassflowAuthorizationResponse>(PassflowEndpointPaths.refresh, payload, {
+        headers: {
+          [AUTHORIZATION_HEADER_KEY]: `Bearer ${tokens.refresh_token}`,
+        },
+      });
+
+      if (response.data) {
+        // Update storage BEFORE processing queued requests
+        this.storageManager.saveTokens(response.data);
+      }
+
+      this.isRefreshing = false;
+
+      return response;
+    }
   }
 
   private async handleRateLimitError(e: AxiosError): Promise<AxiosResponse> {
@@ -300,5 +398,24 @@ export class AxiosClient {
 
   delete<T>(path: string, config?: AxiosRequestConfig): Promise<T> {
     return this.send(RequestMethod.DELETE, path, config);
+  }
+
+  /**
+   * Update the appId and propagate it to axios headers.
+   * This ensures that the APP_ID_HEADER_KEY is updated in all future requests.
+   *
+   * @param appId - The new application ID to set
+   */
+  setAppId(appId: string): void {
+    this.appId = appId;
+
+    // Update default headers
+    this.defaultHeaders = {
+      ...this.defaultHeaders,
+      [APP_ID_HEADER_KEY]: appId,
+    };
+
+    // Update axios instance headers
+    this.instance.defaults.headers.common[APP_ID_HEADER_KEY] = appId;
   }
 }

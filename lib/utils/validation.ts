@@ -83,17 +83,18 @@ export function isValidUsername(username: string): boolean {
 }
 
 /**
- * Validates TOTP code format (6 numeric digits)
+ * Validates TOTP code format (6 or 8 numeric digits)
  *
  * @param code - The TOTP code to validate
- * @returns true if valid TOTP code format (exactly 6 digits), false otherwise
+ * @param digits - Expected number of digits (6 or 8, defaults to 6 for backward compatibility)
+ * @returns true if valid TOTP code format, false otherwise
  */
-export function isValidTOTPCode(code: string): boolean {
+export function isValidTOTPCode(code: string, digits: 6 | 8 = 6): boolean {
   if (!code || typeof code !== 'string') return false;
 
-  // TOTP codes must be exactly 6 numeric digits
-  const totpPattern = /^\d{6}$/;
-  return totpPattern.test(code);
+  // TOTP codes must be exactly 6 or 8 numeric digits
+  const pattern = digits === 8 ? /^\d{8}$/ : /^\d{6}$/;
+  return pattern.test(code);
 }
 
 /**

@@ -24,6 +24,7 @@ import {
   PassflowPasswordlessSignInExtendedPayload,
   PassflowPasswordlessSignInPayload,
   PassflowSendPasswordResetEmailPayload,
+  PassflowSessionValidationResponse,
   PassflowSignInExtendedPayload,
   PassflowSignInPayload,
   PassflowSignUpPayload,
@@ -37,6 +38,10 @@ export class AuthAPI {
 
   constructor(config: PassflowConfig, storageManager?: StorageManager, deviceService?: DeviceService) {
     this.axiosClient = new AxiosClient(config, storageManager, deviceService);
+  }
+
+  setAppId(appId: string): void {
+    this.axiosClient.setAppId(appId);
   }
 
   refreshToken(refreshToken: string, scopes: string[], accessToken?: string): Promise<PassflowAuthorizationResponse> {
@@ -107,6 +112,10 @@ export class AuthAPI {
     const endpoint = isAdmin ? PassflowAdminEndpointPaths.logout : PassflowEndpointPaths.logout;
 
     return this.axiosClient.post<PassflowLogoutResponse, typeof payload>(endpoint, payload);
+  }
+
+  validateSession(): Promise<PassflowSessionValidationResponse> {
+    return this.axiosClient.get<PassflowSessionValidationResponse>(PassflowEndpointPaths.validateSession);
   }
 
   sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {

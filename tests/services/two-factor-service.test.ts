@@ -1,4 +1,4 @@
-import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
+import { Mock, afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { PassflowError } from '../../lib/api';
 import {
   TwoFactorConfirmResponse,
@@ -99,7 +99,6 @@ describe('TwoFactorService', () => {
     twoFactorService = new TwoFactorService(
       mockTwoFactorApi as unknown as TwoFactorApiClient,
       mockSubscribeStore as unknown as PassflowStore,
-      mockStorageManager as unknown as StorageManager,
     );
   });
 
@@ -157,6 +156,8 @@ describe('TwoFactorService', () => {
         id: 'UNAUTHORIZED',
         message: 'Unauthorized',
         status: 401,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.getStatus.mockRejectedValue(error);
 
@@ -204,6 +205,8 @@ describe('TwoFactorService', () => {
         id: 'ALREADY_ENABLED',
         message: '2FA is already enabled for this user',
         status: 409,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.beginSetup.mockRejectedValue(error);
 
@@ -250,6 +253,8 @@ describe('TwoFactorService', () => {
         id: 'INVALID_CODE',
         message: 'Invalid TOTP code',
         status: 400,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.confirmSetup.mockRejectedValue(error);
 
@@ -269,6 +274,8 @@ describe('TwoFactorService', () => {
         id: 'TOO_MANY_ATTEMPTS',
         message: 'Too many failed attempts. Try again in 15 minutes.',
         status: 429,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.confirmSetup.mockRejectedValue(error);
 
@@ -305,6 +312,7 @@ describe('TwoFactorService', () => {
       // Verify callback works
       const eventCall = mockSubscribeStore.notify.mock.calls.find((call) => call[0] === PassflowEvent.TwoFactorEnabled);
       expect(eventCall).toBeDefined();
+      if (!eventCall) throw new Error('Expected event call to be defined');
       const payload = eventCall[1];
 
       // Call the cleanup callback
@@ -322,7 +330,7 @@ describe('TwoFactorService', () => {
   describe('verify()', () => {
     test('TEST-10: Verify TOTP code successfully', async () => {
       // Given: User has signed in with password, 2FA is required, partial auth state is set
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       const mockResponse: TwoFactorVerifyResponse = {
         access_token: 'mock-access-token',
@@ -338,7 +346,7 @@ describe('TwoFactorService', () => {
       expect(result).toEqual(mockResponse);
       expect(mockTwoFactorApi.verify).toHaveBeenCalledWith({
         code: '123456',
-        challenge_id: 'challenge-123',
+        tfa_token: 'tfa-token-123',
       });
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.TwoFactorVerified, { tokens: mockResponse });
       expect(twoFactorService.isVerificationRequired()).toBe(false);
@@ -346,12 +354,14 @@ describe('TwoFactorService', () => {
 
     test('TEST-11: Verify TOTP code with invalid code', async () => {
       // Given: Partial auth state is set
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       const error = new PassflowError({
         id: 'INVALID_CODE',
         message: 'Invalid TOTP code',
         status: 400,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.verify.mockRejectedValue(error);
 
@@ -378,7 +388,7 @@ describe('TwoFactorService', () => {
 
     test('TEST-13: Verify TOTP code with expired partial auth state', async () => {
       // Given: Partial auth state was set 6 minutes ago
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       // Advance time by 6 minutes (360,000ms)
       vi.advanceTimersByTime(6 * 60 * 1000);
@@ -391,18 +401,18 @@ describe('TwoFactorService', () => {
       expect(mockTwoFactorApi.verify).not.toHaveBeenCalled();
     });
 
-    test('TEST-14: Verify TOTP code without challenge_id', async () => {
-      // Given: Partial auth state exists but missing challengeId
-      twoFactorService.setPartialAuthState('user@example.com', undefined);
+    test('TEST-14: Verify TOTP code without tfa_token', async () => {
+      // Given: Partial auth state exists but missing tfaToken
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', undefined);
 
       // When/Then: Throws error
-      await expect(twoFactorService.verify('123456')).rejects.toThrow('No challenge ID found. User must sign in first.');
+      await expect(twoFactorService.verify('123456')).rejects.toThrow('No TFA token found. User must sign in first.');
       expect(mockTwoFactorApi.verify).not.toHaveBeenCalled();
     });
 
     test('TEST-15: Verify TOTP code clears partial auth state on success', async () => {
       // Given: Partial auth state is set
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
       expect(twoFactorService.isVerificationRequired()).toBe(true);
 
       const mockResponse: TwoFactorVerifyResponse = {
@@ -427,7 +437,7 @@ describe('TwoFactorService', () => {
   describe('useRecoveryCode()', () => {
     test('TEST-16: Use recovery code successfully', async () => {
       // Given: Partial auth state is set, user has 8 recovery codes
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       const mockResponse: TwoFactorRecoveryResponse = {
         access_token: 'mock-access-token',
@@ -445,7 +455,7 @@ describe('TwoFactorService', () => {
       expect(result.remaining_recovery_codes).toBe(7);
       expect(mockTwoFactorApi.useRecoveryCode).toHaveBeenCalledWith({
         recovery_code: 'ABCD-1234',
-        challenge_id: 'challenge-123',
+        tfa_token: 'tfa-token-123',
       });
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
         PassflowEvent.TwoFactorRecoveryUsed,
@@ -459,7 +469,7 @@ describe('TwoFactorService', () => {
 
     test('TEST-17: Use recovery code with 2 remaining codes', async () => {
       // Given: Partial auth state is set, user has 2 recovery codes remaining
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       const mockResponse: TwoFactorRecoveryResponse = {
         access_token: 'mock-access-token',
@@ -483,7 +493,7 @@ describe('TwoFactorService', () => {
 
     test('TEST-18: Use last recovery code', async () => {
       // Given: Partial auth state is set, user has 1 recovery code remaining
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       const mockResponse: TwoFactorRecoveryResponse = {
         access_token: 'mock-access-token',
@@ -506,12 +516,14 @@ describe('TwoFactorService', () => {
 
     test('TEST-19: Use invalid recovery code', async () => {
       // Given: Partial auth state is set
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       const error = new PassflowError({
         id: 'INVALID_RECOVERY_CODE',
         message: 'Invalid recovery code',
         status: 400,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.useRecoveryCode.mockRejectedValue(error);
 
@@ -537,7 +549,7 @@ describe('TwoFactorService', () => {
 
     test('TEST-21: Use recovery code clears partial auth state on success', async () => {
       // Given: Partial auth state is set
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
       expect(twoFactorService.isVerificationRequired()).toBe(true);
 
       const mockResponse: TwoFactorRecoveryResponse = {
@@ -583,6 +595,8 @@ describe('TwoFactorService', () => {
         id: 'INVALID_CODE',
         message: 'Invalid TOTP code',
         status: 400,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.disable.mockRejectedValue(error);
 
@@ -602,6 +616,8 @@ describe('TwoFactorService', () => {
         id: 'NOT_ENABLED',
         message: '2FA is not enabled for this user',
         status: 404,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.disable.mockRejectedValue(error);
 
@@ -644,6 +660,8 @@ describe('TwoFactorService', () => {
         id: 'INVALID_CODE',
         message: 'Invalid TOTP code',
         status: 400,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.regenerateRecoveryCodes.mockRejectedValue(error);
 
@@ -663,6 +681,8 @@ describe('TwoFactorService', () => {
         id: 'NOT_ENABLED',
         message: '2FA is not enabled for this user',
         status: 404,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.regenerateRecoveryCodes.mockRejectedValue(error);
 
@@ -694,7 +714,7 @@ describe('TwoFactorService', () => {
 
     test('TEST-29: isVerificationRequired returns true when state is set', () => {
       // Given: Partial auth state is set
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       // When: isVerificationRequired() is called
       const result = twoFactorService.isVerificationRequired();
@@ -705,7 +725,7 @@ describe('TwoFactorService', () => {
 
     test('TEST-30: isVerificationRequired returns false after 5-minute timeout', () => {
       // Given: Partial auth state was set 6 minutes ago
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       // Advance time by 6 minutes
       vi.advanceTimersByTime(6 * 60 * 1000);
@@ -732,6 +752,7 @@ describe('TwoFactorService', () => {
       eventSubscriber.onAuthChange(PassflowEvent.TwoFactorRequired, {
         email: 'user@example.com',
         challengeId: 'challenge-123',
+        tfaToken: 'tfa-token-123',
       });
 
       // Then: isVerificationRequired() returns true
@@ -740,7 +761,7 @@ describe('TwoFactorService', () => {
 
     test('TEST-32: Clear partial auth state on logout', () => {
       // Given: Partial auth state is set
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
       expect(twoFactorService.isVerificationRequired()).toBe(true);
 
       // When: clearPartialAuthState() is called
@@ -755,9 +776,10 @@ describe('TwoFactorService', () => {
       // Given: Partial auth state is being set
       const email = 'user@example.com';
       const challengeId = 'challenge-123';
+      const tfaToken = 'tfa-token-123';
 
       // When: setPartialAuthState() is called
-      twoFactorService.setPartialAuthState(email, challengeId);
+      twoFactorService.setPartialAuthState(email, challengeId, tfaToken);
 
       // Then: State is stored in sessionStorage
       expect(sessionStorageMock.setItem).toHaveBeenCalledWith(
@@ -770,6 +792,7 @@ describe('TwoFactorService', () => {
       expect(storedData).toMatchObject({
         email,
         challengeId,
+        tfaToken,
         timestamp: expect.any(Number),
         expiresAt: expect.any(Number),
       });
@@ -780,6 +803,7 @@ describe('TwoFactorService', () => {
       const storedState = {
         email: 'user@example.com',
         challengeId: 'challenge-123',
+        tfaToken: 'tfa-token-123',
         timestamp: Date.now(),
         expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes from now
       };
@@ -789,7 +813,6 @@ describe('TwoFactorService', () => {
       const newService = new TwoFactorService(
         mockTwoFactorApi as unknown as TwoFactorApiClient,
         mockSubscribeStore as unknown as PassflowStore,
-        mockStorageManager as unknown as StorageManager,
       );
 
       // Mock the API call
@@ -802,10 +825,10 @@ describe('TwoFactorService', () => {
       // When: verify() is called (triggers recovery)
       newService.verify('123456');
 
-      // Then: State is recovered (verify was called with correct challenge_id)
+      // Then: State is recovered (verify was called with correct tfa_token)
       expect(mockTwoFactorApi.verify).toHaveBeenCalledWith({
         code: '123456',
-        challenge_id: 'challenge-123',
+        tfa_token: 'tfa-token-123',
       });
     });
 
@@ -823,7 +846,6 @@ describe('TwoFactorService', () => {
       const newService = new TwoFactorService(
         mockTwoFactorApi as unknown as TwoFactorApiClient,
         mockSubscribeStore as unknown as PassflowStore,
-        mockStorageManager as unknown as StorageManager,
       );
 
       // When: verify() is called
@@ -882,7 +904,7 @@ describe('TwoFactorService', () => {
 
     test('TEST-38: Emit 2fa:verified event on successful verify', async () => {
       // Given: User calls verify() with valid code
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
       const mockResponse: TwoFactorVerifyResponse = {
         access_token: 'mock-access-token',
         success: true,
@@ -916,6 +938,8 @@ describe('TwoFactorService', () => {
         id: 'INVALID_CODE',
         message: 'Invalid TOTP code',
         status: 400,
+        location: 'two-factor-service.test.ts',
+        time: new Date().toISOString(),
       });
       mockTwoFactorApi.getStatus.mockRejectedValue(error);
 
@@ -941,7 +965,7 @@ describe('TwoFactorService', () => {
   describe('Edge Cases', () => {
     test('TEST-41: Handle concurrent verification attempts', async () => {
       // Given: Partial auth state is set
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       const mockResponse: TwoFactorVerifyResponse = {
         access_token: 'mock-access-token',
@@ -955,22 +979,22 @@ describe('TwoFactorService', () => {
 
       await Promise.all([promise1, promise2]);
 
-      // Then: Each call uses the same challengeId
+      // Then: Each call uses the same tfaToken
       expect(mockTwoFactorApi.verify).toHaveBeenCalledTimes(2);
       expect(mockTwoFactorApi.verify).toHaveBeenNthCalledWith(1, {
         code: '123456',
-        challenge_id: 'challenge-123',
+        tfa_token: 'tfa-token-123',
       });
       expect(mockTwoFactorApi.verify).toHaveBeenNthCalledWith(2, {
         code: '654321',
-        challenge_id: 'challenge-123',
+        tfa_token: 'tfa-token-123',
       });
     });
 
     test('TEST-42: Validate partial auth state timeout is 5 minutes', () => {
       // Given: Partial auth state is set
       const startTime = Date.now();
-      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123');
+      twoFactorService.setPartialAuthState('user@example.com', 'challenge-123', 'tfa-token-123');
 
       // Get stored state
       const storedData = JSON.parse(mockSessionStorage['passflow_2fa_challenge']);

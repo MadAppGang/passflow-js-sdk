@@ -162,6 +162,37 @@ export class Passflow {
     this.setTokensToCacheFromLocalStorage();
   }
 
+  /**
+   * Update the appId and propagate it to all API clients.
+   * This ensures that all future API requests use the new appId in their headers.
+   *
+   * @param appId - The new application ID to set
+   *
+   * @example
+   * ```typescript
+   * // Update appId after discovery
+   * passflow.setAppId('discovered-app-id-123');
+   * ```
+   */
+  setAppId(appId: string): void {
+    this.appId = appId;
+
+    // Update all API clients
+    this.authApi.setAppId(appId);
+    this.appApi.setAppId(appId);
+    this.userApi.setAppId(appId);
+    this.settingApi.setAppId(appId);
+    this.tenantApi.setAppId(appId);
+    this.invitationApi.setAppId(appId);
+    this.twoFactorApi.setAppId(appId);
+
+    // Update authService appId if needed
+    if (this.authService) {
+      // AuthService stores appId internally but doesn't have a setter
+      // The API clients will handle the headers, so this is sufficient
+    }
+  }
+
   // Session management
   /**
    * Configure session callbacks and check current session status.
@@ -301,7 +332,21 @@ export class Passflow {
   }
 
   private checkAndSetTokens(): Tokens | undefined {
-    const urlParams = new URLSearchParams(window.location.search);
+    // Check query params first, then fall back to hash
+    // React SDK may put tokens in hash (more secure), while some OAuth flows use query params
+    let urlParams = new URLSearchParams(window.location.search);
+    let fromHash = false;
+
+    // If no access_token in query params, check hash
+    if (!urlParams.get('access_token') && window.location.hash) {
+      // Hash format: #access_token=xxx&refresh_token=yyy
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      if (hashParams.get('access_token')) {
+        urlParams = hashParams;
+        fromHash = true;
+      }
+    }
+
     const access_token = urlParams.get('access_token');
     const refresh_token = urlParams.get('refresh_token');
     const id_token = urlParams.get('id_token');
@@ -316,7 +361,7 @@ export class Passflow {
           code: 'INVALID_TOKEN_FORMAT',
         };
         this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-        this.cleanupUrlParams();
+        this.cleanupUrlParams(fromHash);
         return undefined;
       }
 
@@ -327,7 +372,7 @@ export class Passflow {
           code: 'INVALID_TOKEN_FORMAT',
         };
         this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-        this.cleanupUrlParams();
+        this.cleanupUrlParams(fromHash);
         return undefined;
       }
 
@@ -338,7 +383,7 @@ export class Passflow {
           code: 'INVALID_TOKEN_FORMAT',
         };
         this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-        this.cleanupUrlParams();
+        this.cleanupUrlParams(fromHash);
         return undefined;
       }
 
@@ -352,7 +397,7 @@ export class Passflow {
       this.tokenCacheService.setTokensCache(tokens);
       this.subscribeStore.notify(PassflowEvent.SignIn, { tokens, parsedTokens: this.getParsedTokens() });
       this.submitSessionCheck();
-      this.cleanupUrlParams();
+      this.cleanupUrlParams(fromHash);
       this.error = undefined;
       return tokens;
     } else {
@@ -372,20 +417,25 @@ export class Passflow {
     return undefined;
   }
 
-  private cleanupUrlParams(): void {
-    const urlParams = new URLSearchParams(window.location.search);
-
-    // Remove sensitive token parameters
-    urlParams.delete('access_token');
-    urlParams.delete('refresh_token');
-    urlParams.delete('id_token');
-    urlParams.delete('client_challenge');
-
-    // Use replaceState to fully clear from browser history
-    if (urlParams.size > 0) {
-      window.history.replaceState({}, document.title, `${window.location.pathname}?${urlParams.toString()}`);
+  private cleanupUrlParams(fromHash = false): void {
+    if (fromHash) {
+      // Clear hash completely - tokens should be removed from URL for security
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
     } else {
-      window.history.replaceState({}, document.title, window.location.pathname);
+      const urlParams = new URLSearchParams(window.location.search);
+
+      // Remove sensitive token parameters
+      urlParams.delete('access_token');
+      urlParams.delete('refresh_token');
+      urlParams.delete('id_token');
+      urlParams.delete('client_challenge');
+
+      // Use replaceState to fully clear from browser history
+      if (urlParams.size > 0) {
+        window.history.replaceState({}, document.title, `${window.location.pathname}?${urlParams.toString()}`);
+      } else {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
   }
 
@@ -1328,6 +1378,53 @@ export class Passflow {
     this.authService.authRedirect(options);
   }
 
+  /**
+   * Get the current token delivery mode.
+   * Returns the mode determined by the server (json_body, cookie, or mobile).
+   *
+   * @returns The current token delivery mode
+   *
+   * @example
+   * ```typescript
+   * import { TokenDeliveryMode } from '@passflow/passflow-js-sdk';
+   *
+   * const mode = passflow.getDeliveryMode();
+   * if (mode === TokenDeliveryMode.Cookie) {
+   *   console.log('Using cookie-based authentication');
+   * } else {
+   *   console.log('Using JSON body authentication');
+   * }
+   * ```
+   */
+  getDeliveryMode(): import('./token/delivery-manager').TokenDeliveryMode {
+    return this.authService['tokenDeliveryManager'].getMode();
+  }
+
+  /**
+   * Restore and validate session for cookie mode on page load.
+   * Only applicable when using cookie-based token delivery.
+   * Validates that HttpOnly cookies are still valid with the server.
+   *
+   * This method is automatically called on SDK initialization for cookie mode,
+   * but can be called manually to re-validate the session.
+   *
+   * @returns Promise resolving to true if session is valid, false otherwise
+   *
+   * @example
+   * ```typescript
+   * // Check if session is valid (useful after page reload)
+   * const isValid = await passflow.restoreSession();
+   * if (isValid) {
+   *   console.log('Session restored successfully');
+   * } else {
+   *   console.log('Session expired, please sign in again');
+   * }
+   * ```
+   */
+  async restoreSession(): Promise<boolean> {
+    return await this.authService.restoreSession();
+  }
+
   // Two-Factor Authentication methods
 
   /**
@@ -1526,5 +1623,106 @@ export class Passflow {
    */
   isTwoFactorVerificationRequired(): boolean {
     return this.twoFactorService.isVerificationRequired();
+  }
+
+  /**
+   * Get configured TOTP digit count for the current app
+   * @returns Number of digits (6 or 8) configured for TOTP codes
+   *
+   * @example
+   * ```typescript
+   * const digits = passflow.getTotpDigits();
+   * console.log(`TOTP codes should be ${digits} digits`);
+   * ```
+   */
+  getTotpDigits(): 6 | 8 {
+    return this.twoFactorService.getTotpDigits();
+  }
+
+  // Magic Link 2FA Setup Methods
+
+  /**
+   * Validate a magic link token for 2FA setup.
+   * Used when a user clicks on an admin-generated magic link to set up 2FA.
+   *
+   * The magic link creates a scoped session that can ONLY be used for 2FA setup,
+   * not for regular authentication.
+   *
+   * @param token - Magic link token from URL parameter
+   * @returns Promise with validation response containing scoped session or error
+   *
+   * @example
+   * ```typescript
+   * // On the magic link landing page (e.g., /2fa-setup/:token)
+   * const urlToken = extractTokenFromUrl();
+   * const result = await passflow.validateTwoFactorSetupMagicLink(urlToken);
+   *
+   * if (result.success) {
+   *   console.log('Magic link validated');
+   *   console.log('User ID:', result.userId);
+   *   console.log('Session expires in:', result.expiresIn, 'seconds');
+   *   // Show 2FA setup form
+   * } else {
+   *   console.error('Validation failed:', result.error?.message);
+   *   // Show error UI
+   * }
+   * ```
+   */
+  async validateTwoFactorSetupMagicLink(
+    token: string,
+  ): Promise<import('./api/model').TwoFactorSetupMagicLinkValidationResponse> {
+    return await this.twoFactorService.validateTwoFactorSetupMagicLink(token);
+  }
+
+  /**
+   * Get the current magic link session (if any).
+   * Used by React SDK components to access session data.
+   *
+   * @returns Active magic link session or null if none/expired
+   *
+   * @example
+   * ```typescript
+   * const session = passflow.getMagicLinkSession();
+   * if (session) {
+   *   console.log('Active session for user:', session.userId);
+   *   console.log('Expires at:', new Date(session.expiresAt));
+   * }
+   * ```
+   */
+  getMagicLinkSession(): import('./api/model').TwoFactorSetupMagicLinkSession | null {
+    return this.twoFactorService.getMagicLinkSession();
+  }
+
+  /**
+   * Check if a magic link session is currently active.
+   *
+   * @returns True if magic link session is active and not expired
+   *
+   * @example
+   * ```typescript
+   * if (passflow.hasMagicLinkSession()) {
+   *   // User can proceed with 2FA setup
+   * } else {
+   *   // Redirect to error page or request new link
+   * }
+   * ```
+   */
+  hasMagicLinkSession(): boolean {
+    return this.twoFactorService.hasMagicLinkSession();
+  }
+
+  /**
+   * Clear the magic link session.
+   * Called after successful 2FA setup or on error.
+   *
+   * @example
+   * ```typescript
+   * // After 2FA setup is complete
+   * passflow.clearMagicLinkSession();
+   * // Redirect to sign-in
+   * ```
+   */
+  clearMagicLinkSession(): void {
+    this.twoFactorService.clearMagicLinkSession();
   }
 }

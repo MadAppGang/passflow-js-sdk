@@ -21,6 +21,10 @@ export class UserAPI {
     this.axiosClient = new AxiosClient(config, storageManager, deviceService);
   }
 
+  setAppId(appId: string): void {
+    this.axiosClient.setAppId(appId);
+  }
+
   getUserPasskeys() {
     return this.axiosClient.get<PassflowUserPasskey[]>(PassflowEndpointPaths.userPasskey);
   }

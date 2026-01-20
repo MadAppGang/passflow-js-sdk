@@ -282,13 +282,14 @@ describe('Passflow Public API (Integration)', () => {
       expect(passflow.isTwoFactorVerificationRequired()).toBe(false);
     });
 
-    test('isTwoFactorVerificationRequired() returns false when no partial auth in memory', () => {
-      // Note: The SDK only recovers sessionStorage state when verify/useRecoveryCode is called
-      // Just checking isTwoFactorVerificationRequired() doesn't recover state from storage
-      // This is by design - state recovery happens lazily during actual 2FA operations
+    test('isTwoFactorVerificationRequired() recovers state from sessionStorage', () => {
+      // The SDK automatically recovers sessionStorage state when checking if verification is required
+      // This is important for React apps where the Passflow instance might be recreated
       const partialAuth = {
         challengeId: 'challenge-123',
+        tfaToken: 'tfa-token-123',
         email: 'test@example.com',
+        timestamp: Date.now(),
         expiresAt: Date.now() + 5 * 60 * 1000,
       };
       sessionStorage.setItem('passflow_2fa_challenge', JSON.stringify(partialAuth));
@@ -296,10 +297,8 @@ describe('Passflow Public API (Integration)', () => {
       // Create new SDK instance - state is only in storage, not memory
       passflow = new Passflow(TEST_CONFIG);
 
-      // Returns false because partialAuthState is only set when:
-      // 1. AuthService emits TwoFactorRequired event
-      // 2. verify() or useRecoveryCode() is called (which triggers recovery)
-      expect(passflow.isTwoFactorVerificationRequired()).toBe(false);
+      // Returns true because isTwoFactorVerificationRequired() auto-recovers state from sessionStorage
+      expect(passflow.isTwoFactorVerificationRequired()).toBe(true);
     });
   });
 

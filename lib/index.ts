@@ -40,6 +40,10 @@ export type {
   TwoFactorRecoveryResponse,
   TwoFactorRegenerateRequest,
   TwoFactorRegenerateResponse,
+  TwoFactorSetupMagicLinkError,
+  TwoFactorSetupMagicLinkErrorCode,
+  TwoFactorSetupMagicLinkSession,
+  TwoFactorSetupMagicLinkValidationResponse,
   TwoFactorSetupResponse,
   TwoFactorStatusResponse,
   TwoFactorVerifyRequest,
@@ -64,3 +68,6 @@ export type {
   RetryStrategy,
   M2MRateLimitInfo,
 } from './m2m';
+
+// Re-export Token Delivery and Session State (explicitly for clarity)
+export { TokenDeliveryMode, SessionState } from './types';

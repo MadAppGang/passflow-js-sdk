@@ -22,6 +22,7 @@ import { POPUP_HEIGHT, POPUP_POLL_INTERVAL_MS, POPUP_TIMEOUT_MS, POPUP_WIDTH } f
 import { DeviceService } from '../device';
 import { StorageManager } from '../storage';
 import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
+import { TokenDeliveryManager, TokenDeliveryMode } from '../token/delivery-manager';
 import { TokenType, isTokenExpired, parseToken } from '../token';
 import { ParsedTokens, Tokens } from '../types';
 import { isValidEmail, isValidPhoneNumber, isValidUsername } from '../utils/validation';
@@ -31,6 +32,8 @@ import { TokenCacheService } from './token-cache-service';
  * Service for handling authentication related functionality
  */
 export class AuthService {
+  private tokenDeliveryManager: TokenDeliveryManager;
+
   constructor(
     private authApi: AuthAPI,
     private deviceService: DeviceService,
@@ -46,7 +49,80 @@ export class AuthService {
       expiredSession?: () => Promise<void>;
     },
     private appId?: string,
-  ) {}
+  ) {
+    this.tokenDeliveryManager = new TokenDeliveryManager(storageManager);
+    // Initialize session state on page load (cookie mode only)
+    this.initializeSession();
+  }
+
+  /**
+   * Initialize session state on page load for cookie mode
+   */
+  private async initializeSession(): Promise<void> {
+    if (this.tokenDeliveryManager.isCookieMode()) {
+      // Cookie mode: validate session with server
+      await this.restoreSession();
+    }
+  }
+
+  /**
+   * Restore session for cookie mode on page load
+   * Validates that HttpOnly cookies are still valid
+   * @returns true if session is valid, false otherwise
+   */
+  async restoreSession(): Promise<boolean> {
+    if (!this.tokenDeliveryManager.isCookieMode()) {
+      return false; // Only applicable to cookie mode
+    }
+
+    try {
+      // Call lightweight endpoint to validate session
+      // This uses the HttpOnly cookies automatically
+      const response = await this.authApi.validateSession();
+
+      if (response.valid) {
+        this.tokenDeliveryManager.setSessionValid();
+
+        // If response includes user info, emit event
+        if (response.user) {
+          this.subscribeStore.notify(PassflowEvent.SessionRestored, response.user);
+        }
+
+        return true;
+      } else {
+        this.tokenDeliveryManager.setSessionInvalid();
+        return false;
+      }
+    } catch (error) {
+      // Session invalid or network error
+      this.tokenDeliveryManager.setSessionInvalid();
+      return false;
+    }
+  }
+
+  /**
+   * Process successful authentication response
+   * Handles token storage, session state, CSRF tokens
+   */
+  private processAuthResponse(response: PassflowAuthorizationResponse, scopes: string[]): void {
+    // Detect and update delivery mode
+    if ('token_delivery' in response && response.token_delivery) {
+      this.tokenDeliveryManager.setMode(response.token_delivery as TokenDeliveryMode);
+    }
+
+    // Mark session as valid after successful auth
+    this.tokenDeliveryManager.setSessionValid();
+
+    // Save tokens (conditional based on delivery mode)
+    response.scopes = scopes;
+    this.storageManager.saveTokens(response, this.tokenDeliveryManager.getMode());
+    this.tokenCacheService.setTokensCache(response);
+
+    // Store CSRF token if present (cookie mode)
+    if (response.csrf_token) {
+      this.storageManager.setCsrfToken(response.csrf_token);
+    }
+  }
 
   async signIn(payload: PassflowSignInPayload): Promise<PassflowAuthorizationResponse> {
     // Validate input before API call
@@ -100,12 +176,13 @@ export class AuthService {
     try {
       const response = await this.authApi.signIn(payload, deviceId, os);
 
-      // Check if 2FA is required
-      if ('requires_2fa' in response && response.requires_2fa === true) {
+      // Check if 2FA is required (either via requires_2fa flag or tfa_token presence)
+      if (('requires_2fa' in response && response.requires_2fa === true) || ('tfa_token' in response && response.tfa_token)) {
         // Emit TwoFactorRequired event for TwoFactorService to listen to
         this.subscribeStore.notify(PassflowEvent.TwoFactorRequired, {
           email: payload.email || '',
           challengeId: response.challenge_id || '',
+          tfaToken: response.tfa_token || '',
         });
 
         // DO NOT save tokens or emit SignIn event
@@ -114,9 +191,7 @@ export class AuthService {
       }
 
       // Normal flow (no 2FA required)
-      response.scopes = payload.scopes;
-      this.storageManager.saveTokens(response);
-      this.tokenCacheService.setTokensCache(response);
+      this.processAuthResponse(response, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -164,9 +239,7 @@ export class AuthService {
 
     try {
       const response = await this.authApi.signUp(payload);
-      response.scopes = payload.scopes;
-      this.storageManager.saveTokens(response);
-      this.tokenCacheService.setTokensCache(response);
+      this.processAuthResponse(response, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.Register, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -236,9 +309,7 @@ export class AuthService {
 
     try {
       const response = await this.authApi.passwordlessSignInComplete(payload);
-      response.scopes = payload.scopes;
-      this.storageManager.saveTokens(response);
-      this.tokenCacheService.setTokensCache(response);
+      this.processAuthResponse(response, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -260,16 +331,64 @@ export class AuthService {
     const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
     const deviceId = this.storageManager.getDeviceId();
 
-    const response = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
-    if (response.status !== 'ok') {
-      throw new Error('Logout failed');
+    try {
+      // Call logout API (works in both cookie and JSON modes)
+      // Cookie mode: server reads refresh token from HttpOnly cookie
+      // JSON mode: uses refresh_token from storage
+      const response = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
+      if (response.status !== 'ok') {
+        throw new Error('Logout failed');
+      }
+    } catch (error) {
+      // IMPORTANT: Even if logout API fails, clear local state
+      // Can't clear HttpOnly cookies from client, but server should invalidate them
+      console.warn('[Passflow SDK] Logout API failed, clearing local state anyway:', error);
     }
+
+    // Clear all local state (both modes)
     this.storageManager.deleteTokens();
+    this.storageManager.clearIdToken();
+    this.storageManager.clearCsrfToken();
+    this.tokenDeliveryManager.reset();
     this.subscribeStore.notify(PassflowEvent.SignOut, {});
   }
 
   async refreshToken(): Promise<PassflowAuthorizationResponse> {
     this.subscribeStore.notify(PassflowEvent.RefreshStart, {});
+
+    // Cookie mode: Server reads refresh token from HttpOnly cookie
+    if (this.tokenDeliveryManager.isCookieMode()) {
+      try {
+        // Call refresh endpoint - browser sends HttpOnly cookies automatically
+        const response = await this.authApi.refreshToken('', this.scopes);
+
+        // Update session state
+        this.tokenDeliveryManager.setSessionValid();
+
+        // Process response (stores ID token, CSRF token)
+        this.processAuthResponse(response, this.scopes);
+
+        this.subscribeStore.notify(PassflowEvent.Refresh, {
+          tokens: response,
+          parsedTokens: this.tokenCacheService.getParsedTokens(),
+        });
+        this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
+        this.tokenCacheService.isRefreshing = false;
+        this.tokenCacheService.tokenExpiredFlag = false;
+        return response;
+      } catch (error) {
+        this.tokenDeliveryManager.setSessionInvalid();
+        const errorPayload: ErrorPayload = {
+          message: error instanceof Error ? error.message : 'Token refresh failed',
+          originalError: error,
+          code: error instanceof PassflowError ? error.id : undefined,
+        };
+        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        throw error;
+      }
+    }
+
+    // JSON mode: Existing behavior
     const tokens = this.storageManager.getTokens();
     if (!tokens) {
       const error = new Error('No tokens found');
@@ -351,9 +470,7 @@ export class AuthService {
 
     try {
       const response = await this.authApi.resetPassword(newPassword, sscopes, resetToken);
-      response.scopes = sscopes;
-      this.storageManager.saveTokens(response);
-      this.tokenCacheService.setTokensCache(response);
+      this.processAuthResponse(response, sscopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -392,9 +509,7 @@ export class AuthService {
         challenge_id,
         !this.appId,
       );
-      responseRegisterComplete.scopes = payload.scopes;
-      this.storageManager.saveTokens(responseRegisterComplete);
-      this.tokenCacheService.setTokensCache(responseRegisterComplete);
+      this.processAuthResponse(responseRegisterComplete, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.Register, {
         tokens: responseRegisterComplete,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -432,9 +547,7 @@ export class AuthService {
       );
 
       if ('access_token' in responseAuthenticateComplete) {
-        responseAuthenticateComplete.scopes = payload.scopes;
-        this.storageManager.saveTokens(responseAuthenticateComplete);
-        this.tokenCacheService.setTokensCache(responseAuthenticateComplete);
+        this.processAuthResponse(responseAuthenticateComplete, payload.scopes);
         this.subscribeStore.notify(PassflowEvent.SignIn, {
           tokens: responseAuthenticateComplete,
           parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -530,8 +643,7 @@ export class AuthService {
             scopes: sscopes,
           };
 
-          this.storageManager.saveTokens(tokensData);
-          this.tokenCacheService.setTokensCache(tokensData);
+          this.processAuthResponse(tokensData, sscopes);
           this.subscribeStore.notify(PassflowEvent.SignIn, {
             tokens: tokensData,
             parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -598,14 +710,29 @@ export class AuthService {
 
   /**
    * Check if user is authenticated
+   * CRITICAL: Cookie mode checks ID token + session state, NOT access_token
    */
   isAuthenticated(parsedTokens: ParsedTokens): boolean {
     try {
-      if (!parsedTokens) return false;
+      if (this.tokenDeliveryManager.isCookieMode()) {
+        // Cookie mode: Check for ID token presence + session validity
+        const hasIdToken = !!parsedTokens?.id_token || !!this.storageManager.getIdToken();
+        const sessionValid = this.tokenDeliveryManager.isSessionValid();
+        const sessionUnknown = this.tokenDeliveryManager.isSessionUnknown();
+
+        // Trust session if:
+        // 1. We have ID token (proves we authenticated at some point)
+        // 2. Session is valid (haven't received 401) OR
+        // 3. Session is unknown (haven't tried yet, optimistic)
+        return hasIdToken && (sessionValid || sessionUnknown);
+      }
+
+      // JSON mode: existing logic (check access/refresh token expiry)
+      if (!parsedTokens || !parsedTokens.access_token) return false;
 
       return (
         !isTokenExpired(parsedTokens.access_token) ||
-        (!!parsedTokens.refresh_token && !isTokenExpired(parsedTokens.refresh_token))
+        (parsedTokens.refresh_token !== undefined && !isTokenExpired(parsedTokens.refresh_token))
       );
     } catch (error) {
       const errorPayload: ErrorPayload = {
@@ -648,9 +775,27 @@ export class AuthService {
 
   /**
    * Get tokens and refresh if needed
+   * Cookie mode: Returns ID token only (access/refresh in HttpOnly cookies)
+   * JSON mode: Returns all tokens from localStorage
    */
   async getTokens(doRefresh: boolean): Promise<Tokens | undefined> {
     try {
+      // Cookie mode: Server manages access/refresh tokens in HttpOnly cookies
+      if (this.tokenDeliveryManager.isCookieMode()) {
+        const tokens = this.storageManager.getTokens();
+        // In cookie mode, we only have ID token in localStorage
+        if (!tokens?.id_token) return undefined;
+
+        // If session is invalid and refresh requested, try refresh
+        if (this.tokenDeliveryManager.isSessionInvalid() && doRefresh) {
+          return await this.refreshToken();
+        }
+
+        // Return tokens (ID token only, access/refresh are in cookies)
+        return tokens;
+      }
+
+      // JSON mode: Existing behavior
       const tokens = this.storageManager.getTokens();
       // we have no token in storage
       if (!tokens || !tokens.access_token) return undefined;

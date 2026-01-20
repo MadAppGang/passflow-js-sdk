@@ -27,11 +27,20 @@ export class TokenCacheService {
   initialize() {
     try {
       const tokens = this.storageManager.getTokens();
-      if (!tokens || !tokens.access_token) {
+      if (!tokens) {
         this.startTokenCheck();
         return;
       }
 
+      // Cookie mode: access_token may not be in storage (only ID token)
+      // In cookie mode, we cache whatever tokens we have (likely just ID token)
+      if (!tokens.access_token) {
+        this.setTokensCache(tokens);
+        this.startTokenCheck();
+        return;
+      }
+
+      // JSON mode: check access_token expiry
       const access = parseToken(tokens.access_token);
 
       if (isTokenExpired(access)) {
@@ -156,9 +165,14 @@ export class TokenCacheService {
 
   setTokensCache(tokens: Tokens | undefined): void {
     this.tokensCache = tokens;
+
+    // Cookie mode: Only ID token may be available (access/refresh tokens in HttpOnly cookies)
+    // JSON mode: All tokens expected
+    // Handle partial data gracefully for cookie mode
     if (tokens) {
+      // Parse available tokens (some may be undefined in cookie mode)
       this.parsedTokensCache = {
-        access_token: parseToken(tokens.access_token),
+        access_token: tokens.access_token ? parseToken(tokens.access_token) : undefined,
         id_token: tokens.id_token ? parseToken(tokens.id_token) : undefined,
         refresh_token: tokens.refresh_token ? parseToken(tokens.refresh_token) : undefined,
         scopes: tokens.scopes,
@@ -176,6 +190,14 @@ export class TokenCacheService {
     try {
       if (!this.tokensCache) return this.tokensCache;
 
+      // Cookie mode: access_token may not be available (in HttpOnly cookie)
+      // In cookie mode, we cannot check expiry client-side, so just return tokens
+      // Server will handle refresh via 401 response and axios interceptor
+      if (!this.tokensCache.access_token) {
+        return this.tokensCache;
+      }
+
+      // JSON mode: check and refresh if needed
       const access = parseToken(this.tokensCache.access_token);
 
       if (isTokenExpired(access) && !this.tokenExpiredFlag) {
@@ -200,6 +222,14 @@ export class TokenCacheService {
 
   isExpired() {
     if (!this.tokensCache) return true;
+
+    // Cookie mode: access_token may not be available (in HttpOnly cookie)
+    // In cookie mode, we can't check expiry client-side, so return false
+    // and let the server respond with 401 when the cookie expires
+    if (!this.tokensCache.access_token) {
+      return false; // Assume valid in cookie mode, server will validate
+    }
+
     const access = parseToken(this.tokensCache.access_token);
     return isTokenExpired(access);
   }

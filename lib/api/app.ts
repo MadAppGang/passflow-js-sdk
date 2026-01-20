@@ -11,6 +11,10 @@ export class AppAPI {
     this.axiosClient = new AxiosClient(config, storageManager, deviceService);
   }
 
+  setAppId(appId: string): void {
+    this.axiosClient.setAppId(appId);
+  }
+
   getAppSettings(): Promise<AppSettings> {
     return this.axiosClient.get<AppSettings>(PassflowEndpointPaths.appSettings);
   }

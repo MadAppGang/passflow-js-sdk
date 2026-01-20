@@ -52,4 +52,6 @@ export enum TokenType {
   signin = 'signin',
   /** Actor token - for impersonation and delegated access */
   actor = 'actor',
+  /** Two-factor authentication challenge token - for 2FA flows */
+  two_factor = '2fa',
 }

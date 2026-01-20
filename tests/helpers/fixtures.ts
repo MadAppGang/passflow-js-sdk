@@ -10,7 +10,7 @@ const JWT_HEADER = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
 
 // Create a valid-looking JWT payload (exp in year 2099)
 const createJwtPayload = (claims: Record<string, unknown>) => {
-  const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
+  const payload = btoa(JSON.stringify(claims)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   return payload;
 };
 
@@ -124,6 +124,14 @@ export const FULLY_EXPIRED_TOKENS: Tokens = {
 };
 
 /**
+ * Cookie Mode Tokens (only ID token available, access/refresh in HttpOnly cookies)
+ */
+export const COOKIE_MODE_TOKENS: Tokens = {
+  id_token: VALID_ID_TOKEN,
+  scopes: ['id', 'email', 'openid'],
+};
+
+/**
  * Parsed Token Objects
  */
 export const VALID_PARSED_ACCESS_TOKEN: Token = {
@@ -155,7 +163,6 @@ export const VALID_PARSED_ID_TOKEN: Token = {
   jti: 'id-token-123',
   type: 'id',
   email: 'test@example.com',
-  name: 'Test User',
 };
 
 export const VALID_PARSED_TOKENS: ParsedTokens = {
@@ -186,7 +193,7 @@ export const LOGOUT_RESPONSE: PassflowLogoutResponse = {
 };
 
 export const SUCCESS_RESPONSE: PassflowSuccessResponse = {
-  status: 'ok',
+  result: 'ok',
 };
 
 /**

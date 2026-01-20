@@ -7,6 +7,7 @@ import {
   PassflowPasswordlessResponse,
   PassflowSuccessResponse,
   PassflowUserPayload,
+  Providers,
 } from '../../lib/api';
 import { DeviceService } from '../../lib/device';
 import { AuthService } from '../../lib/services/auth-service';
@@ -53,6 +54,8 @@ describe('AuthService', () => {
     getToken: Mock;
     deleteTokens: Mock;
     getDeviceId: Mock;
+    clearIdToken: Mock;
+    clearCsrfToken: Mock;
   };
   let mockSubscribeStore: {
     notify: Mock;
@@ -64,6 +67,9 @@ describe('AuthService', () => {
     isExpired: Mock;
     getTokensWithRefresh: Mock;
     initialize: Mock;
+    startTokenCheck: Mock;
+    isRefreshing: boolean;
+    tokenExpiredFlag: boolean;
   };
 
   const mockScopes = ['profile', 'email'];
@@ -142,6 +148,8 @@ describe('AuthService', () => {
       getToken: vi.fn().mockReturnValue(mockTokens.refresh_token),
       deleteTokens: vi.fn(),
       getDeviceId: vi.fn().mockReturnValue(mockDeviceId),
+      clearIdToken: vi.fn(),
+      clearCsrfToken: vi.fn(),
     };
 
     // Mock token service functions directly
@@ -194,7 +202,7 @@ describe('AuthService', () => {
 
       await authService.signIn(payload);
 
-      expect(mockStorageManager.saveTokens).toHaveBeenCalledWith(mockAuthResponse);
+      expect(mockStorageManager.saveTokens).toHaveBeenCalledWith(mockAuthResponse, 'json_body');
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.SignIn, {
         tokens: mockAuthResponse,
         parsedTokens: mockParsedTokens,
@@ -242,7 +250,7 @@ describe('AuthService', () => {
 
       await authService.signUp(payload);
 
-      expect(mockStorageManager.saveTokens).toHaveBeenCalledWith(mockAuthResponse);
+      expect(mockStorageManager.saveTokens).toHaveBeenCalledWith(mockAuthResponse, 'json_body');
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.Register, {
         tokens: mockAuthResponse,
         parsedTokens: mockParsedTokens,
@@ -261,6 +269,8 @@ describe('AuthService', () => {
       await authService.logOut();
 
       expect(mockStorageManager.deleteTokens).toHaveBeenCalled();
+      expect(mockStorageManager.clearIdToken).toHaveBeenCalled();
+      expect(mockStorageManager.clearCsrfToken).toHaveBeenCalled();
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.SignOut, {});
     });
   });
@@ -448,7 +458,7 @@ describe('AuthService', () => {
 
   describe('passwordlessSignIn', () => {
     test('should call passwordlessSignIn with correct parameters', async () => {
-      const payload = { email: 'test@example.com' };
+      const payload = { email: 'test@example.com', challenge_type: 'magic_link' as const, redirect_url: 'https://example.com' };
 
       await authService.passwordlessSignIn(payload);
 
@@ -460,13 +470,13 @@ describe('AuthService', () => {
     });
 
     test('should throw error for invalid email', async () => {
-      const payload = { email: 'invalid-email' };
+      const payload = { email: 'invalid-email', challenge_type: 'magic_link' as const, redirect_url: 'https://example.com' };
 
       await expect(authService.passwordlessSignIn(payload)).rejects.toThrow('Invalid email format');
     });
 
     test('should throw error for invalid phone', async () => {
-      const payload = { phone: '12345' };
+      const payload = { phone: '12345', challenge_type: 'otp' as const, redirect_url: 'https://example.com' };
 
       await expect(authService.passwordlessSignIn(payload)).rejects.toThrow('Invalid phone number format');
     });
@@ -474,7 +484,7 @@ describe('AuthService', () => {
     test('should handle passwordlessSignIn API error', async () => {
       mockAuthApi.passwordlessSignIn.mockRejectedValueOnce(new Error('Failed to send link'));
 
-      const payload = { email: 'test@example.com' };
+      const payload = { email: 'test@example.com', challenge_type: 'magic_link' as const, redirect_url: 'https://example.com' };
 
       await expect(authService.passwordlessSignIn(payload)).rejects.toThrow('Failed to send link');
     });
@@ -482,7 +492,7 @@ describe('AuthService', () => {
 
   describe('passwordlessSignInComplete', () => {
     test('should complete passwordless sign in', async () => {
-      const payload = { challenge_id: 'challenge-123', code: '123456' };
+      const payload = { challenge_id: 'challenge-123', otp: '123456' };
 
       await authService.passwordlessSignInComplete(payload);
 
@@ -494,17 +504,21 @@ describe('AuthService', () => {
     test('should handle passwordlessSignInComplete API error', async () => {
       mockAuthApi.passwordlessSignInComplete.mockRejectedValueOnce(new Error('Invalid code'));
 
-      const payload = { challenge_id: 'challenge-123', code: '123456' };
+      const payload = { challenge_id: 'challenge-123', otp: '123456' };
 
       await expect(authService.passwordlessSignInComplete(payload)).rejects.toThrow('Invalid code');
     });
   });
 
   describe('logOut', () => {
-    test('should handle logout failure', async () => {
+    test('should clear local state even on logout failure', async () => {
       mockAuthApi.logOut.mockResolvedValueOnce({ status: 'error' });
 
-      await expect(authService.logOut()).rejects.toThrow('Logout failed');
+      await authService.logOut();
+
+      expect(mockStorageManager.deleteTokens).toHaveBeenCalled();
+      expect(mockStorageManager.clearIdToken).toHaveBeenCalled();
+      expect(mockStorageManager.clearCsrfToken).toHaveBeenCalled();
     });
   });
 
@@ -544,7 +558,11 @@ describe('AuthService', () => {
 
   describe('passkeyRegister', () => {
     test('should register passkey successfully', async () => {
-      const payload = { email: 'test@example.com' };
+      const payload = {
+        scopes: mockScopes,
+        relying_party_id: mockOrigin,
+        redirect_url: 'https://example.com/callback',
+      };
 
       await authService.passkeyRegister(payload);
 
@@ -556,7 +574,11 @@ describe('AuthService', () => {
     test('should handle passkeyRegister API error', async () => {
       mockAuthApi.passkeyRegisterStart.mockRejectedValueOnce(new Error('WebAuthn not supported'));
 
-      const payload = { email: 'test@example.com' };
+      const payload = {
+        scopes: mockScopes,
+        relying_party_id: mockOrigin,
+        redirect_url: 'https://example.com/callback',
+      };
 
       await expect(authService.passkeyRegister(payload)).rejects.toThrow('WebAuthn not supported');
     });
@@ -564,7 +586,9 @@ describe('AuthService', () => {
 
   describe('passkeyAuthenticate', () => {
     test('should authenticate with passkey successfully', async () => {
-      const payload = { email: 'test@example.com' };
+      const payload = {
+        relying_party_id: mockOrigin,
+      };
 
       await authService.passkeyAuthenticate(payload);
 
@@ -576,7 +600,9 @@ describe('AuthService', () => {
     test('should handle passkeyAuthenticate API error', async () => {
       mockAuthApi.passkeyAuthenticateStart.mockRejectedValueOnce(new Error('Passkey not found'));
 
-      const payload = { email: 'test@example.com' };
+      const payload = {
+        relying_party_id: mockOrigin,
+      };
 
       await expect(authService.passkeyAuthenticate(payload)).rejects.toThrow('Passkey not found');
     });
@@ -688,7 +714,10 @@ describe('AuthService', () => {
 
   describe('createFederatedAuthUrl', () => {
     test('should create correct federated auth URL', () => {
-      const payload = { provider: 'google' };
+      const payload = {
+        provider: Providers.google,
+        redirect_url: 'https://example.com/callback',
+      };
 
       const url = authService.createFederatedAuthUrl(payload);
 
@@ -698,7 +727,11 @@ describe('AuthService', () => {
     });
 
     test('should include invite_token when provided', () => {
-      const payload = { provider: 'google', invite_token: 'invite-123' };
+      const payload = {
+        provider: Providers.google,
+        redirect_url: 'https://example.com/callback',
+        invite_token: 'invite-123',
+      };
 
       const url = authService.createFederatedAuthUrl(payload);
 

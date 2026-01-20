@@ -57,6 +57,10 @@ export class InvitationAPI {
     this.axiosClient = new AxiosClient(config, storageManager, deviceService);
   }
 
+  setAppId(appId: string): void {
+    this.axiosClient.setAppId(appId);
+  }
+
   /**
    * Requests an invitation link that can be used to invite users
    * @param payload Request invitation payload

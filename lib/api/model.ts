@@ -28,6 +28,7 @@ export enum PassflowEndpointPaths {
   passwordlessComplete = '/auth/passwordless/complete',
   logout = '/user/logout',
   refresh = '/auth/refresh',
+  validateSession = '/user/me',
   sendPasswordResetEmail = '/auth/password/reset',
   resetPassword = '/auth/password/change',
   appSettings = '/app/settings',
@@ -53,9 +54,10 @@ export enum PassflowEndpointPaths {
   twoFactorStatus = '/user/2fa/status',
   twoFactorSetupBegin = '/user/2fa/setup/begin',
   twoFactorSetupConfirm = '/user/2fa/setup/confirm',
-  twoFactorVerify = '/user/2fa/verify',
-  twoFactorRecovery = '/user/2fa/recovery',
+  twoFactorVerify = '/auth/2fa/verify',
+  twoFactorRecovery = '/auth/2fa/recovery',
   twoFactorRegenerateCodes = '/user/2fa/recovery-codes/regenerate',
+  twoFactorSetupMagicLink = '/auth/2fa-setup', // :token param appended in API call
 }
 
 export enum PassflowAdminEndpointPaths {
@@ -79,6 +81,10 @@ export type PassflowConfig = {
 export type PassflowAuthorizationResponse = Tokens & {
   requires_2fa?: boolean;
   challenge_id?: string;
+  tfa_token?: string;
+  token_delivery?: 'json_body' | 'cookie' | 'mobile';
+  cookies?: string[];
+  csrf_token?: string;
 };
 
 export type PassflowValidationResponse = Tokens & {
@@ -92,6 +98,17 @@ export type PassflowSuccessResponse = {
 export type PassflowLogoutResponse = {
   status: 'ok';
 };
+
+export interface PassflowSessionValidationResponse {
+  valid: boolean;
+  user?: {
+    id: string;
+    email?: string;
+    username?: string;
+    [key: string]: unknown;
+  };
+  expires_at?: number;
+}
 
 export type PassflowResponseError = {
   error: {
@@ -572,12 +589,12 @@ export type TwoFactorConfirmRequest = {
 
 export type TwoFactorVerifyRequest = {
   code: string;
-  challenge_id: string;
+  tfa_token: string;
 };
 
 export type TwoFactorRecoveryRequest = {
   recovery_code: string;
-  challenge_id: string;
+  tfa_token: string;
 };
 
 export type TwoFactorDisableRequest = {
@@ -593,11 +610,13 @@ export type TwoFactorStatusResponse = {
   enabled: boolean;
   policy: TwoFactorPolicy;
   recovery_codes_remaining: number;
+  totp_digits?: 6 | 8; // Optional for backward compatibility, defaults to 6 if not provided
 };
 
 export type TwoFactorSetupResponse = {
   secret: string;
   qr_code: string;
+  totp_digits?: 6 | 8; // Optional for backward compatibility, defaults to 6 if not provided
 };
 
 export type TwoFactorConfirmResponse = {
@@ -621,4 +640,53 @@ export type TwoFactorDisableResponse = {
 export type TwoFactorRegenerateResponse = {
   success: true;
   recovery_codes: string[];
+};
+
+// ============================================
+// Two-Factor Magic Link Setup Types
+// ============================================
+
+/**
+ * Two-Factor magic link error codes
+ */
+export type TwoFactorSetupMagicLinkErrorCode =
+  | 'INVALID_TOKEN'
+  | 'EXPIRED_TOKEN'
+  | 'REVOKED_TOKEN'
+  | 'RATE_LIMITED'
+  | 'SERVER_ERROR';
+
+/**
+ * Two-Factor magic link error details
+ */
+export type TwoFactorSetupMagicLinkError = {
+  code: TwoFactorSetupMagicLinkErrorCode;
+  message: string;
+  retryAfter?: number; // Seconds until retry allowed (for RATE_LIMITED)
+};
+
+/**
+ * Response from magic link validation endpoint
+ * Backend returns scoped session token for 2FA setup operations
+ */
+export type TwoFactorSetupMagicLinkValidationResponse = {
+  success: boolean;
+  sessionToken?: string; // JWT with scope "2fa_setup"
+  userId?: string; // Target user ID
+  expiresIn?: number; // Session expiration in seconds (3600 = 1 hour)
+  appId?: string | null; // Optional associated app ID
+  error?: TwoFactorSetupMagicLinkError;
+};
+
+/**
+ * Internal session state for magic link 2FA setup
+ * Stored in memory only, not persisted across page reloads
+ */
+export type TwoFactorSetupMagicLinkSession = {
+  sessionToken: string;
+  userId: string;
+  appId?: string | null;
+  scope: '2fa_setup'; // Immutable scope
+  timestamp: number;
+  expiresAt: number;
 };
