@@ -191,7 +191,6 @@ export class AuthService {
     });
 
     if (!response.ok) {
-      const _error = await response.text();
       throw new Error(`BFF token storage failed: ${response.status}`);
     }
   }
