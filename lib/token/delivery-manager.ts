@@ -14,6 +14,12 @@ export enum TokenDeliveryMode {
   JsonBody = 'json_body',
   Cookie = 'cookie',
   Mobile = 'mobile',
+  /**
+   * BFF (Backend-for-Frontend) mode.
+   * Tokens are sent to BFF server which stores them in httpOnly cookies.
+   * Only ID token is kept locally for user info display.
+   */
+  BFF = 'bff',
 }
 
 export enum SessionState {
@@ -71,6 +77,13 @@ export class TokenDeliveryManager {
    */
   isMobileMode(): boolean {
     return this.mode === TokenDeliveryMode.Mobile;
+  }
+
+  /**
+   * Check if currently in BFF mode
+   */
+  isBFFMode(): boolean {
+    return this.mode === TokenDeliveryMode.BFF;
   }
 
   /**

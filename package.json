@@ -1,5 +1,5 @@
 {
-  "name": "@passflow/passflow-js-sdk",
+  "name": "@passflow/core",
   "description": "Passflow JS SDK",
   "version": "0.1.47",
   "type": "module",

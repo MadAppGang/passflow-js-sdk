@@ -69,6 +69,43 @@ export enum PassflowAdminEndpointPaths {
   logout = '/admin/auth/logout',
 }
 
+/**
+ * BFF (Backend-for-Frontend) configuration for secure token storage.
+ * When enabled, tokens are sent to the BFF server which stores them in httpOnly cookies.
+ */
+export type TokenExchangeConfig = {
+  /**
+   * Enable token exchange mode. When true, authorization code is sent to your server
+   * for token exchange instead of being exchanged directly from the browser.
+   */
+  enabled: boolean;
+  /**
+   * URL to send authorization code for server-side token exchange.
+   * Your server exchanges the code for tokens and stores them in httpOnly cookies.
+   * @example '/api/auth/callback'
+   */
+  callbackUrl: string;
+  /**
+   * URL to call for token refresh. BFF reads refresh_token from httpOnly cookie
+   * and returns new tokens (also stored in cookies).
+   * @example '/api/auth/refresh'
+   */
+  refreshUrl?: string;
+  /**
+   * URL to call for logout. BFF clears httpOnly cookies.
+   * @example '/api/auth/logout'
+   */
+  logoutUrl?: string;
+  /**
+   * URL to check authentication status (whether httpOnly cookies are valid).
+   * @example '/api/auth/status'
+   */
+  statusUrl?: string;
+};
+
+/** @deprecated Use TokenExchangeConfig instead */
+export type BFFConfig = TokenExchangeConfig;
+
 export type PassflowConfig = {
   url?: string;
   appId?: string;
@@ -76,6 +113,12 @@ export type PassflowConfig = {
   createTenantForNewUser?: boolean;
   parseQueryParams?: boolean;
   keyStoragePrefix?: string;
+  /**
+   * Token exchange configuration for secure server-side token handling.
+   * When enabled, authorization code is sent to your server which exchanges it
+   * for tokens and stores them in httpOnly cookies. Tokens never touch the browser.
+   */
+  tokenExchange?: TokenExchangeConfig;
 };
 
 export type PassflowAuthorizationResponse = Tokens & {
@@ -246,7 +289,9 @@ export type AuthStrategies =
       strategy: OtherStrategy;
     };
 
-export type AppType = 'web' | 'android' | 'ios' | 'desktop' | 'other';
+export type AppType = 'web' | 'spa' | 'bff' | 'android' | 'ios' | 'desktop' | 'm2m' | 'other';
+
+export type TokenDeliveryMethod = 'json_body' | 'cookie' | '';
 
 export type AppSettings = {
   id: string;
@@ -274,6 +319,7 @@ export type AppSettings = {
   defaults: DefaultAppSettings;
   login_app_theme: LoginWebAppTheme;
   login_app_settings?: unknown;
+  token_delivery_method?: TokenDeliveryMethod;
 };
 
 export type DefaultAppSettings = {

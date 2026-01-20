@@ -44,14 +44,14 @@ export class StorageManager {
 
   /**
    * Save tokens to storage with conditional logic based on delivery mode
-   * In cookie mode: ONLY save ID token (not access/refresh tokens)
+   * In cookie/BFF mode: ONLY save ID token (not access/refresh tokens)
    * In JSON mode: save all tokens (existing behavior)
    */
   saveTokens(tokens: Tokens, deliveryMode?: TokenDeliveryMode): void {
     const { id_token, access_token, refresh_token, scopes } = tokens;
 
-    if (deliveryMode === TokenDeliveryMode.Cookie) {
-      // Cookie mode: ONLY save ID token (access/refresh in HttpOnly cookies)
+    if (deliveryMode === TokenDeliveryMode.Cookie || deliveryMode === TokenDeliveryMode.BFF) {
+      // Cookie/BFF mode: ONLY save ID token (access/refresh in HttpOnly cookies)
       if (id_token) {
         this.storage.setItem(this.ID_TOKEN_KEY, id_token);
       }
@@ -72,14 +72,14 @@ export class StorageManager {
 
   /**
    * Get tokens from storage with conditional logic based on delivery mode
-   * In cookie mode: return ID token only (access/refresh in HttpOnly cookies)
+   * In cookie/BFF mode: return ID token only (access/refresh in HttpOnly cookies)
    * In JSON mode: return all stored tokens (existing behavior)
    */
   getTokens(): Tokens | undefined {
     const mode = this.getDeliveryMode();
 
-    if (mode === TokenDeliveryMode.Cookie) {
-      // Cookie mode: return ID token only (access/refresh in HttpOnly cookies)
+    if (mode === TokenDeliveryMode.Cookie || mode === TokenDeliveryMode.BFF) {
+      // Cookie/BFF mode: return ID token only (access/refresh in HttpOnly cookies)
       const idToken = this.storage.getItem(this.ID_TOKEN_KEY);
       if (!idToken) return undefined;
       return {

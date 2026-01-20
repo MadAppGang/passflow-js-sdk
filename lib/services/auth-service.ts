@@ -2,6 +2,7 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import axios from 'axios';
 import {
   AuthAPI,
+  TokenExchangeConfig,
   OS,
   PassflowAuthorizationResponse,
   PassflowError,
@@ -33,6 +34,7 @@ import { TokenCacheService } from './token-cache-service';
  */
 export class AuthService {
   private tokenDeliveryManager: TokenDeliveryManager;
+  private tokenExchangeConfig?: TokenExchangeConfig;
 
   constructor(
     private authApi: AuthAPI,
@@ -49,28 +51,60 @@ export class AuthService {
       expiredSession?: () => Promise<void>;
     },
     private appId?: string,
+    tokenExchangeConfig?: TokenExchangeConfig,
   ) {
+    this.tokenExchangeConfig = tokenExchangeConfig;
     this.tokenDeliveryManager = new TokenDeliveryManager(storageManager);
-    // Initialize session state on page load (cookie mode only)
+
+    // If token exchange is enabled, set BFF mode immediately
+    if (tokenExchangeConfig?.enabled) {
+      this.tokenDeliveryManager.setMode(TokenDeliveryMode.BFF);
+    }
+
+    // Initialize session state on page load (cookie/BFF mode only)
     this.initializeSession();
   }
 
   /**
-   * Initialize session state on page load for cookie mode
+   * Initialize session state on page load for cookie/BFF mode
    */
   private async initializeSession(): Promise<void> {
-    if (this.tokenDeliveryManager.isCookieMode()) {
-      // Cookie mode: validate session with server
+    if (this.tokenDeliveryManager.isCookieMode() || this.tokenDeliveryManager.isBFFMode()) {
+      // Cookie/BFF mode: validate session with server
       await this.restoreSession();
     }
   }
 
   /**
-   * Restore session for cookie mode on page load
+   * Restore session for cookie/BFF mode on page load
    * Validates that HttpOnly cookies are still valid
    * @returns true if session is valid, false otherwise
    */
   async restoreSession(): Promise<boolean> {
+    // BFF mode: validate session with BFF endpoint
+    if (this.tokenDeliveryManager.isBFFMode() && this.tokenExchangeConfig?.statusUrl) {
+      try {
+        const response = await fetch(this.tokenExchangeConfig.statusUrl, {
+          method: 'GET',
+          credentials: 'include', // Include httpOnly cookies
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.authenticated) {
+            this.tokenDeliveryManager.setSessionValid();
+            return true;
+          }
+        }
+
+        this.tokenDeliveryManager.setSessionInvalid();
+        return false;
+      } catch (error) {
+        this.tokenDeliveryManager.setSessionInvalid();
+        return false;
+      }
+    }
+
     if (!this.tokenDeliveryManager.isCookieMode()) {
       return false; // Only applicable to cookie mode
     }
@@ -103,17 +137,27 @@ export class AuthService {
   /**
    * Process successful authentication response
    * Handles token storage, session state, CSRF tokens
+   * In BFF mode, forwards tokens to BFF server
    */
-  private processAuthResponse(response: PassflowAuthorizationResponse, scopes: string[]): void {
-    // Detect and update delivery mode
-    if ('token_delivery' in response && response.token_delivery) {
+  private async processAuthResponse(response: PassflowAuthorizationResponse, scopes: string[]): Promise<void> {
+    // BFF mode overrides server-returned delivery mode
+    if (this.tokenExchangeConfig?.enabled) {
+      // Don't change mode from BFF
+    } else if ('token_delivery' in response && response.token_delivery) {
+      // Detect and update delivery mode from server
       this.tokenDeliveryManager.setMode(response.token_delivery as TokenDeliveryMode);
     }
 
     // Mark session as valid after successful auth
     this.tokenDeliveryManager.setSessionValid();
 
+    // BFF mode: forward tokens to BFF server
+    if (this.tokenDeliveryManager.isBFFMode() && this.tokenExchangeConfig?.callbackUrl) {
+      await this.forwardTokensToBFF(response);
+    }
+
     // Save tokens (conditional based on delivery mode)
+    // In BFF mode, only ID token is saved locally
     response.scopes = scopes;
     this.storageManager.saveTokens(response, this.tokenDeliveryManager.getMode());
     this.tokenCacheService.setTokensCache(response);
@@ -121,6 +165,44 @@ export class AuthService {
     // Store CSRF token if present (cookie mode)
     if (response.csrf_token) {
       this.storageManager.setCsrfToken(response.csrf_token);
+    }
+  }
+
+  /**
+   * Forward tokens to BFF server for httpOnly cookie storage
+   */
+  private async forwardTokensToBFF(tokens: PassflowAuthorizationResponse): Promise<void> {
+    if (!this.tokenExchangeConfig?.callbackUrl) {
+      console.warn('[Passflow SDK] BFF mode enabled but callbackUrl not configured');
+      return;
+    }
+
+    try {
+      const response = await fetch(this.tokenExchangeConfig.callbackUrl, {
+        method: 'POST',
+        credentials: 'include', // Include/set httpOnly cookies
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          id_token: tokens.id_token,
+          // expires_in is returned by the server but not typed in the SDK
+          expires_in: (tokens as Record<string, unknown>).expires_in,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('[Passflow SDK] Failed to forward tokens to BFF:', error);
+        throw new Error(`BFF token storage failed: ${response.status}`);
+      }
+
+      console.log('[Passflow SDK] Tokens forwarded to BFF successfully');
+    } catch (error) {
+      console.error('[Passflow SDK] Error forwarding tokens to BFF:', error);
+      throw error;
     }
   }
 
@@ -191,7 +273,7 @@ export class AuthService {
       }
 
       // Normal flow (no 2FA required)
-      this.processAuthResponse(response, payload.scopes);
+      await this.processAuthResponse(response, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -239,7 +321,7 @@ export class AuthService {
 
     try {
       const response = await this.authApi.signUp(payload);
-      this.processAuthResponse(response, payload.scopes);
+      await this.processAuthResponse(response, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.Register, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -309,7 +391,7 @@ export class AuthService {
 
     try {
       const response = await this.authApi.passwordlessSignInComplete(payload);
-      this.processAuthResponse(response, payload.scopes);
+      await this.processAuthResponse(response, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -328,21 +410,38 @@ export class AuthService {
   }
 
   async logOut() {
-    const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
-    const deviceId = this.storageManager.getDeviceId();
+    // BFF mode: call BFF logout endpoint to clear httpOnly cookies
+    if (this.tokenDeliveryManager.isBFFMode() && this.tokenExchangeConfig?.logoutUrl) {
+      try {
+        const response = await fetch(this.tokenExchangeConfig.logoutUrl, {
+          method: 'POST',
+          credentials: 'include', // Include httpOnly cookies
+        });
 
-    try {
-      // Call logout API (works in both cookie and JSON modes)
-      // Cookie mode: server reads refresh token from HttpOnly cookie
-      // JSON mode: uses refresh_token from storage
-      const response = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
-      if (response.status !== 'ok') {
-        throw new Error('Logout failed');
+        if (!response.ok) {
+          console.warn('[Passflow SDK] BFF logout failed:', await response.text());
+        }
+      } catch (error) {
+        console.warn('[Passflow SDK] BFF logout error:', error);
       }
-    } catch (error) {
-      // IMPORTANT: Even if logout API fails, clear local state
-      // Can't clear HttpOnly cookies from client, but server should invalidate them
-      console.warn('[Passflow SDK] Logout API failed, clearing local state anyway:', error);
+    } else {
+      // Regular mode: call passflow logout API
+      const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
+      const deviceId = this.storageManager.getDeviceId();
+
+      try {
+        // Call logout API (works in both cookie and JSON modes)
+        // Cookie mode: server reads refresh token from HttpOnly cookie
+        // JSON mode: uses refresh_token from storage
+        const response = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
+        if (response.status !== 'ok') {
+          throw new Error('Logout failed');
+        }
+      } catch (error) {
+        // IMPORTANT: Even if logout API fails, clear local state
+        // Can't clear HttpOnly cookies from client, but server should invalidate them
+        console.warn('[Passflow SDK] Logout API failed, clearing local state anyway:', error);
+      }
     }
 
     // Clear all local state (both modes)
@@ -356,6 +455,48 @@ export class AuthService {
   async refreshToken(): Promise<PassflowAuthorizationResponse> {
     this.subscribeStore.notify(PassflowEvent.RefreshStart, {});
 
+    // BFF mode: call BFF refresh endpoint
+    if (this.tokenDeliveryManager.isBFFMode() && this.tokenExchangeConfig?.refreshUrl) {
+      try {
+        const response = await fetch(this.tokenExchangeConfig.refreshUrl, {
+          method: 'POST',
+          credentials: 'include', // Include httpOnly cookies
+        });
+
+        if (!response.ok) {
+          this.tokenDeliveryManager.setSessionInvalid();
+          throw new Error('BFF token refresh failed');
+        }
+
+        const data = await response.json();
+
+        // Update session state
+        this.tokenDeliveryManager.setSessionValid();
+
+        // If BFF returns id_token, update local storage
+        if (data.id_token) {
+          this.storageManager.setIdToken(data.id_token);
+        }
+
+        this.subscribeStore.notify(PassflowEvent.Refresh, {
+          tokens: data,
+          parsedTokens: this.tokenCacheService.getParsedTokens(),
+        });
+        this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
+        this.tokenCacheService.isRefreshing = false;
+        this.tokenCacheService.tokenExpiredFlag = false;
+        return data;
+      } catch (error) {
+        this.tokenDeliveryManager.setSessionInvalid();
+        const errorPayload: ErrorPayload = {
+          message: error instanceof Error ? error.message : 'Token refresh failed',
+          originalError: error,
+        };
+        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        throw error;
+      }
+    }
+
     // Cookie mode: Server reads refresh token from HttpOnly cookie
     if (this.tokenDeliveryManager.isCookieMode()) {
       try {
@@ -366,7 +507,7 @@ export class AuthService {
         this.tokenDeliveryManager.setSessionValid();
 
         // Process response (stores ID token, CSRF token)
-        this.processAuthResponse(response, this.scopes);
+        await this.processAuthResponse(response, this.scopes);
 
         this.subscribeStore.notify(PassflowEvent.Refresh, {
           tokens: response,
@@ -470,7 +611,7 @@ export class AuthService {
 
     try {
       const response = await this.authApi.resetPassword(newPassword, sscopes, resetToken);
-      this.processAuthResponse(response, sscopes);
+      await this.processAuthResponse(response, sscopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -509,7 +650,7 @@ export class AuthService {
         challenge_id,
         !this.appId,
       );
-      this.processAuthResponse(responseRegisterComplete, payload.scopes);
+      await this.processAuthResponse(responseRegisterComplete, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.Register, {
         tokens: responseRegisterComplete,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -547,7 +688,7 @@ export class AuthService {
       );
 
       if ('access_token' in responseAuthenticateComplete) {
-        this.processAuthResponse(responseAuthenticateComplete, payload.scopes);
+        await this.processAuthResponse(responseAuthenticateComplete, payload.scopes);
         this.subscribeStore.notify(PassflowEvent.SignIn, {
           tokens: responseAuthenticateComplete,
           parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -643,15 +784,17 @@ export class AuthService {
             scopes: sscopes,
           };
 
-          this.processAuthResponse(tokensData, sscopes);
-          this.subscribeStore.notify(PassflowEvent.SignIn, {
-            tokens: tokensData,
-            parsedTokens: this.tokenCacheService.getParsedTokens(),
+          // Process response (may forward to BFF in BFF mode)
+          this.processAuthResponse(tokensData, sscopes).then(() => {
+            this.subscribeStore.notify(PassflowEvent.SignIn, {
+              tokens: tokensData,
+              parsedTokens: this.tokenCacheService.getParsedTokens(),
+            });
+            window.location.href = `${this.origin}`;
           });
 
           clearInterval(checkInterval);
           popupWindow.close();
-          window.location.href = `${this.origin}`;
         }
       } catch (_error) {
         // Expected cross-origin error - popup still on auth provider domain
@@ -710,12 +853,12 @@ export class AuthService {
 
   /**
    * Check if user is authenticated
-   * CRITICAL: Cookie mode checks ID token + session state, NOT access_token
+   * CRITICAL: Cookie/BFF mode checks ID token + session state, NOT access_token
    */
   isAuthenticated(parsedTokens: ParsedTokens): boolean {
     try {
-      if (this.tokenDeliveryManager.isCookieMode()) {
-        // Cookie mode: Check for ID token presence + session validity
+      if (this.tokenDeliveryManager.isCookieMode() || this.tokenDeliveryManager.isBFFMode()) {
+        // Cookie/BFF mode: Check for ID token presence + session validity
         const hasIdToken = !!parsedTokens?.id_token || !!this.storageManager.getIdToken();
         const sessionValid = this.tokenDeliveryManager.isSessionValid();
         const sessionUnknown = this.tokenDeliveryManager.isSessionUnknown();
@@ -775,15 +918,15 @@ export class AuthService {
 
   /**
    * Get tokens and refresh if needed
-   * Cookie mode: Returns ID token only (access/refresh in HttpOnly cookies)
+   * Cookie/BFF mode: Returns ID token only (access/refresh in HttpOnly cookies)
    * JSON mode: Returns all tokens from localStorage
    */
   async getTokens(doRefresh: boolean): Promise<Tokens | undefined> {
     try {
-      // Cookie mode: Server manages access/refresh tokens in HttpOnly cookies
-      if (this.tokenDeliveryManager.isCookieMode()) {
+      // Cookie/BFF mode: Server manages access/refresh tokens in HttpOnly cookies
+      if (this.tokenDeliveryManager.isCookieMode() || this.tokenDeliveryManager.isBFFMode()) {
         const tokens = this.storageManager.getTokens();
-        // In cookie mode, we only have ID token in localStorage
+        // In cookie/BFF mode, we only have ID token in localStorage
         if (!tokens?.id_token) return undefined;
 
         // If session is invalid and refresh requested, try refresh

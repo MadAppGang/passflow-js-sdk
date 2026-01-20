@@ -142,6 +142,7 @@ export class Passflow {
         expiredSession: this.expiredSessionCallback,
       },
       this.appId ?? '',
+      config.tokenExchange,
     );
 
     this.userService = new UserService(this.userApi, this.deviceService);
@@ -1386,7 +1387,7 @@ export class Passflow {
    *
    * @example
    * ```typescript
-   * import { TokenDeliveryMode } from '@passflow/passflow-js-sdk';
+   * import { TokenDeliveryMode } from '@passflow/core';
    *
    * const mode = passflow.getDeliveryMode();
    * if (mode === TokenDeliveryMode.Cookie) {
