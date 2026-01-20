@@ -52,3 +52,7 @@ yarn.lock
 !.yarn/versions
 all-in-one.txt
 all-in-one2.txt
+
+# AI/Claude artifacts
+.claudemem/
+ai-docs/
