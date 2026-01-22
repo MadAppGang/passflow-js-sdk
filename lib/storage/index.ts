@@ -103,6 +103,24 @@ export class StorageManager {
     return this.storage.getItem(this.scopes)?.split(',') ?? undefined;
   }
 
+  /**
+   * Check if JSON mode tokens exist in storage (ignores delivery mode)
+   * Used to detect stale state where delivery_mode is set but JSON tokens exist
+   */
+  hasJsonModeTokens(): boolean {
+    const accessToken = this.storage.getItem(this.getKeyForTokenType(TokenType.access_token));
+    return !!accessToken;
+  }
+
+  /**
+   * Check if cookie mode ID token exists in storage
+   * Used to detect legitimate cookie/BFF mode sessions
+   */
+  hasCookieModeIdToken(): boolean {
+    const idToken = this.storage.getItem(this.ID_TOKEN_KEY);
+    return !!idToken;
+  }
+
   deleteToken(tokenType: TokenType): void {
     const key = this.getKeyForTokenType(tokenType);
     this.storage.removeItem(key);
@@ -117,6 +135,10 @@ export class StorageManager {
 
     // Clear cookie mode ID token
     this.clearIdToken();
+
+    // Clear delivery mode and CSRF token to ensure clean state for next session
+    this.clearDeliveryMode();
+    this.clearCsrfToken();
   }
 
   getDeviceId(): string | undefined {

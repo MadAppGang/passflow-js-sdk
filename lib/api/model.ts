@@ -58,6 +58,17 @@ export enum PassflowEndpointPaths {
   twoFactorRecovery = '/auth/2fa/recovery',
   twoFactorRegenerateCodes = '/user/2fa/recovery-codes/regenerate',
   twoFactorSetupMagicLink = '/auth/2fa-setup', // :token param appended in API call
+  // v2 2FA endpoints
+  TwoFactorMethodsAvailable = '/v2/user/2fa/methods/available',
+  TwoFactorMethodsRegistered = '/v2/user/2fa/methods',
+  TwoFactorMethodSetupBegin = '/v2/user/2fa/methods/:method/setup/begin',
+  TwoFactorMethodSetupConfirm = '/v2/user/2fa/methods/:method/setup/confirm',
+  TwoFactorMethodRemove = '/v2/user/2fa/methods/:id',
+  TwoFactorChallenge = '/v2/auth/2fa/challenge',
+  TwoFactorVerifyV2 = '/v2/auth/2fa/verify',
+  TwoFactorAlternative = '/v2/auth/2fa/alternative',
+  TwoFactorTrustedDevices = '/v2/user/2fa/trusted-devices',
+  TwoFactorTrustedDeviceRevoke = '/v2/user/2fa/trusted-devices/:id',
 }
 
 export enum PassflowAdminEndpointPaths {
@@ -736,3 +747,78 @@ export type TwoFactorSetupMagicLinkSession = {
   timestamp: number;
   expiresAt: number;
 };
+
+// ============================================
+// Two-Factor v2 Multi-Method Types
+// ============================================
+
+/**
+ * Two-Factor method types
+ */
+export type TwoFactorMethod =
+  | 'totp'
+  | 'email_otp'
+  | 'sms_otp'
+  | 'passkey'
+  | 'push_fcm'
+  | 'push_webpush'
+  | 'recovery_codes';
+
+/**
+ * Challenge Request for v2 2FA flow
+ */
+export interface TwoFactorChallengeRequest {
+  first_factor_method?: string;
+  trust_device?: boolean;
+}
+
+/**
+ * Challenge Response from v2 2FA flow
+ */
+export interface TwoFactorChallengeResponse {
+  challenge_id: string;
+  method: TwoFactorMethod;
+  alternative_methods: TwoFactorMethod[];
+  expires_at: string;
+  code_sent_to?: string; // Masked email/phone for OTP
+  webauthn_options?: unknown; // For passkey
+}
+
+/**
+ * Verify Request for v2 2FA flow
+ */
+export interface TwoFactorVerifyRequestV2 {
+  challenge_id: string;
+  method: TwoFactorMethod;
+  response: string; // OTP code or WebAuthn response
+  trust_device?: boolean;
+}
+
+/**
+ * Verify Response from v2 2FA flow
+ */
+export interface TwoFactorVerifyResponseV2 {
+  success: boolean;
+  access_token?: string;
+  refresh_token?: string;
+  device_trusted?: boolean;
+}
+
+/**
+ * Registered Two-Factor Method
+ */
+export interface RegisteredTwoFactorMethod {
+  id: string;
+  method: TwoFactorMethod;
+  name: string;
+  created_at: string;
+  last_used_at?: string;
+}
+
+/**
+ * Alternative Method Request
+ */
+export interface TwoFactorAlternativeRequest {
+  challenge_id: string;
+  method: TwoFactorMethod;
+}

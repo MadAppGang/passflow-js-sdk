@@ -9,6 +9,7 @@
  */
 
 import { ParsedTokens, Tokens } from './types';
+import type { TwoFactorMethod } from './api/model';
 
 /**
  * Passflow event types
@@ -34,6 +35,9 @@ export enum PassflowEvent {
   TwoFactorRecoveryCodesExhausted = '2fa:recovery_exhausted',
   TwoFactorSetupMagicLinkValidated = '2fa:magic_link_validated',
   TwoFactorSetupMagicLinkFailed = '2fa:magic_link_failed',
+  TwoFactorChallengeReceived = 'two_factor_challenge_received',
+  TwoFactorMethodSwitched = 'two_factor_method_switched',
+  TwoFactorDeviceTrusted = 'two_factor_device_trusted',
 }
 
 /**
@@ -61,7 +65,7 @@ export type PassflowEventPayload = {
   [PassflowEvent.RefreshStart]: { tokenId?: string };
   [PassflowEvent.TokenCacheExpired]: { isExpired: boolean };
   [PassflowEvent.TwoFactorRequired]: { email: string; challengeId: string; tfaToken: string };
-  [PassflowEvent.TwoFactorSetupStarted]: { secret: string };
+  [PassflowEvent.TwoFactorSetupStarted]: { secret: string; method?: TwoFactorMethod };
   [PassflowEvent.TwoFactorEnabled]: { recoveryCodes: string[]; clearRecoveryCodes: () => void };
   [PassflowEvent.TwoFactorDisabled]: Record<string, never>;
   [PassflowEvent.TwoFactorVerified]: { tokens?: Tokens };
@@ -81,6 +85,17 @@ export type PassflowEventPayload = {
       retryAfter?: number;
     };
   };
+  [PassflowEvent.TwoFactorChallengeReceived]: {
+    challengeId: string;
+    method: TwoFactorMethod;
+    alternativeMethods: TwoFactorMethod[];
+  };
+  [PassflowEvent.TwoFactorMethodSwitched]: {
+    challengeId: string;
+    method: TwoFactorMethod;
+    alternativeMethods: TwoFactorMethod[];
+  };
+  [PassflowEvent.TwoFactorDeviceTrusted]: Record<string, never>;
 };
 
 /**

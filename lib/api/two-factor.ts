@@ -5,10 +5,16 @@ import { AxiosClient } from './axios-client';
 import {
   PassflowConfig,
   PassflowEndpointPaths,
+  pathWithParams,
+  RegisteredTwoFactorMethod,
+  TwoFactorAlternativeRequest,
+  TwoFactorChallengeRequest,
+  TwoFactorChallengeResponse,
   TwoFactorConfirmRequest,
   TwoFactorConfirmResponse,
   TwoFactorDisableRequest,
   TwoFactorDisableResponse,
+  TwoFactorMethod,
   TwoFactorRecoveryRequest,
   TwoFactorRecoveryResponse,
   TwoFactorRegenerateRequest,
@@ -18,7 +24,9 @@ import {
   TwoFactorSetupResponse,
   TwoFactorStatusResponse,
   TwoFactorVerifyRequest,
+  TwoFactorVerifyRequestV2,
   TwoFactorVerifyResponse,
+  TwoFactorVerifyResponseV2,
 } from './model';
 
 /** Backend response format (snake_case) for magic link validation */
@@ -236,5 +244,102 @@ export class TwoFactorApiClient {
       default:
         return 'An error occurred while validating the magic link.';
     }
+  }
+
+  // ============================================
+  // v2 Multi-Method 2FA API Methods
+  // ============================================
+
+  /**
+   * Get available 2FA methods for current user
+   * GET /v2/user/2fa/methods/available
+   */
+  getAvailableMethods(): Promise<TwoFactorMethod[]> {
+    return this.axiosClient.get<TwoFactorMethod[]>(PassflowEndpointPaths.TwoFactorMethodsAvailable);
+  }
+
+  /**
+   * Get registered 2FA methods for current user
+   * GET /v2/user/2fa/methods
+   */
+  getRegisteredMethods(): Promise<RegisteredTwoFactorMethod[]> {
+    return this.axiosClient.get<RegisteredTwoFactorMethod[]>(PassflowEndpointPaths.TwoFactorMethodsRegistered);
+  }
+
+  /**
+   * Begin 2FA method setup
+   * POST /v2/user/2fa/methods/:method/setup/begin
+   */
+  beginMethodSetup(method: TwoFactorMethod): Promise<unknown> {
+    const endpoint = pathWithParams(PassflowEndpointPaths.TwoFactorMethodSetupBegin, { method });
+    return this.axiosClient.post<unknown, {}>(endpoint, {});
+  }
+
+  /**
+   * Confirm 2FA method setup
+   * POST /v2/user/2fa/methods/:method/setup/confirm
+   */
+  confirmMethodSetup(method: TwoFactorMethod, payload: unknown): Promise<unknown> {
+    const endpoint = pathWithParams(PassflowEndpointPaths.TwoFactorMethodSetupConfirm, { method });
+    return this.axiosClient.post<unknown, unknown>(endpoint, payload);
+  }
+
+  /**
+   * Remove registered 2FA method
+   * DELETE /v2/user/2fa/methods/:id
+   */
+  removeMethod(methodId: string): Promise<void> {
+    const endpoint = pathWithParams(PassflowEndpointPaths.TwoFactorMethodRemove, { id: methodId });
+    return this.axiosClient.delete<void>(endpoint);
+  }
+
+  /**
+   * Request 2FA challenge during login
+   * POST /v2/auth/2fa/challenge
+   */
+  requestChallenge(payload: TwoFactorChallengeRequest): Promise<TwoFactorChallengeResponse> {
+    return this.axiosClient.post<TwoFactorChallengeResponse, TwoFactorChallengeRequest>(
+      PassflowEndpointPaths.TwoFactorChallenge,
+      payload,
+    );
+  }
+
+  /**
+   * Verify 2FA challenge (v2)
+   * POST /v2/auth/2fa/verify
+   */
+  verifyV2(payload: TwoFactorVerifyRequestV2): Promise<TwoFactorVerifyResponseV2> {
+    return this.axiosClient.post<TwoFactorVerifyResponseV2, TwoFactorVerifyRequestV2>(
+      PassflowEndpointPaths.TwoFactorVerifyV2,
+      payload,
+    );
+  }
+
+  /**
+   * Switch to alternative 2FA method during challenge
+   * POST /v2/auth/2fa/alternative
+   */
+  switchToAlternative(payload: TwoFactorAlternativeRequest): Promise<TwoFactorChallengeResponse> {
+    return this.axiosClient.post<TwoFactorChallengeResponse, TwoFactorAlternativeRequest>(
+      PassflowEndpointPaths.TwoFactorAlternative,
+      payload,
+    );
+  }
+
+  /**
+   * Get trusted devices
+   * GET /v2/user/2fa/trusted-devices
+   */
+  getTrustedDevices(): Promise<unknown[]> {
+    return this.axiosClient.get<unknown[]>(PassflowEndpointPaths.TwoFactorTrustedDevices);
+  }
+
+  /**
+   * Revoke trusted device
+   * DELETE /v2/user/2fa/trusted-devices/:id
+   */
+  revokeTrustedDevice(deviceId: string): Promise<void> {
+    const endpoint = pathWithParams(PassflowEndpointPaths.TwoFactorTrustedDeviceRevoke, { id: deviceId });
+    return this.axiosClient.delete<void>(endpoint);
   }
 }

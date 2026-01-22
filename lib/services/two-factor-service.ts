@@ -1,13 +1,20 @@
 import {
+  RegisteredTwoFactorMethod,
+  TwoFactorAlternativeRequest,
+  TwoFactorChallengeRequest,
+  TwoFactorChallengeResponse,
   TwoFactorConfirmResponse,
   TwoFactorDisableResponse,
+  TwoFactorMethod,
   TwoFactorRecoveryResponse,
   TwoFactorRegenerateResponse,
   TwoFactorSetupMagicLinkSession,
   TwoFactorSetupMagicLinkValidationResponse,
   TwoFactorSetupResponse,
   TwoFactorStatusResponse,
+  TwoFactorVerifyRequestV2,
   TwoFactorVerifyResponse,
+  TwoFactorVerifyResponseV2,
 } from '../api/model';
 import { TwoFactorApiClient } from '../api/two-factor';
 import { PassflowEvent, PassflowStore } from '../store';
@@ -492,5 +499,150 @@ export class TwoFactorService {
    */
   getTotpDigits(): 6 | 8 {
     return this.totpDigits;
+  }
+
+  // ============================================
+  // v2 Multi-Method 2FA Service Methods
+  // ============================================
+
+  /**
+   * Get available 2FA methods for current user
+   */
+  async getAvailableMethods(): Promise<TwoFactorMethod[]> {
+    try {
+      return await this.twoFactorApi.getAvailableMethods();
+    } catch (error) {
+      this.emitErrorAndThrow(error, 'Get available 2FA methods');
+    }
+  }
+
+  /**
+   * Get registered 2FA methods for current user
+   */
+  async getRegisteredMethods(): Promise<RegisteredTwoFactorMethod[]> {
+    try {
+      return await this.twoFactorApi.getRegisteredMethods();
+    } catch (error) {
+      this.emitErrorAndThrow(error, 'Get registered 2FA methods');
+    }
+  }
+
+  /**
+   * Begin 2FA method setup
+   */
+  async beginMethodSetup(method: TwoFactorMethod): Promise<unknown> {
+    try {
+      const response = await this.twoFactorApi.beginMethodSetup(method);
+      this.subscribeStore.notify(PassflowEvent.TwoFactorSetupStarted, { secret: '', method });
+      return response;
+    } catch (error) {
+      this.emitErrorAndThrow(error, 'Begin 2FA method setup');
+    }
+  }
+
+  /**
+   * Confirm 2FA method setup
+   */
+  async confirmMethodSetup(method: TwoFactorMethod, payload: unknown): Promise<unknown> {
+    try {
+      const response = await this.twoFactorApi.confirmMethodSetup(method, payload);
+      this.subscribeStore.notify(PassflowEvent.TwoFactorEnabled, {
+        recoveryCodes: [],
+        clearRecoveryCodes: () => {},
+      });
+      return response;
+    } catch (error) {
+      this.emitErrorAndThrow(error, 'Confirm 2FA method setup');
+    }
+  }
+
+  /**
+   * Remove registered 2FA method
+   */
+  async removeMethod(methodId: string): Promise<void> {
+    try {
+      await this.twoFactorApi.removeMethod(methodId);
+    } catch (error) {
+      this.emitErrorAndThrow(error, 'Remove 2FA method');
+    }
+  }
+
+  /**
+   * Request 2FA challenge during login
+   */
+  async requestChallenge(payload: TwoFactorChallengeRequest): Promise<TwoFactorChallengeResponse> {
+    try {
+      const response = await this.twoFactorApi.requestChallenge(payload);
+      this.subscribeStore.notify(PassflowEvent.TwoFactorChallengeReceived, {
+        challengeId: response.challenge_id,
+        method: response.method,
+        alternativeMethods: response.alternative_methods,
+      });
+      return response;
+    } catch (error) {
+      this.emitErrorAndThrow(error, 'Request 2FA challenge');
+    }
+  }
+
+  /**
+   * Verify 2FA challenge (v2)
+   */
+  async verifyV2(payload: TwoFactorVerifyRequestV2): Promise<TwoFactorVerifyResponseV2> {
+    try {
+      const response = await this.twoFactorApi.verifyV2(payload);
+      if (response.success) {
+        this.subscribeStore.notify(PassflowEvent.TwoFactorVerified, {
+          tokens: {
+            access_token: response.access_token,
+            refresh_token: response.refresh_token,
+          },
+        });
+        if (response.device_trusted) {
+          this.subscribeStore.notify(PassflowEvent.TwoFactorDeviceTrusted, {});
+        }
+      }
+      return response;
+    } catch (error) {
+      this.emitErrorAndThrow(error, 'Verify 2FA challenge');
+    }
+  }
+
+  /**
+   * Switch to alternative 2FA method during challenge
+   */
+  async switchToAlternative(payload: TwoFactorAlternativeRequest): Promise<TwoFactorChallengeResponse> {
+    try {
+      const response = await this.twoFactorApi.switchToAlternative(payload);
+      this.subscribeStore.notify(PassflowEvent.TwoFactorMethodSwitched, {
+        challengeId: response.challenge_id,
+        method: response.method,
+        alternativeMethods: response.alternative_methods,
+      });
+      return response;
+    } catch (error) {
+      this.emitErrorAndThrow(error, 'Switch to alternative 2FA method');
+    }
+  }
+
+  /**
+   * Get trusted devices
+   */
+  async getTrustedDevices(): Promise<unknown[]> {
+    try {
+      return await this.twoFactorApi.getTrustedDevices();
+    } catch (error) {
+      this.emitErrorAndThrow(error, 'Get trusted devices');
+    }
+  }
+
+  /**
+   * Revoke trusted device
+   */
+  async revokeTrustedDevice(deviceId: string): Promise<void> {
+    try {
+      await this.twoFactorApi.revokeTrustedDevice(deviceId);
+    } catch (error) {
+      this.emitErrorAndThrow(error, 'Revoke trusted device');
+    }
   }
 }

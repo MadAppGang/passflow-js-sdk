@@ -394,8 +394,13 @@ export class Passflow {
         id_token: id_token ?? undefined,
         scopes,
       };
+
+      // URL tokens mean we're in JSON mode, not cookie/BFF mode
+      // Clear any stored delivery mode to ensure consistent behavior
+      this.storageManager.clearDeliveryMode();
       this.storageManager.saveTokens(tokens);
       this.tokenCacheService.setTokensCache(tokens);
+
       this.subscribeStore.notify(PassflowEvent.SignIn, { tokens, parsedTokens: this.getParsedTokens() });
       this.submitSessionCheck();
       this.cleanupUrlParams(fromHash);
@@ -441,7 +446,37 @@ export class Passflow {
   }
 
   private setTokensToCacheFromLocalStorage(): void {
-    const tokens = this.storageManager.getTokens();
+    let tokens = this.storageManager.getTokens();
+
+    // If tokens don't have access_token, check for inconsistent state
+    // This can happen if delivery_mode is set to BFF but tokens were actually saved in JSON mode
+    if (!tokens?.access_token) {
+      const deliveryMode = this.storageManager.getDeliveryMode();
+      if (deliveryMode) {
+        // Delivery mode is set (cookie/BFF mode)
+        // Check if this is legitimate cookie mode or stale state
+
+        if (tokens?.id_token && this.storageManager.hasCookieModeIdToken()) {
+          // Legitimate cookie/BFF mode: we have id_token from cookie mode storage
+          // Access token is in HttpOnly cookies, not localStorage - this is valid
+          this.tokenCacheService.setTokensCache(tokens);
+          return;
+        }
+
+        // Check if there are JSON mode tokens that should be used instead
+        if (this.storageManager.hasJsonModeTokens()) {
+          // Stale state: delivery_mode is set but JSON tokens exist
+          // Clear delivery mode and use JSON tokens
+          this.storageManager.clearDeliveryMode();
+          tokens = this.storageManager.getTokens();
+        } else {
+          // No valid tokens in either mode - clean up completely
+          this.storageManager.deleteTokens();
+          return;
+        }
+      }
+    }
+
     if (tokens) {
       this.tokenCacheService.setTokensCache(tokens);
     }
