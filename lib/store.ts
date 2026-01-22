@@ -8,8 +8,8 @@
  * @module store
  */
 
-import { ParsedTokens, Tokens } from './types';
 import type { TwoFactorMethod } from './api/model';
+import { ParsedTokens, Tokens } from './types';
 
 /**
  * Passflow event types

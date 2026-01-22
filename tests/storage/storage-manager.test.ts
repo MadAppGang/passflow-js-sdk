@@ -86,8 +86,8 @@ describe('storage manager', () => {
 
       expect(getSpy).toHaveBeenCalledTimes(6);
       expect(setSpy).toHaveBeenCalledTimes(3);
-      // deleteTokens now also clears cookie mode ID token (5 removals instead of 4)
-      expect(removeSpy).toHaveBeenCalledTimes(5);
+      // deleteTokens clears: 3 JSON tokens + scopes + cookie ID token + delivery mode + CSRF token = 7 removals
+      expect(removeSpy).toHaveBeenCalledTimes(7);
     });
 
     test('delete one tokens', () => {

@@ -755,14 +755,7 @@ export type TwoFactorSetupMagicLinkSession = {
 /**
  * Two-Factor method types
  */
-export type TwoFactorMethod =
-  | 'totp'
-  | 'email_otp'
-  | 'sms_otp'
-  | 'passkey'
-  | 'push_fcm'
-  | 'push_webpush'
-  | 'recovery_codes';
+export type TwoFactorMethod = 'totp' | 'email_otp' | 'sms_otp' | 'passkey' | 'push_fcm' | 'push_webpush' | 'recovery_codes';
 
 /**
  * Challenge Request for v2 2FA flow

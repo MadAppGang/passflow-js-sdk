@@ -5,7 +5,6 @@ import { AxiosClient } from './axios-client';
 import {
   PassflowConfig,
   PassflowEndpointPaths,
-  pathWithParams,
   RegisteredTwoFactorMethod,
   TwoFactorAlternativeRequest,
   TwoFactorChallengeRequest,
@@ -27,6 +26,7 @@ import {
   TwoFactorVerifyRequestV2,
   TwoFactorVerifyResponse,
   TwoFactorVerifyResponseV2,
+  pathWithParams,
 } from './model';
 
 /** Backend response format (snake_case) for magic link validation */

@@ -548,7 +548,9 @@ export class TwoFactorService {
       const response = await this.twoFactorApi.confirmMethodSetup(method, payload);
       this.subscribeStore.notify(PassflowEvent.TwoFactorEnabled, {
         recoveryCodes: [],
-        clearRecoveryCodes: () => {},
+        clearRecoveryCodes: () => {
+          // No-op: v2 multi-method setup doesn't return recovery codes
+        },
       });
       return response;
     } catch (error) {
