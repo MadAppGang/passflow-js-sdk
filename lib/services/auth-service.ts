@@ -1,8 +1,6 @@
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import axios from 'axios';
 import {
   AuthAPI,
-  OS,
   PassflowAuthorizationResponse,
   PassflowError,
   PassflowFederatedAuthExtendedPayload,
@@ -18,9 +16,11 @@ import {
   PassflowSuccessResponse,
   PassflowValidationResponse,
   TokenExchangeConfig,
+  getOSFromDeviceType,
 } from '../api';
-import { POPUP_HEIGHT, POPUP_POLL_INTERVAL_MS, POPUP_TIMEOUT_MS, POPUP_WIDTH } from '../constants';
 import { DeviceService } from '../device';
+import { type PlatformAdapter, PopupClosedError } from '../platform';
+import { webAdapter } from '../platform';
 import { StorageManager } from '../storage';
 import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
 import { TokenType, isTokenExpired, parseToken } from '../token';
@@ -44,7 +44,6 @@ export class AuthService {
     private tokenCacheService: TokenCacheService,
     private scopes: string[],
     private createTenantForNewUser: boolean,
-    private origin: string,
     private url: string,
     private sessionCallbacks: {
       createSession?: ({ tokens, parsedTokens }: { tokens?: Tokens; parsedTokens?: ParsedTokens }) => Promise<void>;
@@ -52,6 +51,7 @@ export class AuthService {
     },
     private appId?: string,
     tokenExchangeConfig?: TokenExchangeConfig,
+    private platform: PlatformAdapter = webAdapter,
   ) {
     this.tokenExchangeConfig = tokenExchangeConfig;
     this.tokenDeliveryManager = new TokenDeliveryManager(storageManager);
@@ -241,7 +241,7 @@ export class AuthService {
 
     this.subscribeStore.notify(PassflowEvent.SignInStart, { email: payload.email });
     const deviceId = this.deviceService.getDeviceId();
-    const os = OS.web;
+    const os = getOSFromDeviceType(this.platform.getDeviceType());
     payload.scopes = payload.scopes ?? this.scopes;
 
     try {
@@ -355,7 +355,7 @@ export class AuthService {
     this.subscribeStore.notify(PassflowEvent.SignInStart, { email: payload.email });
     payload.scopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
-    const os = OS.web;
+    const os = getOSFromDeviceType(this.platform.getDeviceType());
 
     try {
       const response = await this.authApi.passwordlessSignIn(payload, deviceId, os);
@@ -607,7 +607,7 @@ export class AuthService {
 
   async resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
     this.subscribeStore.notify(PassflowEvent.SignInStart, {});
-    const urlParams = new URLSearchParams(window.location.search);
+    const urlParams = new URLSearchParams(this.platform.getCurrentUrl()?.search ?? '');
     const resetToken = urlParams.get('token') ?? undefined;
     const sscopes = scopes ?? this.scopes;
 
@@ -632,19 +632,19 @@ export class AuthService {
   }
 
   async passkeyRegister(payload: PassflowPasskeyRegisterStartPayload): Promise<PassflowAuthorizationResponse> {
+    if (!this.platform.passkeys) throw new Error('Passkeys are not supported on this platform');
     this.subscribeStore.notify(PassflowEvent.RegisterStart, {});
     const deviceId = this.deviceService.getDeviceId();
-    const os = OS.web;
+    const os = getOSFromDeviceType(this.platform.getDeviceType());
     payload.scopes = payload.scopes ?? this.scopes;
     payload.create_tenant = this.createTenantForNewUser;
 
     try {
       const { challenge_id, publicKey } = await this.authApi.passkeyRegisterStart(payload, deviceId, os, !this.appId);
       // user handle should be base64 encoded for simplewebauthn lib we are using
-      publicKey.user.id = btoa(publicKey.user.id);
-      const webauthn = await startRegistration({
-        optionsJSON: publicKey,
-      });
+      publicKey.user.id = this.platform.btoa(publicKey.user.id);
+      const webauthn = await this.platform.passkeys.startRegistration(publicKey);
+      if (!webauthn) throw new Error('Passkey registration was not completed');
 
       const responseRegisterComplete = await this.authApi.passkeyRegisterComplete(
         webauthn,
@@ -671,16 +671,16 @@ export class AuthService {
   }
 
   async passkeyAuthenticate(payload: PassflowPasskeyAuthenticateStartPayload): Promise<PassflowAuthorizationResponse> {
+    if (!this.platform.passkeys) throw new Error('Passkeys are not supported on this platform');
     this.subscribeStore.notify(PassflowEvent.SignInStart, {});
     const deviceId = this.deviceService.getDeviceId();
-    const os = OS.web;
+    const os = getOSFromDeviceType(this.platform.getDeviceType());
     payload.scopes = payload.scopes ?? this.scopes;
 
     try {
       const { challenge_id, publicKey } = await this.authApi.passkeyAuthenticateStart(payload, deviceId, os, !this.appId);
-      const webauthn = await startAuthentication({
-        optionsJSON: publicKey,
-      });
+      const webauthn = await this.platform.passkeys.startAuthentication(publicKey);
+      if (!webauthn) throw new Error('Passkey authentication was not completed');
 
       const responseAuthenticateComplete = await this.authApi.passkeyAuthenticateComplete(
         webauthn,
@@ -718,7 +718,7 @@ export class AuthService {
 
     const params: Record<string, string> = {
       scopes: sscopes.join(' '),
-      redirect_url: payload.redirect_url ?? this.origin,
+      redirect_url: payload.redirect_url ?? this.platform.getCurrentUrl()?.origin ?? '',
       appId: this.appId,
       ...(payload.invite_token ? { invite_token: payload.invite_token } : {}),
       ...(payload.create_tenant ? { create_tenant: payload.create_tenant.toString() } : {}),
@@ -732,77 +732,44 @@ export class AuthService {
     return url.toString();
   }
 
-  federatedAuthWithPopup(payload: PassflowFederatedAuthPayload): void {
+  async federatedAuthWithPopup(payload: PassflowFederatedAuthPayload): Promise<void> {
     this.subscribeStore.notify(PassflowEvent.SignInStart, { provider: payload.provider });
     const sscopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
     const passflowURL = this.createFederatedAuthUrl({ ...payload, scopes: sscopes, device: deviceId });
 
-    const popupWindow = window.open(passflowURL, '_blank', `width=${POPUP_WIDTH},height=${POPUP_HEIGHT}`);
+    try {
+      const result = await this.platform.openAuthUrl(passflowURL, {
+        mode: 'popup',
+        expectedReturnOrigin: this.platform.getCurrentUrl()?.origin ?? '',
+      });
 
-    if (!popupWindow) {
-      this.federatedAuthWithRedirect(payload);
-      return;
+      const urlParams = new URLSearchParams(result.callbackSearch);
+      const access_token = urlParams.get('access_token') || '';
+      const refresh_token = urlParams.get('refresh_token') || '';
+      const id_token = urlParams.get('id_token') || '';
+
+      const tokensData = {
+        access_token,
+        refresh_token: refresh_token || undefined,
+        id_token: id_token || undefined,
+        scopes: sscopes,
+      };
+
+      await this.processAuthResponse(tokensData, sscopes);
+      this.subscribeStore.notify(PassflowEvent.SignIn, {
+        tokens: tokensData,
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
+      });
+      this.platform.navigateTo(this.platform.getCurrentUrl()?.origin ?? '');
+    } catch (error) {
+      const errorPayload: ErrorPayload = {
+        message: error instanceof Error ? error.message : 'Authentication failed',
+        code: error instanceof PopupClosedError ? 'POPUP_CLOSED' : 'AUTH_FAILED',
+        originalError: error,
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
     }
-
-    const startTime = Date.now();
-
-    const checkInterval = setInterval(() => {
-      // Check if popup was closed by user
-      if (popupWindow.closed) {
-        clearInterval(checkInterval);
-        const errorPayload: ErrorPayload = {
-          message: 'Authentication popup was closed',
-          code: 'POPUP_CLOSED',
-        };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-        return;
-      }
-
-      // Check for timeout
-      if (Date.now() - startTime > POPUP_TIMEOUT_MS) {
-        clearInterval(checkInterval);
-        popupWindow.close();
-        const errorPayload: ErrorPayload = {
-          message: 'Authentication popup timed out',
-          code: 'POPUP_TIMEOUT',
-        };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-        return;
-      }
-
-      // Try to check popup URL (may throw cross-origin error)
-      try {
-        if (popupWindow.location.href.startsWith(this.origin)) {
-          const urlParams = new URLSearchParams(popupWindow.location.search);
-          const access_token = urlParams.get('access_token') || '';
-          const refresh_token = urlParams.get('refresh_token') || '';
-          const id_token = urlParams.get('id_token') || '';
-
-          const tokensData = {
-            access_token,
-            refresh_token: refresh_token || undefined,
-            id_token: id_token || undefined,
-            scopes: sscopes,
-          };
-
-          // Process response (may forward to BFF in BFF mode)
-          this.processAuthResponse(tokensData, sscopes).then(() => {
-            this.subscribeStore.notify(PassflowEvent.SignIn, {
-              tokens: tokensData,
-              parsedTokens: this.tokenCacheService.getParsedTokens(),
-            });
-            window.location.href = `${this.origin}`;
-          });
-
-          clearInterval(checkInterval);
-          popupWindow.close();
-        }
-      } catch (_error) {
-        // Expected cross-origin error - popup still on auth provider domain
-        // Continue polling
-      }
-    }, POPUP_POLL_INTERVAL_MS);
   }
 
   federatedAuthWithRedirect(payload: PassflowFederatedAuthPayload): void {
@@ -810,7 +777,7 @@ export class AuthService {
     const sscopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
     const passflowURL = this.createFederatedAuthUrl({ ...payload, scopes: sscopes, device: deviceId });
-    window.location.href = passflowURL;
+    this.platform.navigateTo(passflowURL);
   }
 
   // Helper methods for authentication UI redirect
@@ -823,7 +790,7 @@ export class AuthService {
       const sscopes = scopes ?? this.scopes;
       const params: Record<string, string> = {
         appId: appId ?? this.appId ?? '',
-        redirectto: redirectUrl ?? window.location.href,
+        redirectto: redirectUrl ?? this.platform.getCurrentUrl()?.href ?? '',
         scopes: sscopes.join(','),
       };
 
@@ -842,7 +809,7 @@ export class AuthService {
 
   authRedirect(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string } = {}): void {
     try {
-      window.location.href = this.authRedirectUrl(options);
+      this.platform.navigateTo(this.authRedirectUrl(options));
     } catch (error) {
       const errorPayload: ErrorPayload = {
         message: error instanceof Error ? error.message : 'Failed to redirect to auth page',

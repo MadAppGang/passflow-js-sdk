@@ -38,6 +38,8 @@ import {
 } from './api';
 import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL, SDK_VERSION } from './constants';
 import { DeviceService } from './device';
+import type { CurrentUrlInfo, PlatformAdapter } from './platform';
+import { webAdapter } from './platform';
 import { AuthService, InvitationService, TenantService, TokenCacheService, TwoFactorService, UserService } from './services';
 import { StorageManager } from './storage';
 import { type ErrorPayload, PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
@@ -92,7 +94,10 @@ export class Passflow {
 
   // State
   error?: Error;
-  origin = window.location.origin;
+  private platform: PlatformAdapter;
+  get origin(): string {
+    return this.platform.getCurrentUrl()?.origin ?? '';
+  }
   url: string;
   appId?: string;
 
@@ -100,10 +105,12 @@ export class Passflow {
     const { url, appId, scopes } = config;
     this.url = url || PASSFLOW_CLOUD_URL;
     this.appId = appId;
+    this.platform = config.platform ?? webAdapter;
 
     // Initialize single StorageManager instance
     this.storageManager = new StorageManager({
       prefix: config.keyStoragePrefix ?? '',
+      storage: this.platform.storage,
     });
 
     // Initialize single DeviceService instance with shared StorageManager
@@ -121,7 +128,7 @@ export class Passflow {
     // Initialize PassflowStore
     this.subscribeStore = new PassflowStore();
 
-    this.tokenCacheService = new TokenCacheService(this.storageManager, this.authApi, this.subscribeStore);
+    this.tokenCacheService = new TokenCacheService(this.storageManager, this.authApi, this.subscribeStore, this.platform);
 
     this.scopes = scopes ?? DEFAULT_SCOPES;
     this.createTenantForNewUser = config.createTenantForNewUser ?? false;
@@ -135,7 +142,6 @@ export class Passflow {
       this.tokenCacheService,
       this.scopes,
       this.createTenantForNewUser,
-      this.origin,
       this.url,
       {
         createSession: this.createSessionCallback,
@@ -143,9 +149,10 @@ export class Passflow {
       },
       this.appId ?? '',
       config.tokenExchange,
+      this.platform,
     );
 
-    this.userService = new UserService(this.userApi, this.deviceService);
+    this.userService = new UserService(this.userApi, this.deviceService, this.platform);
 
     this.tenantService = new TenantService(this.tenantApi, this.scopes);
     this.tenant = this.tenantService;
@@ -333,15 +340,18 @@ export class Passflow {
   }
 
   private checkAndSetTokens(): Tokens | undefined {
+    // Cache the URL once to avoid redundant calls (especially for async/expensive adapters)
+    const currentUrl = this.platform.getCurrentUrl();
+
     // Check query params first, then fall back to hash
     // React SDK may put tokens in hash (more secure), while some OAuth flows use query params
-    let urlParams = new URLSearchParams(window.location.search);
+    let urlParams = new URLSearchParams(currentUrl?.search ?? '');
     let fromHash = false;
 
     // If no access_token in query params, check hash
-    if (!urlParams.get('access_token') && window.location.hash) {
+    if (!urlParams.get('access_token') && currentUrl?.hash) {
       // Hash format: #access_token=xxx&refresh_token=yyy
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const hashParams = new URLSearchParams(currentUrl.hash.substring(1));
       if (hashParams.get('access_token')) {
         urlParams = hashParams;
         fromHash = true;
@@ -362,7 +372,7 @@ export class Passflow {
           code: 'INVALID_TOKEN_FORMAT',
         };
         this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-        this.cleanupUrlParams(fromHash);
+        this.cleanupUrlParams(fromHash, currentUrl);
         return undefined;
       }
 
@@ -373,7 +383,7 @@ export class Passflow {
           code: 'INVALID_TOKEN_FORMAT',
         };
         this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-        this.cleanupUrlParams(fromHash);
+        this.cleanupUrlParams(fromHash, currentUrl);
         return undefined;
       }
 
@@ -384,7 +394,7 @@ export class Passflow {
           code: 'INVALID_TOKEN_FORMAT',
         };
         this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-        this.cleanupUrlParams(fromHash);
+        this.cleanupUrlParams(fromHash, currentUrl);
         return undefined;
       }
 
@@ -403,7 +413,7 @@ export class Passflow {
 
       this.subscribeStore.notify(PassflowEvent.SignIn, { tokens, parsedTokens: this.getParsedTokens() });
       this.submitSessionCheck();
-      this.cleanupUrlParams(fromHash);
+      this.cleanupUrlParams(fromHash, currentUrl);
       this.error = undefined;
       return tokens;
     } else {
@@ -413,7 +423,7 @@ export class Passflow {
   }
 
   private checkErrorsFromURL(): Error | undefined {
-    const urlParams = new URLSearchParams(window.location.search);
+    const urlParams = new URLSearchParams(this.platform.getCurrentUrl()?.search ?? '');
     const error = urlParams.get('error');
     if (error) {
       // Sanitize error message to prevent XSS
@@ -423,12 +433,15 @@ export class Passflow {
     return undefined;
   }
 
-  private cleanupUrlParams(fromHash = false): void {
+  private cleanupUrlParams(fromHash = false, currentUrl: CurrentUrlInfo | null = null): void {
+    const url = currentUrl ?? this.platform.getCurrentUrl();
+    if (!url) return; // no URL context (SSR or unsupported environment)
+
     if (fromHash) {
       // Clear hash completely - tokens should be removed from URL for security
-      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      this.platform.replaceUrl(url.pathname + url.search);
     } else {
-      const urlParams = new URLSearchParams(window.location.search);
+      const urlParams = new URLSearchParams(url.search);
 
       // Remove sensitive token parameters
       urlParams.delete('access_token');
@@ -438,9 +451,9 @@ export class Passflow {
 
       // Use replaceState to fully clear from browser history
       if (urlParams.size > 0) {
-        window.history.replaceState({}, document.title, `${window.location.pathname}?${urlParams.toString()}`);
+        this.platform.replaceUrl(`${url.pathname}?${urlParams.toString()}`);
       } else {
-        window.history.replaceState({}, document.title, window.location.pathname);
+        this.platform.replaceUrl(url.pathname);
       }
     }
   }

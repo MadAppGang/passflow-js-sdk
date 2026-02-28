@@ -1,18 +1,13 @@
 import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
 import { OS, PassflowSuccessResponse, UserAPI } from '../../lib/api';
 import { DeviceService } from '../../lib/device';
+import type { PlatformAdapter } from '../../lib/platform';
 import { UserService } from '../../lib/services/user-service';
+import { MockPlatform, createMockPlatform } from '../helpers/mock-platform';
 
 // Mock dependencies
 vi.mock('../../lib/api/user');
 vi.mock('../../lib/device');
-vi.mock('@simplewebauthn/browser', () => {
-  return {
-    startRegistration: vi.fn().mockImplementation(() => {
-      return Promise.resolve({ id: 'reg-id' });
-    }),
-  };
-});
 
 describe('UserService', () => {
   // Setup for all tests
@@ -27,6 +22,7 @@ describe('UserService', () => {
   let mockDeviceService: {
     getDeviceId: Mock;
   };
+  let mockPlatform: MockPlatform;
 
   const mockDeviceId = 'test-device-id';
   const mockPasskeyId = 'test-passkey-id';
@@ -61,8 +57,14 @@ describe('UserService', () => {
       getDeviceId: vi.fn().mockReturnValue(mockDeviceId),
     };
 
+    mockPlatform = createMockPlatform();
+
     // Create UserService instance
-    userService = new UserService(mockUserApi as unknown as UserAPI, mockDeviceService as unknown as DeviceService);
+    userService = new UserService(
+      mockUserApi as unknown as UserAPI,
+      mockDeviceService as unknown as DeviceService,
+      mockPlatform as unknown as PlatformAdapter,
+    );
   });
 
   describe('getUserPasskeys', () => {
@@ -122,13 +124,6 @@ describe('UserService', () => {
     });
 
     test('should use hostname as relyingPartyId if not provided', async () => {
-      // Mock window.location.hostname
-      const originalHostname = window.location.hostname;
-      Object.defineProperty(window.location, 'hostname', {
-        value: 'test-hostname.com',
-        writable: true,
-      });
-
       await userService.addUserPasskey({});
 
       expect(mockUserApi.addUserPasskeyStart).toHaveBeenCalledWith(
@@ -136,12 +131,6 @@ describe('UserService', () => {
           relyingPartyId: 'test-hostname.com',
         }),
       );
-
-      // Restore window.location.hostname
-      Object.defineProperty(window.location, 'hostname', {
-        value: originalHostname,
-        writable: true,
-      });
     });
 
     test('should call addUserPasskeyComplete after registration', async () => {

@@ -9,6 +9,8 @@ import {
 } from '../constants';
 
 import { DeviceService } from '../device';
+import type { PlatformAdapter } from '../platform';
+import { webAdapter } from '../platform';
 import { StorageManager } from '../storage';
 import { TokenService, isTokenExpired, parseToken } from '../token';
 import { TokenDeliveryManager } from '../token/delivery-manager';
@@ -43,10 +45,13 @@ export class AxiosClient {
   protected tokenDeliveryManager: TokenDeliveryManager;
   private refreshPromise: Promise<AxiosResponse<PassflowAuthorizationResponse>> | null = null;
   private isRefreshing = false;
+  private _platform: PlatformAdapter;
 
   tokenService: TokenService;
 
-  origin = typeof window !== 'undefined' ? window.location.origin : '';
+  get origin(): string {
+    return this._platform.getCurrentUrl()?.origin ?? '';
+  }
   url: string;
   appId?: string;
 
@@ -60,6 +65,7 @@ export class AxiosClient {
 
   constructor(config: PassflowConfig, storageManager?: StorageManager, deviceService?: DeviceService) {
     const { url, appId, keyStoragePrefix } = config;
+    this._platform = config.platform ?? webAdapter;
 
     this.url = url || PASSFLOW_CLOUD_URL;
 
@@ -87,7 +93,7 @@ export class AxiosClient {
     this.defaultHeaders = {
       ...this.defaultHeaders,
       [DEVICE_ID_HEADER_KEY]: deviceId,
-      [DEVICE_TYPE_HEADER_KEY]: 'web',
+      [DEVICE_TYPE_HEADER_KEY]: this._platform.getDeviceType(),
     };
 
     // Detect cookie capability
@@ -207,28 +213,24 @@ export class AxiosClient {
   }
 
   /**
-   * Detect if cookies are supported/enabled in the browser
-   * Falls back to JSON mode if cookies are blocked
+   * Detect if cookies are supported/enabled in the browser.
+   * If cookie mode is already active (restored from storage) and cookies are not
+   * supported, throws immediately to prevent silent misconfiguration.
+   *
+   * Note: If cookie mode is set later (e.g., server responds with token_delivery=cookie
+   * on a non-cookie platform), this check will not catch it. The server should not
+   * configure cookie mode for platforms where cookiesSupported() returns false.
    */
   private detectCookieSupport(): void {
-    // Only run in browser environment
-    if (typeof document === 'undefined') {
-      return;
-    }
+    const supported = this._platform.cookiesSupported();
 
-    try {
-      // Test if cookies are enabled
-      document.cookie = 'passflow_test=1; SameSite=Lax';
-      const cookiesEnabled = document.cookie.indexOf('passflow_test=1') !== -1;
-      document.cookie = 'passflow_test=; expires=Thu, 01 Jan 1970 00:00:00 UTC';
-
-      if (!cookiesEnabled && this.tokenDeliveryManager.isCookieMode()) {
-        // Cookies disabled but cookie mode requested - server will handle fallback
-        // No action needed as server sends token_delivery header to switch modes
-      }
-    } catch (_error) {
-      // Cookie detection failed (likely SSR or restrictive environment)
-      // Silent fail - will attempt cookie mode anyway if server requests it
+    // Enforce immediately if cookie mode was persisted from a previous session.
+    if (!supported && this.tokenDeliveryManager.isCookieMode()) {
+      throw new Error(
+        'Passflow SDK: Cookie delivery mode is configured but cookies are not ' +
+          'supported in this environment. Use a platform adapter that supports ' +
+          'cookies or configure the server to use JSON token delivery.',
+      );
     }
   }
 

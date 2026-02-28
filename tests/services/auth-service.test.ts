@@ -16,6 +16,7 @@ import { StorageManager } from '../../lib/storage';
 import { PassflowEvent, PassflowStore } from '../../lib/store';
 import { Token, TokenService, isTokenExpired, parseToken } from '../../lib/token';
 import { ParsedTokens, Tokens } from '../../lib/types';
+import { MockPlatform, createMockPlatform } from '../helpers/mock-platform';
 
 // Mock dependencies
 vi.mock('../../lib/api/auth');
@@ -23,14 +24,11 @@ vi.mock('../../lib/device');
 vi.mock('../../lib/storage');
 vi.mock('../../lib/token');
 vi.mock('../../lib/store');
-vi.mock('@simplewebauthn/browser', () => ({
-  startAuthentication: vi.fn().mockResolvedValue({ id: 'auth-id' }),
-  startRegistration: vi.fn().mockResolvedValue({ id: 'reg-id' }),
-}));
 
 describe('AuthService', () => {
   // Setup for all tests
   let authService: AuthService;
+  let mockPlatform: MockPlatform;
   let mockAuthApi: {
     signIn: Mock;
     signUp: Mock;
@@ -172,6 +170,17 @@ describe('AuthService', () => {
       tokenExpiredFlag: false,
     };
 
+    mockPlatform = createMockPlatform({
+      getCurrentUrl: vi.fn().mockReturnValue({
+        href: `${mockOrigin}/`,
+        origin: mockOrigin,
+        pathname: '/',
+        search: '',
+        hash: '',
+        hostname: 'example.com',
+      }),
+    });
+
     // Create AuthService instance
     authService = new AuthService(
       mockAuthApi as unknown as AuthAPI,
@@ -181,10 +190,11 @@ describe('AuthService', () => {
       mockTokenCacheService as unknown as TokenCacheService,
       mockScopes,
       true, // createTenantForNewUser
-      mockOrigin,
       mockUrl,
       {}, // sessionCallbacks
       mockAppId,
+      undefined, // tokenExchangeConfig
+      mockPlatform as unknown as import('../../lib/platform').PlatformAdapter,
     );
   });
 
@@ -622,7 +632,6 @@ describe('AuthService', () => {
         mockTokenCacheService as unknown as TokenCacheService,
         mockScopes,
         true,
-        mockOrigin,
         mockUrl,
         { createSession, expiredSession },
         mockAppId,
@@ -650,7 +659,6 @@ describe('AuthService', () => {
         mockTokenCacheService as unknown as TokenCacheService,
         mockScopes,
         true,
-        mockOrigin,
         mockUrl,
         { createSession, expiredSession },
         mockAppId,

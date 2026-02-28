@@ -1,5 +1,6 @@
-import { startRegistration } from '@simplewebauthn/browser';
-import { OS, PassflowSuccessResponse, UserAPI } from '../api';
+import { PassflowSuccessResponse, UserAPI, getOSFromDeviceType } from '../api';
+import type { PlatformAdapter } from '../platform';
+import { webAdapter } from '../platform';
 
 /**
  * Service for managing user profile and passkeys
@@ -8,6 +9,7 @@ export class UserService {
   constructor(
     private userAPI: UserAPI,
     private deviceService: DeviceService,
+    private platform: PlatformAdapter = webAdapter,
   ) {}
 
   /**
@@ -51,18 +53,20 @@ export class UserService {
     passkeyUsername?: string;
     passkeyDisplayName?: string;
   } = {}): Promise<void> {
+    if (!this.platform.passkeys) throw new Error('Passkeys are not supported on this platform');
     const deviceId = this.deviceService.getDeviceId();
-    const os = OS.web;
+    const os = getOSFromDeviceType(this.platform.getDeviceType());
     const { challenge_id, publicKey } = await this.userAPI.addUserPasskeyStart({
-      relyingPartyId: relyingPartyId || window?.location?.hostname,
+      relyingPartyId: (relyingPartyId || this.platform.getCurrentUrl()?.hostname) ?? '',
       deviceId,
       os,
       passkeyDisplayName,
       passkeyUsername,
     });
     // user handle should be base64 encoded for simplewebauthn lib we are using
-    publicKey.user.id = btoa(publicKey.user.id);
-    const webauthn = await startRegistration({ optionsJSON: publicKey });
+    publicKey.user.id = this.platform.btoa(publicKey.user.id);
+    const webauthn = await this.platform.passkeys.startRegistration(publicKey);
+    if (!webauthn) throw new Error('Passkey registration was not completed');
     return await this.userAPI.addUserPasskeyComplete(webauthn, deviceId, challenge_id);
   }
 }

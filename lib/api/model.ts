@@ -5,6 +5,7 @@ import type {
 } from '@simplewebauthn/types';
 import type { AxiosRequestConfig } from 'axios';
 
+import type { PlatformAdapter } from '../platform';
 import type { Tokens } from '../types';
 
 export type RequestOptions<D> = {
@@ -133,6 +134,12 @@ export type PassflowConfig = {
    * for tokens and stores them in httpOnly cookies. Tokens never touch the browser.
    */
   tokenExchange?: TokenExchangeConfig;
+  /**
+   * Platform adapter for cross-platform compatibility.
+   * Defaults to WebAdapter (browser APIs) if not provided.
+   * Pass a custom adapter to support React Native or other platforms.
+   */
+  platform?: PlatformAdapter;
 };
 
 export type PassflowAuthorizationResponse = Tokens & {
@@ -345,6 +352,18 @@ export type DefaultAppSettings = {
 
 export enum OS {
   web = 'web',
+  ios = 'ios',
+  android = 'android',
+}
+
+/**
+ * Maps platform.getDeviceType() return values to the OS enum.
+ * The OS enum values match the getDeviceType() strings exactly,
+ * so this is a safe cast.
+ */
+export function getOSFromDeviceType(deviceType: 'web' | 'ios' | 'android'): OS {
+  // OS enum values happen to match getDeviceType() string values exactly
+  return deviceType as OS;
 }
 
 export type PassflowPasskeyRegisterStartPayload = {

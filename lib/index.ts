@@ -75,3 +75,14 @@ export type {
 
 // Re-export Token Delivery and Session State (explicitly for clarity)
 export { TokenDeliveryMode, SessionState } from './types';
+
+// Re-export platform types and WebAdapter for custom adapter implementations
+export type {
+  AuthCallbackResult,
+  CurrentUrlInfo,
+  OpenAuthUrlOptions,
+  PasskeySupport,
+  PlatformAdapter,
+  PlatformStorage,
+} from './platform';
+export { PopupClosedError, WebAdapter, webAdapter } from './platform';

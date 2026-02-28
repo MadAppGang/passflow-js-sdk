@@ -1,4 +1,6 @@
 import { AuthAPI } from '../api';
+import type { PlatformAdapter } from '../platform';
+import { webAdapter } from '../platform';
 import { StorageManager } from '../storage';
 import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
 import { isTokenExpired, parseToken } from '../token';
@@ -10,7 +12,8 @@ export class TokenCacheService {
 
   private checkInterval: NodeJS.Timeout | null = null;
   private readonly CHECK_INTERVAL = 60000; // 1 minute (was 10ms)
-  private visibilityChangeHandler: (() => void) | null = null;
+  private unsubscribeForeground: (() => void) | null = null;
+  private unsubscribeUnload: (() => void) | null = null;
   isRefreshing = false;
   tokenExpiredFlag = false;
 
@@ -18,10 +21,11 @@ export class TokenCacheService {
     private storageManager: StorageManager,
     private authApi: AuthAPI,
     private subscribeStore: PassflowStore,
+    private platform: PlatformAdapter = webAdapter,
   ) {
     this.storageManager = storageManager;
     this.authApi = authApi;
-    this.setupPageUnloadHandler();
+    this.setupLifecycleListeners();
   }
 
   initialize() {
@@ -104,12 +108,12 @@ export class TokenCacheService {
 
     if (this.tokenExpiredFlag) return;
 
-    // Setup Page Visibility API listener
-    this.setupVisibilityListener();
+    // Setup lifecycle listeners for foreground/visibility checks
+    this.setupLifecycleListeners();
 
     this.checkInterval = setInterval(() => {
-      // Skip check if page is hidden
-      if (typeof document !== 'undefined' && document.hidden) {
+      // Skip check if page is not in foreground
+      if (!this.platform.isInForeground()) {
         return;
       }
 
@@ -123,34 +127,26 @@ export class TokenCacheService {
     }, this.CHECK_INTERVAL);
   }
 
-  private setupVisibilityListener() {
-    if (typeof document === 'undefined') return;
-
-    // Remove previous listener if exists
-    if (this.visibilityChangeHandler) {
-      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+  private setupLifecycleListeners(): void {
+    // Clean up existing listeners before setting up new ones
+    if (this.unsubscribeForeground) {
+      this.unsubscribeForeground();
+      this.unsubscribeForeground = null;
     }
 
-    this.visibilityChangeHandler = () => {
-      if (!document.hidden && this.checkInterval) {
-        // Page became visible, do immediate check
-        if (!this.isRefreshing && !this.tokenExpiredFlag && this.isExpired()) {
-          this.tokenExpiredFlag = true;
-          this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: true });
-          this.stopTokenCheck();
-        }
+    this.unsubscribeForeground = this.platform.onForeground(() => {
+      if (this.checkInterval && !this.isRefreshing && !this.tokenExpiredFlag && this.isExpired()) {
+        this.tokenExpiredFlag = true;
+        this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: true });
+        this.stopTokenCheck();
       }
-    };
-
-    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
-  }
-
-  private setupPageUnloadHandler() {
-    if (typeof window === 'undefined') return;
-
-    window.addEventListener('beforeunload', () => {
-      this.destroy();
     });
+
+    if (!this.unsubscribeUnload) {
+      this.unsubscribeUnload = this.platform.onBeforeUnload(() => {
+        this.destroy();
+      });
+    }
   }
 
   private stopTokenCheck() {
@@ -159,9 +155,9 @@ export class TokenCacheService {
       this.checkInterval = null;
     }
 
-    if (this.visibilityChangeHandler && typeof document !== 'undefined') {
-      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
-      this.visibilityChangeHandler = null;
+    if (this.unsubscribeForeground) {
+      this.unsubscribeForeground();
+      this.unsubscribeForeground = null;
     }
   }
 
@@ -171,6 +167,10 @@ export class TokenCacheService {
    */
   destroy() {
     this.stopTokenCheck();
+    if (this.unsubscribeUnload) {
+      this.unsubscribeUnload();
+      this.unsubscribeUnload = null;
+    }
   }
 
   setTokensCache(tokens: Tokens | undefined): void {
