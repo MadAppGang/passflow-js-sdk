@@ -32,7 +32,8 @@ export class TokenCacheService {
     try {
       const tokens = this.storageManager.getTokens();
       if (!tokens) {
-        this.startTokenCheck();
+        // No tokens to watch. Polling would emit spurious TokenCacheExpired
+        // events for logged-out users; wait for a sign-in to (re-)initialize.
         return;
       }
 
