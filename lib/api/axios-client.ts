@@ -14,6 +14,7 @@ import { webAdapter } from '../platform';
 import { StorageManager } from '../storage';
 import { TokenService, isTokenExpired, parseToken } from '../token';
 import { TokenDeliveryManager } from '../token/delivery-manager';
+import { parseUpgradeChallenge } from '../upgrade/challenge';
 
 import {
   PassflowAuthorizationResponse,
@@ -37,6 +38,21 @@ export enum HttpStatuses {
 // Rate limiting retry configuration
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY_MS = 1000;
+
+/**
+ * Reports whether a response is an RFC 9470 step-up challenge rather than a
+ * plain authentication failure. Adapts the axios response shape onto the
+ * transport-agnostic parser in `../upgrade/challenge`.
+ */
+const isUpgradeChallengeResponse = (response: AxiosResponse): boolean =>
+  parseUpgradeChallenge(
+    response.status,
+    (name) => {
+      const value = response.headers?.[name] ?? response.headers?.[name.toLowerCase()];
+      return Array.isArray(value) ? value.join(', ') : (value as string | undefined);
+    },
+    response.data,
+  ) !== undefined;
 
 export class AxiosClient {
   private instance: AxiosInstance;
@@ -190,8 +206,12 @@ export class AxiosClient {
     this.instance.interceptors.response.use(
       (response: AxiosResponse) => response,
       async (e: AxiosError) => {
-        // Mark session as invalid on 401
-        if (e.response?.status === HttpStatuses.unauthorized) {
+        // Mark session as invalid on 401 — EXCEPT when the 401 is an RFC 9470
+        // upgrade challenge. Those two carry the same status and mean opposite
+        // things: an expired session must be cleared, an insufficient one is
+        // valid and merely needs another factor. Invalidating here would log
+        // the user out at the moment we meant to elevate them.
+        if (e.response?.status === HttpStatuses.unauthorized && !isUpgradeChallengeResponse(e.response)) {
           this.tokenDeliveryManager.setSessionInvalid();
         }
 
