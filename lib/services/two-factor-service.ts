@@ -528,24 +528,24 @@ export class TwoFactorService {
   }
 
   /**
-   * Begin 2FA method setup
+   * Start 2FA method setup
    */
-  async beginMethodSetup(method: TwoFactorMethod): Promise<unknown> {
+  async startMethodSetup(method: TwoFactorMethod, payload?: Record<string, unknown>): Promise<unknown> {
     try {
-      const response = await this.twoFactorApi.beginMethodSetup(method);
+      const response = await this.twoFactorApi.startMethodSetup(method, payload);
       this.subscribeStore.notify(PassflowEvent.TwoFactorSetupStarted, { secret: '', method });
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Begin 2FA method setup');
+      this.emitErrorAndThrow(error, 'Start 2FA method setup');
     }
   }
 
   /**
-   * Confirm 2FA method setup
+   * Complete 2FA method setup
    */
-  async confirmMethodSetup(method: TwoFactorMethod, payload: unknown): Promise<unknown> {
+  async completeMethodSetup(method: TwoFactorMethod, payload: Record<string, unknown>): Promise<unknown> {
     try {
-      const response = await this.twoFactorApi.confirmMethodSetup(method, payload);
+      const response = await this.twoFactorApi.completeMethodSetup(method, payload);
       this.subscribeStore.notify(PassflowEvent.TwoFactorEnabled, {
         recoveryCodes: [],
         clearRecoveryCodes: () => {
@@ -554,7 +554,7 @@ export class TwoFactorService {
       });
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Confirm 2FA method setup');
+      this.emitErrorAndThrow(error, 'Complete 2FA method setup');
     }
   }
 

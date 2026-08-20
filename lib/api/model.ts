@@ -62,8 +62,8 @@ export enum PassflowEndpointPaths {
   // v2 2FA endpoints
   TwoFactorMethodsAvailable = '/v2/user/2fa/methods/available',
   TwoFactorMethodsRegistered = '/v2/user/2fa/methods',
-  TwoFactorMethodSetupBegin = '/v2/user/2fa/methods/:method/setup/begin',
-  TwoFactorMethodSetupConfirm = '/v2/user/2fa/methods/:method/setup/confirm',
+  TwoFactorSetupStart = '/v2/user/2fa/setup/start',
+  TwoFactorSetupComplete = '/v2/user/2fa/setup/complete',
   TwoFactorMethodRemove = '/v2/user/2fa/methods/:id',
   TwoFactorChallenge = '/v2/auth/2fa/challenge',
   TwoFactorVerifyV2 = '/v2/auth/2fa/verify',

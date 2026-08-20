@@ -267,21 +267,28 @@ export class TwoFactorApiClient {
   }
 
   /**
-   * Begin 2FA method setup
-   * POST /v2/user/2fa/methods/:method/setup/begin
+   * Start 2FA method setup.
+   * POST /v2/user/2fa/setup/start
+   *
+   * The method travels in the body: at this point it is a parameter of the
+   * request, not the identity of an enrolled resource.
    */
-  beginMethodSetup(method: TwoFactorMethod): Promise<unknown> {
-    const endpoint = pathWithParams(PassflowEndpointPaths.TwoFactorMethodSetupBegin, { method });
-    return this.axiosClient.post<unknown, {}>(endpoint, {});
+  startMethodSetup(method: TwoFactorMethod, payload?: Record<string, unknown>): Promise<unknown> {
+    return this.axiosClient.post<unknown, Record<string, unknown>>(PassflowEndpointPaths.TwoFactorSetupStart, {
+      ...payload,
+      method,
+    });
   }
 
   /**
-   * Confirm 2FA method setup
-   * POST /v2/user/2fa/methods/:method/setup/confirm
+   * Complete 2FA method setup.
+   * POST /v2/user/2fa/setup/complete
    */
-  confirmMethodSetup(method: TwoFactorMethod, payload: unknown): Promise<unknown> {
-    const endpoint = pathWithParams(PassflowEndpointPaths.TwoFactorMethodSetupConfirm, { method });
-    return this.axiosClient.post<unknown, unknown>(endpoint, payload);
+  completeMethodSetup(method: TwoFactorMethod, payload: Record<string, unknown>): Promise<unknown> {
+    return this.axiosClient.post<unknown, Record<string, unknown>>(PassflowEndpointPaths.TwoFactorSetupComplete, {
+      ...payload,
+      method,
+    });
   }
 
   /**
