@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "profile": "default",
+  "definition": "65fe618a3bd9d2fac9347d495ff5bf4bddec42b59b50b861a52a2851b9edce4f",
+  "base": {
+    "name": "Default",
+    "marketplaces": {
+      "magus-alpha": {
+        "source": "github",
+        "repo": "MadAppGang/magus-alpha"
+      },
+      "magus": {
+        "source": "github",
+        "repo": "MadAppGang/magus"
+      }
+    },
+    "plugins": {
+      "agent-colours@magus-alpha": "latest",
+      "setup@magus": "latest",
+      "code-search@magus": "latest",
+      "claudish@magus": "latest",
+      "mnemex@magus": "latest",
+      "multimodel@magus": "latest",
+      "dev@magus": "latest",
+      "bunjs@magus": "latest",
+      "terminal@magus": "latest"
+    },
+    "createdAt": "2026-10-24T12:58:07.101Z"
+  },
+  "allPluginIds": [
+    "agent-colours@magus-alpha",
+    "bunjs@magus",
+    "claudish@magus",
+    "code-search@magus",
+    "dev@magus",
+    "mnemex@magus",
+    "multimodel@magus",
+    "setup@magus",
+    "terminal@magus"
+  ],
+  "files": {
+    "settings": "a3c697510f042c42530953dfe3dae793cae382002bcae0b11563320876ee99b9",
+    "mcp": "d8e397af03b5b032f21d0aa967086f0c78b33c87b76f2e9898ae0a144df7de02"
+  },
+  "skills": {}
+}
