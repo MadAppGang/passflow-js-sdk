@@ -17,7 +17,10 @@ export default defineConfig(({ command }) => {
         entry: path.resolve(__dirname, 'lib/index.ts'),
         name: 'Passflow JS SDK',
         formats: ['es', 'cjs'],
-        fileName: (format) => (format === 'es' ? 'index.mjs' : 'index.js'),
+        // Explicit extensions, not `.js`. This package is `"type": "module"`, so Node parses
+        // every `.js` inside it as ESM — a CJS bundle named `index.js` is evaluated as an ES
+        // module, silently yielding an empty namespace to `require()`. `.cjs` pins the format.
+        fileName: (format) => (format === 'es' ? 'index.mjs' : 'index.cjs'),
       },
       rollupOptions: {
         // Externalize dependencies to reduce bundle size
