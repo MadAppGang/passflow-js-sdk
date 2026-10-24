@@ -73,6 +73,39 @@ export type {
   M2MRateLimitInfo,
 } from './m2m';
 
+// Re-export Upgrade (step-up authentication) module
+export {
+  INSUFFICIENT_USER_AUTHENTICATION,
+  UPGRADE_REQUIRED,
+  parseChallengeBody,
+  parseChallengeHeader,
+  parseUpgradeChallenge,
+  DEFAULT_UPGRADE_FACTORS,
+  factorRegistry,
+  passkeyFactor,
+  recoveryCodesFactor,
+  UpgradeFactorError,
+  totpFactor,
+  UpgradeCancelledError,
+  UpgradeController,
+  UpgradeUnsatisfiableError,
+  selectFactors,
+} from './upgrade';
+export type {
+  UpgradeChallenge,
+  UpgradeAssertion,
+  UpgradeAssertContext,
+  UpgradeFactor,
+  UpgradeFactorInput,
+  UpgradeFactorType,
+  UpgradePrepared,
+  UpgradeControllerOptions,
+  UpgradePromptHandler,
+  UpgradePromptRequest,
+  UpgradePromptResult,
+  UpgradeTransport,
+} from './upgrade';
+
 // Re-export Token Delivery and Session State (explicitly for clarity)
 export { TokenDeliveryMode, SessionState } from './types';
 
