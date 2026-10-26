@@ -57,3 +57,21 @@ all-in-one2.txt
 ai-docs/
 
 .mnemex/
+
+# magus: generated profile config (source of truth: .claude/profiles.json)
+.claude/profiles/
+.claude/.magus-backups/
+.claude/settings.json
+.claude/models.json
+.mcp.json
+# Added by magus
+# Local agent workspaces and runtime artifacts should stay out of team history.
+.agents/
+# Statusline worktree markers are local runtime state.
+.claude/.statusline-worktree-*
+# Claude cache contents are local generated data and can grow quickly.
+.claude/cache/
+# Runtime lock files are local process state and should be regenerated locally.
+.claude/scheduled_tasks.lock
+# Personal Claude settings belong to each developer and should not be shared.
+.claude/settings.local.json

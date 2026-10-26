@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "profiles": {
+    "default": {
+      "name": "Default",
+      "marketplaces": {
+        "magus-alpha": {
+          "source": "github",
+          "repo": "MadAppGang/magus-alpha"
+        },
+        "magus": {
+          "source": "github",
+          "repo": "MadAppGang/magus"
+        }
+      },
+      "plugins": {
+        "agent-colours@magus-alpha": "latest",
+        "setup@magus": "latest",
+        "code-search@magus": "latest",
+        "claudish@magus": "latest",
+        "mnemex@magus": "latest",
+        "multimodel@magus": "latest",
+        "dev@magus": "latest",
+        "bunjs@magus": "latest",
+        "terminal@magus": "latest"
+      },
+      "createdAt": "2026-10-26T01:16:24.625Z"
+    }
+  },
+  "default": "default"
+}
