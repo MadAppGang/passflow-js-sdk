@@ -1,8 +1,10 @@
 import { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/types';
+import type { AxiosRequestConfig } from 'axios';
 import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY } from '../constants';
 
 import { DeviceService } from '../device';
 import { StorageManager } from '../storage';
+import { markUpgradeTransaction } from '../upgrade/markers';
 
 import { AxiosClient } from './axios-client';
 import {
@@ -31,6 +33,7 @@ import {
   PassflowSuccessResponse,
   PassflowValidatePayload,
   PassflowValidationResponse,
+  UpgradeRefreshField,
 } from './model';
 
 export class AuthAPI {
@@ -44,17 +47,46 @@ export class AuthAPI {
     this.axiosClient.setAppId(appId);
   }
 
-  refreshToken(refreshToken: string, scopes: string[], accessToken?: string): Promise<PassflowAuthorizationResponse> {
+  /**
+   * Refreshes the session, optionally committing an assurance upgrade.
+   *
+   * `upgrade` carries `{type, assertion}` — the proof the user just produced.
+   * The server scores the new `acr` from the durable session record plus the
+   * verified factor and rotates the tokens, so this one endpoint is both the
+   * refresh and the elevation.
+   *
+   * When `upgrade` is present the request is MARKED as part of the upgrade
+   * transaction. The server answers a wrong code, a spent challenge, a foreign
+   * session and an exhausted budget with a bare 401 carrying no RFC 9470
+   * vocabulary, which is indistinguishable from an expired session on the
+   * response alone; the marker is what tells the response interceptor not to
+   * invalidate the session over a mistyped digit.
+   */
+  refreshToken(
+    refreshToken: string,
+    scopes: string[],
+    accessToken?: string,
+    upgrade?: UpgradeRefreshField,
+  ): Promise<PassflowAuthorizationResponse> {
     const payload = {
       access: accessToken,
       scopes,
+      // Omitted entirely rather than sent as `null` when absent: the server
+      // decodes non-strictly and an explicit null would be a value, not a gap.
+      ...(upgrade ? { upgrade } : {}),
     };
 
-    return this.axiosClient.post<PassflowAuthorizationResponse, typeof payload>(PassflowEndpointPaths.refresh, payload, {
+    const config: AxiosRequestConfig = {
       headers: {
         [AUTHORIZATION_HEADER_KEY]: `Bearer ${refreshToken}`,
       },
-    });
+    };
+
+    return this.axiosClient.post<PassflowAuthorizationResponse, typeof payload>(
+      PassflowEndpointPaths.refresh,
+      payload,
+      upgrade ? markUpgradeTransaction(config) : config,
+    );
   }
 
   signIn(payload: PassflowSignInPayload, deviceId: string, os: OS): Promise<PassflowAuthorizationResponse> {

@@ -1,3 +1,4 @@
+import type { AxiosInstance } from 'axios';
 import {
   AppAPI,
   type AppSettings,
@@ -34,8 +35,13 @@ import {
   type TwoFactorSetupResponse,
   type TwoFactorStatusResponse,
   type TwoFactorVerifyResponse,
+  UpgradeAPI,
+  type UpgradeDomain,
   UserAPI,
+  resolveUpgradeDomain,
 } from './api';
+
+import type { AxiosClient, AxiosUpgradeHandler } from './api/axios-client';
 import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL, SDK_VERSION } from './constants';
 import { DeviceService } from './device';
 import type { CurrentUrlInfo, PlatformAdapter } from './platform';
@@ -43,7 +49,17 @@ import { webAdapter } from './platform';
 import { AuthService, InvitationService, TenantService, TokenCacheService, TwoFactorService, UserService } from './services';
 import { StorageManager } from './storage';
 import { type ErrorPayload, PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
-import { type TokenType } from './token';
+import { TokenType, parseToken } from './token';
+import {
+  type AssuranceBar,
+  type CreateClientConfig,
+  type FetchLike,
+  type ResponseInterceptorHost,
+  type UpgradeFacade,
+  createUpgradeClient,
+  createUpgradeFacade,
+  readAcrValues,
+} from './upgrade';
 
 import type { ParsedTokens, SessionParams, Tokens } from './types';
 import { isValidJWTFormat, sanitizeErrorMessage } from './utils/validation';
@@ -67,6 +83,7 @@ export class Passflow {
   private tenantApi: TenantAPI;
   private invitationApi: InvitationAPI;
   private twoFactorApi: TwoFactorApiClient;
+  private upgradeApi: UpgradeAPI;
 
   // Configuration
   private scopes: string[];
@@ -87,6 +104,21 @@ export class Passflow {
   // Public services
   public tenant: TenantService;
   public twoFactor: TwoFactorService;
+
+  /**
+   * Step-up (assurance upgrade) wiring. Always present, inert until
+   * `enable({ prompt })` is called — constructing a `Passflow` must never patch
+   * a global or install a prompt.
+   */
+  readonly upgrade: UpgradeFacade;
+
+  /**
+   * Passflow's own API as an interception scope ("domain 1"), resolved ONCE
+   * here from `PassflowConfig.url` so no adapter or wrapper ever derives it.
+   * `null` when no `url` was configured, which is empty — never a throw, and
+   * never silent: the first parseable challenge then names `url` as the fix.
+   */
+  private readonly upgradeDomain: UpgradeDomain | null;
 
   // Session callbacks
   private createSessionCallback?: ({ tokens, parsedTokens }: { tokens?: Tokens; parsedTokens?: ParsedTokens }) => Promise<void>;
@@ -124,6 +156,8 @@ export class Passflow {
     this.tenantApi = new TenantAPI(config, this.storageManager, this.deviceService);
     this.invitationApi = new InvitationAPI(config, this.storageManager, this.deviceService);
     this.twoFactorApi = new TwoFactorApiClient(config, this.storageManager, this.deviceService);
+    this.upgradeApi = new UpgradeAPI(config, this.storageManager, this.deviceService);
+    this.upgradeDomain = resolveUpgradeDomain(config.url);
 
     // Initialize PassflowStore
     this.subscribeStore = new PassflowStore();
@@ -162,6 +196,41 @@ export class Passflow {
     this.twoFactorService = new TwoFactorService(this.twoFactorApi, this.subscribeStore);
     this.twoFactor = this.twoFactorService;
 
+    this.upgrade = createUpgradeFacade({
+      // The prepare round. The commit round is `/auth/refresh`, which must go
+      // through AuthService: it is the only path that STORES the rotated tokens,
+      // so posting directly would elevate the session on the server and leave
+      // the client holding stale ones.
+      startUpgrade: (payload) => this.upgradeApi.startUpgrade(payload),
+      commitRefresh: async (upgrade, pin) => {
+        await this.authService.refreshToken(upgrade, pin);
+      },
+      // The identity the flight is pinned to, read once when it starts. The
+      // check itself lives inside `refreshToken`, immediately before the
+      // rotated tokens are applied — see `AuthService.assertSessionPin`.
+      readSessionPin: () => this.authService.readSessionPin(),
+      canCommit: () =>
+        this.authService['tokenDeliveryManager'].isBFFMode()
+          ? { ok: false, reason: 'Step-up verification cannot be committed through a BFF refresh endpoint' }
+          : { ok: true },
+      markSessionInvalid: () => this.authService['tokenDeliveryManager'].setSessionInvalid(),
+      platform: this.platform,
+      passflowDomain: this.upgradeDomain,
+      ...(config.upgrade?.factors ? { factors: config.upgrade.factors } : {}),
+      ...(config.upgrade?.relyingPartyId ? { relyingPartyId: () => config.upgrade?.relyingPartyId } : {}),
+      readObtainedBar: () => this.readAssuranceBar(),
+      // §5.5's credential swap. Called twice by the core — before the elevation
+      // and after it — so returning the CURRENT token both times is what makes
+      // `{from: stale, to: fresh}` come out right, and exact-match on `from` is
+      // what proves the outgoing header was ours.
+      authorizationSwap: () => {
+        const token = this.storageManager.getToken(TokenType.access_token);
+        return token ? { from: `Bearer ${token}`, to: `Bearer ${token}` } : undefined;
+      },
+      attachInternalSeam: (factory) => this.attachUpgradeSeam(factory),
+      onSessionChange: (listener) => this.subscribeToSessionChange(listener),
+    });
+
     // Check for tokens in query params if configured
     if (config.parseQueryParams) {
       this.checkAndSetTokens();
@@ -193,12 +262,158 @@ export class Passflow {
     this.tenantApi.setAppId(appId);
     this.invitationApi.setAppId(appId);
     this.twoFactorApi.setAppId(appId);
+    this.upgradeApi.setAppId(appId);
 
     // Update authService appId if needed
     if (this.authService) {
       // AuthService stores appId internally but doesn't have a setter
       // The API clients will handle the headers, so this is sufficient
     }
+  }
+
+  /**
+   * Wraps a `fetch`, returning a new function with step-up handling attached.
+   *
+   * Installs nothing and touches no global — this is the SSR- and
+   * React-Native-safe surface. Two verbs exist because the semantics genuinely
+   * differ: an axios interceptor mutates, a fetch wrapper returns, and one name
+   * would hide which happened.
+   *
+   * A challenge from Passflow's own API is handled with no further
+   * configuration; a challenge from the developer's own backend needs that
+   * backend declared via `upgrade.enable({ backend })`.
+   *
+   * @example
+   * ```typescript
+   * const authedFetch = passflow.withAuth(fetch);
+   * const res = await authedFetch('https://api.example.com/transfer', { method: 'POST' });
+   * if (!res.ok && isUpgradeCancelled(res)) {
+   *   // the user declined the step-up — not an authorization failure
+   * }
+   * ```
+   */
+  withAuth(next?: FetchLike): FetchLike {
+    return this.upgrade.withAuth(next);
+  }
+
+  /**
+   * Attaches step-up handling to an axios instance the caller already owns,
+   * **mutating** it, and returns a `detach()` disposer.
+   *
+   * The parameter is typed structurally — duck-typed on
+   * `interceptors.response.use` — so this package's axios version is not a
+   * constraint on the caller's. It returns the disposer rather than the
+   * instance on purpose: it mutates, so returning the instance would read as if
+   * it had built something.
+   *
+   * @example
+   * ```typescript
+   * const api = axios.create({ baseURL: 'https://api.example.com' });
+   * const detach = passflow.attachAuth(api);
+   * ```
+   */
+  attachAuth(instance: ResponseInterceptorHost): () => void {
+    return this.upgrade.attachAuth(instance);
+  }
+
+  /**
+   * Builds a ready axios instance with step-up handling already wired, for a
+   * caller with no HTTP client of their own.
+   *
+   * Pure passthrough of axios' own create options, so `baseURL`, `headers`,
+   * `timeout` and `adapter` stay the caller's. A `baseURL` is NOT read as a
+   * declared backend — that would derive an interception scope through a side
+   * door; declare it with `upgrade.enable({ backend })`.
+   *
+   * @example
+   * ```typescript
+   * const api = passflow.createClient({ baseURL: 'https://api.example.com' });
+   * ```
+   */
+  createClient(config?: CreateClientConfig): AxiosInstance {
+    return createUpgradeClient(config, (instance) => this.upgrade.attachAuth(instance));
+  }
+
+  /**
+   * The assurance bar the session currently holds, read from the `acr` claim of
+   * the stored access token.
+   *
+   * The server scores `acr` and is the only authority; this is the client-side
+   * read of what it last said, and it is what lets an `insufficient` outcome
+   * report a real `obtained` bar instead of the bar the ceremony was ranked for.
+   */
+  private readAssuranceBar(): AssuranceBar | undefined {
+    const token = this.storageManager.getToken(TokenType.access_token);
+    if (!token) {
+      return undefined;
+    }
+    try {
+      const claims = parseToken(token) as { acr?: unknown; auth_time?: unknown };
+      const acrValues = typeof claims.acr === 'string' ? claims.acr : undefined;
+      if (!acrValues) {
+        return undefined;
+      }
+      const level = readAcrValues(acrValues).level;
+      return level === undefined ? { acrValues } : { acrValues, level };
+    } catch {
+      // An unparseable token tells us nothing about the bar, and guessing one
+      // would be worse than reporting the ranked approximation.
+      return undefined;
+    }
+  }
+
+  /** Every axios client this instance owns, which is every surface a Passflow 401 can arrive on. */
+  private axiosClients(): AxiosClient[] {
+    return [
+      this.authApi['axiosClient'],
+      this.appApi['axiosClient'],
+      this.userApi['axiosClient'],
+      this.settingApi['axiosClient'],
+      this.tenantApi['axiosClient'],
+      this.invitationApi['axiosClient'],
+      this.twoFactorApi['axiosClient'],
+      this.upgradeApi['axiosClient'],
+    ];
+  }
+
+  /**
+   * Installs (or clears) §4.4's internal seam on every one of the SDK's own
+   * clients.
+   *
+   * Each client gets a handler bound to its OWN `replay`, so a replayed request
+   * goes back out through the instance that issued it. The seam is consulted
+   * inside the existing error interceptor, which is where it has to live: axios
+   * runs response interceptors FIFO and that handler converts the `AxiosError`
+   * into a `PassflowError` with no headers and no config, so anything
+   * registered afterwards is structurally too late.
+   */
+  private attachUpgradeSeam(
+    factory: ((reissue: (config: unknown) => Promise<unknown>) => (error: unknown) => Promise<unknown>) | undefined,
+  ): void {
+    for (const client of this.axiosClients()) {
+      if (!factory) {
+        client.setUpgradeInterceptor(undefined);
+        continue;
+      }
+      const handler = factory((config) => client.replay(config as Parameters<AxiosClient['replay']>[0]));
+      client.setUpgradeInterceptor(handler as unknown as AxiosUpgradeHandler);
+    }
+  }
+
+  /**
+   * Notifies on a session change, which the facade answers by discarding its
+   * controller.
+   *
+   * `SignIn` and `SignOut` both count: a challenge is server-bound to the
+   * session's `sid`, so an elevation abandoned across either boundary must never
+   * elevate the NEW session.
+   */
+  private subscribeToSessionChange(listener: () => void): () => void {
+    const subscriber: PassflowSubscriber = {
+      onAuthChange: () => listener(),
+    };
+    this.subscribeStore.subscribe(subscriber, [PassflowEvent.SignIn, PassflowEvent.SignOut]);
+    return () => this.subscribeStore.unsubscribe(subscriber);
   }
 
   // Session management

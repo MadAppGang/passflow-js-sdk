@@ -91,7 +91,7 @@ describe('package entry point exposes the upgrade module', () => {
     expect(challenge).toBeDefined();
 
     const offered = selectFactors(DEFAULT_UPGRADE_FACTORS, challenge as UpgradeChallenge);
-    expect(offered[0].type).toBe('passkey');
+    expect(offered[0]!.type).toBe('passkey');
 
     expect(factorRegistry(offered).get('totp')).toBe(totpFactor);
   });
@@ -99,14 +99,20 @@ describe('package entry point exposes the upgrade module', () => {
   // Types erase at runtime, so the only way to assert they are exported is to
   // use them: this block fails `tsc --noEmit` if any name stops resolving.
   test('exports the public types', () => {
-    const challenge: UpgradeChallenge = { acrValues: '2', maxAge: undefined, status: 401 };
+    const challenge: UpgradeChallenge = {
+      acrValues: '2',
+      requiredLevel: 2,
+      maxAge: undefined,
+      status: 401,
+      channels: ['header'],
+    };
     const factorType: UpgradeFactorType = 'totp';
     const input: UpgradeFactorInput = 'code';
     const factor: UpgradeFactor = totpFactor;
     const prepared: UpgradePrepared = { challengeId: 'c1', method: 'totp', expiresAt: '2026-01-01T00:00:00Z' };
     const assertion: UpgradeAssertion = { challenge_id: 'c1', code: '000000' };
     const ctx: UpgradeAssertContext = { code: '000000', platform: {} as UpgradeAssertContext['platform'] };
-    const promptRequest: UpgradePromptRequest = { challenge, factors: [factor] };
+    const promptRequest: UpgradePromptRequest = { challenge, factors: [factor], onFactorSelected: () => {} };
     const promptResult: UpgradePromptResult = { type: 'submit', factor: factorType };
     const prompt: UpgradePromptHandler = async () => promptResult;
     const transport: UpgradeTransport = {

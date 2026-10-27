@@ -16,6 +16,7 @@ import {
   PassflowSuccessResponse,
   PassflowValidationResponse,
   TokenExchangeConfig,
+  type UpgradeRefreshField,
   getOSFromDeviceType,
 } from '../api';
 import { DeviceService } from '../device';
@@ -26,6 +27,8 @@ import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
 import { TokenType, isTokenExpired, parseToken } from '../token';
 import { TokenDeliveryManager, TokenDeliveryMode } from '../token/delivery-manager';
 import { ParsedTokens, Tokens } from '../types';
+import { UpgradeSessionChangedError, UpgradeTransportError } from '../upgrade/errors';
+import { type UpgradeSessionPin, readSessionPin, sessionPinMatches } from '../upgrade/session';
 import { isValidEmail, isValidPhoneNumber, isValidUsername } from '../utils/validation';
 import { TokenCacheService } from './token-cache-service';
 
@@ -442,8 +445,96 @@ export class AuthService {
     this.subscribeStore.notify(PassflowEvent.SignOut, {});
   }
 
-  async refreshToken(): Promise<PassflowAuthorizationResponse> {
+  /**
+   * The session and user identity this client currently holds, or `undefined`
+   * when none is readable.
+   *
+   * Read from the stored access token's claims, which is the same source every
+   * other client-side session fact comes from. In a delivery mode that keeps
+   * the access token out of reach — a cookie-mode or BFF session — there is
+   * nothing to read and the answer is `undefined`.
+   */
+  readSessionPin(): UpgradeSessionPin | undefined {
+    const token = this.storageManager.getToken(TokenType.access_token);
+    if (!token) {
+      return undefined;
+    }
+    try {
+      return readSessionPin(parseToken(token) as { sub?: unknown; sid?: unknown });
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Refuses to APPLY tokens that belong to a different principal (§13.4
+   * revision 6 / H2).
+   *
+   * Called immediately before the rotated tokens are written, which is the only
+   * place the check cannot be bypassed: the epoch guard around `prepare` and
+   * `commit` runs before the server call, and token application happens after
+   * it returns, so a logout and re-login in between let user A's flight write
+   * over user B's session.
+   *
+   * It throws `UpgradeSessionChangedError`, so the elevation terminates as
+   * §13.3's `session changed mid-flight` on every surface — the outcome class
+   * itself, not a transport failure that happens to carry the kind: this is the
+   * only entry point into token application, so a caller holding the promise
+   * directly (`AuthService.refreshToken`) must see the same `code` a waiter
+   * behind the controller does. It does NOT invalidate
+   * anything: `setSessionInvalid()` runs off a positive allow-list elsewhere,
+   * and the live user is never logged out as a side effect of someone else's
+   * abandoned flight. Fail-closed on token application, fail-open on session
+   * state — two different axes.
+   */
+  private assertSessionPin(pin: UpgradeSessionPin | undefined): void {
+    if (!pin) {
+      // No pin was captured when the flight started, which means this delivery
+      // mode exposes no readable identity at all. There is nothing to compare,
+      // so the epoch guard is the only protection in force — stated, not
+      // silently assumed.
+      return;
+    }
+    if (sessionPinMatches(pin, this.readSessionPin())) {
+      return;
+    }
+    // biome-ignore lint/suspicious/noConsole: §13.4 revision 6 / C41 requires one visible `warn` on this path. A discarded elevation that left no trace is indistinguishable from a feature that silently never fired, and this is the fail-open diagnostic rule the whole module is built on.
+    console.warn(
+      '[passflow] the session or user changed while a step-up upgrade was in flight; the elevated tokens were discarded and the live session was left untouched.',
+    );
+    throw new UpgradeSessionChangedError('The session changed during verification, so the elevated tokens were discarded');
+  }
+
+  /**
+   * Refreshes the session, optionally committing an assurance upgrade.
+   *
+   * This is the ONLY token-storing path for all four delivery modes, which is
+   * why the upgrade commit goes through here rather than posting to
+   * `/auth/refresh` directly: it saves the rotated tokens, updates the cache and
+   * emits `Refresh`. Bypassing it would elevate the session on the server and
+   * leave the client holding stale tokens — everything looks fine until the next
+   * request 401s.
+   *
+   * An upgrade commit changes the error handling in one specific way: a 4xx is
+   * NOT treated as a dead session. The server answers a wrong code with a 401,
+   * and tearing the session down there is the logout-at-step-up defect. The
+   * upgrade transport classifies those failures and invalidates the session
+   * itself when the 401 turns out to be a genuine expiry.
+   */
+  async refreshToken(upgrade?: UpgradeRefreshField, pin?: UpgradeSessionPin): Promise<PassflowAuthorizationResponse> {
     this.subscribeStore.notify(PassflowEvent.RefreshStart, {});
+
+    // BFF mode cannot carry an upgrade, and the refusal has to come BEFORE the
+    // network call: the BFF refresh endpoint is the customer's own, posted to
+    // with an empty body, so there is nowhere to put `{upgrade:{...}}` without a
+    // customer-backend change. Refusing early is what lets the UI show
+    // "unavailable" instead of asking for a code that can never be submitted.
+    if (upgrade && this.tokenDeliveryManager.isBFFMode()) {
+      throw new UpgradeTransportError({
+        kind: 'unavailable',
+        message: 'Step-up verification cannot be committed through a BFF refresh endpoint',
+      });
+    }
 
     // BFF mode: call BFF refresh endpoint
     if (this.tokenDeliveryManager.isBFFMode() && this.tokenExchangeConfig?.refreshUrl) {
@@ -491,7 +582,12 @@ export class AuthService {
     if (this.tokenDeliveryManager.isCookieMode()) {
       try {
         // Call refresh endpoint - browser sends HttpOnly cookies automatically
-        const response = await this.authApi.refreshToken('', this.scopes);
+        const response = upgrade
+          ? await this.authApi.refreshToken('', this.scopes, undefined, upgrade)
+          : await this.authApi.refreshToken('', this.scopes);
+
+        // The pin is verified BEFORE anything is applied — see `assertSessionPin`.
+        this.assertSessionPin(pin);
 
         // Update session state
         this.tokenDeliveryManager.setSessionValid();
@@ -508,7 +604,13 @@ export class AuthService {
         this.tokenCacheService.tokenExpiredFlag = false;
         return response;
       } catch (error) {
-        this.tokenDeliveryManager.setSessionInvalid();
+        // A failed upgrade commit is not a failed session: the four recoverable
+        // upgrade errors all arrive as a bare 401. Classification — and the
+        // invalidation a genuine expiry still deserves — belongs to the upgrade
+        // transport, which knows it issued the request.
+        if (!upgrade) {
+          this.tokenDeliveryManager.setSessionInvalid();
+        }
         const errorPayload: ErrorPayload = {
           message: error instanceof Error ? error.message : 'Token refresh failed',
           originalError: error,
@@ -541,7 +643,19 @@ export class AuthService {
 
     const oldScopes = tokens?.scopes ?? this.scopes;
     try {
-      const response = await this.authApi.refreshToken(tokens?.refresh_token ?? '', oldScopes, tokens?.access_token);
+      // The `upgrade` argument is passed only when there is one, rather than as
+      // an explicit `undefined`: the ordinary refresh call stays byte-identical
+      // to what it was before step-up existed.
+      const refresh = tokens?.refresh_token ?? '';
+      const access = tokens?.access_token;
+      const response = upgrade
+        ? await this.authApi.refreshToken(refresh, oldScopes, access, upgrade)
+        : await this.authApi.refreshToken(refresh, oldScopes, access);
+      // The pin is verified BEFORE the tokens are written — see
+      // `assertSessionPin`. This is the line H2 exists for: `saveTokens` is the
+      // moment user A's rotated tokens would land in user B's storage.
+      this.assertSessionPin(pin);
+
       response.scopes = oldScopes;
       this.storageManager.saveTokens(response);
       this.tokenCacheService.setTokensCache(response);
@@ -573,7 +687,10 @@ export class AuthService {
       const is4xxError =
         axios.isAxiosError(error) && error.response?.status && error.response.status >= 400 && error.response.status < 500;
 
-      if (is4xxError) {
+      // On an upgrade commit a 4xx is the server rejecting the PROOF, not the
+      // session. Deleting the tokens here would log the user out for mistyping
+      // six digits — the defect this flow exists to fix.
+      if (is4xxError && !upgrade) {
         // Session is invalid - mark as expired and clean up
         this.tokenCacheService.tokenExpiredFlag = true;
         this.tokenCacheService.setTokensCache(undefined);
@@ -583,7 +700,10 @@ export class AuthService {
 
       if (error instanceof PassflowError) {
         throw error;
-      } else if (is4xxError) {
+      } else if (is4xxError && !upgrade) {
+        // Rethrown verbatim on the upgrade path instead: the status is the only
+        // thing left to classify by once the server sent no error envelope, and
+        // flattening it into a generic Error destroys that.
         throw new Error(`Getting unknown error message from server with code:${error.response?.status}`);
       } else {
         throw error;

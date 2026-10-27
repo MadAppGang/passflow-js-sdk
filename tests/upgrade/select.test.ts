@@ -9,6 +9,7 @@ const challenge = (acrValues?: string, maxAge?: number): UpgradeChallenge => ({
   acrValues,
   maxAge,
   status: 401,
+  channels: ['header'],
 });
 
 /** The factor types offered, in order — the shape every assertion here cares about. */
@@ -37,7 +38,7 @@ describe('selectFactors', () => {
 
   test('recovery codes are always last — single-use credentials are an escape hatch', () => {
     for (const acr of [undefined, '1', '2', '3']) {
-      expect(order(acr).at(-1)).toBe('recovery_codes');
+      expect(order(acr).slice(-1)[0]).toBe('recovery_codes');
     }
   });
 

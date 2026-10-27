@@ -29,6 +29,7 @@
  * actual credentials belongs to the caller — see the note at the bottom.
  */
 
+import { requiredAcrLevel } from './acr';
 import type { UpgradeChallenge } from './challenge';
 import type { UpgradeFactor, UpgradeFactorType } from './factors';
 
@@ -57,27 +58,24 @@ const CEREMONY_ORDER: Record<UpgradeFactorType, number> = {
 };
 
 /**
- * Parses `acr_values` into the level the challenge actually demands.
+ * The level this challenge demands.
  *
- * OIDC Core §3.1.2.1 makes `acr_values` a space-separated list in preference
- * order, and RFC 9470 §3 reuses it to name the values the resource server will
- * accept. Satisfying ANY listed value is enough, so the bar to clear is the
- * LOWEST one — taking the highest would over-constrain the ordering and demote
- * factors that would in fact have been accepted.
+ * Delegates to the ONE shared recognizer in `acr.ts` — the same one
+ * `challenge.ts` uses — so there is a single answer in this package to "what
+ * level does this `acr_values` string demand". The local `Number.parseInt` list
+ * reduction this replaced read `"2gold"` as level 2, which contradicted the rule
+ * that opaque values do not participate.
+ *
+ * A merged challenge already carries the cross-channel bar in `requiredLevel`,
+ * so that is preferred when present: re-deriving it from `acrValues` alone would
+ * drop the other channel's contribution and could rank for a weaker bar than
+ * the one the prompt is showing.
  *
  * Returns undefined when the challenge names no level (a `max_age`-only
  * freshness challenge), in which case any factor re-proves recency equally.
  */
-const requiredLevel = (acrValues: string | undefined): number | undefined => {
-  if (!acrValues) {
-    return undefined;
-  }
-  const levels = acrValues
-    .split(/\s+/)
-    .map((v) => Number.parseInt(v, 10))
-    .filter((n) => Number.isFinite(n));
-  return levels.length > 0 ? Math.min(...levels) : undefined;
-};
+const requiredLevel = (challenge: UpgradeChallenge): number | undefined =>
+  challenge.requiredLevel ?? requiredAcrLevel(challenge.acrValues);
 
 /**
  * Ranks a factor against the demanded level. Lower sorts first.
@@ -113,7 +111,7 @@ const rank = (factor: UpgradeFactor, demanded: number | undefined): number => {
  *          `available` was empty — this never drops a factor of its own accord.
  */
 export const selectFactors = (available: readonly UpgradeFactor[], challenge: UpgradeChallenge): readonly UpgradeFactor[] => {
-  const demanded = requiredLevel(challenge.acrValues);
+  const demanded = requiredLevel(challenge);
   // Sort a copy: `available` may be the caller's registry, and a stable sort
   // keeps registration order as the tie-break for equally ranked factors.
   return [...available].sort((a, b) => rank(a, demanded) - rank(b, demanded));

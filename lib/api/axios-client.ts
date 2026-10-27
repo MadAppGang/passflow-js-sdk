@@ -14,7 +14,9 @@ import { webAdapter } from '../platform';
 import { StorageManager } from '../storage';
 import { TokenService, isTokenExpired, parseToken } from '../token';
 import { TokenDeliveryManager } from '../token/delivery-manager';
+import type { UpgradeChallenge } from '../upgrade/challenge';
 import { parseUpgradeChallenge } from '../upgrade/challenge';
+import { hasUpgradeTransactionMarker } from '../upgrade/markers';
 
 import {
   PassflowAuthorizationResponse,
@@ -24,6 +26,8 @@ import {
   PassflowResponseError,
   RequestMethod,
   RequestOptions,
+  type UpgradeDomain,
+  resolveUpgradeDomain,
 } from './model';
 
 export enum HttpStatuses {
@@ -44,15 +48,28 @@ const INITIAL_RETRY_DELAY_MS = 1000;
  * plain authentication failure. Adapts the axios response shape onto the
  * transport-agnostic parser in `../upgrade/challenge`.
  */
-const isUpgradeChallengeResponse = (response: AxiosResponse): boolean =>
-  parseUpgradeChallenge(
-    response.status,
-    (name) => {
-      const value = response.headers?.[name] ?? response.headers?.[name.toLowerCase()];
-      return Array.isArray(value) ? value.join(', ') : (value as string | undefined);
-    },
-    response.data,
-  ) !== undefined;
+const axiosHeaderReader =
+  (response: AxiosResponse) =>
+  (name: string): string | undefined => {
+    const value = response.headers?.[name] ?? response.headers?.[name.toLowerCase()];
+    return Array.isArray(value) ? value.join(', ') : (value as string | undefined);
+  };
+
+const readUpgradeChallengeFrom = (response: AxiosResponse): UpgradeChallenge | undefined =>
+  parseUpgradeChallenge(response.status, axiosHeaderReader(response), response.data);
+
+const isUpgradeChallengeResponse = (response: AxiosResponse): boolean => readUpgradeChallengeFrom(response) !== undefined;
+
+/**
+ * Handles a challenge the Passflow instance itself received, resolving with a
+ * replayed response once the session has been elevated.
+ *
+ * Consulted INSIDE the existing error interceptor rather than registered as a
+ * later one: axios runs response interceptors FIFO and the handler below
+ * converts the `AxiosError` into a `PassflowError`, which has no headers and no
+ * config, so anything registered afterwards is structurally too late.
+ */
+export type AxiosUpgradeHandler = (error: AxiosError, challenge: UpgradeChallenge) => Promise<AxiosResponse>;
 
 export class AxiosClient {
   private instance: AxiosInstance;
@@ -77,13 +94,33 @@ export class AxiosClient {
   };
 
   private readonly nonAccessTokenEndpoints = ['/auth/', '/settings', '/settings/'];
-  private readonly protectedEndpoints = ['logout', 'refresh'];
+  /**
+   * Endpoints under `/auth/` that DO need credentials.
+   *
+   * `'upgrade'` is here because `/auth/upgrade/start` is access-token-gated.
+   * Without it the path matches `isNonAuthEndpoint()` and the request
+   * interceptor returns before either the cookie-mode branch or the JSON-mode
+   * token branch runs: no `Authorization`, no `withCredentials`, no CSRF token,
+   * and a prepare round that 401s in every delivery mode.
+   */
+  private readonly protectedEndpoints = ['logout', 'refresh', 'upgrade'];
+
+  /** Set when a consumer wires the upgrade feature. Absent by default. */
+  private upgradeHandler?: AxiosUpgradeHandler;
+
+  /**
+   * Passflow's own API as an interception scope, resolved ONCE here from
+   * `PassflowConfig.url` so no wrapper or adapter ever derives it. `null` when
+   * no `url` was configured — see `resolveUpgradeDomain`.
+   */
+  readonly upgradeDomain: UpgradeDomain | null;
 
   constructor(config: PassflowConfig, storageManager?: StorageManager, deviceService?: DeviceService) {
     const { url, appId, keyStoragePrefix } = config;
     this._platform = config.platform ?? webAdapter;
 
     this.url = url || PASSFLOW_CLOUD_URL;
+    this.upgradeDomain = resolveUpgradeDomain(url);
 
     // Use provided instances or create new ones (backward compatibility)
     this.storageManager =
@@ -206,13 +243,56 @@ export class AxiosClient {
     this.instance.interceptors.response.use(
       (response: AxiosResponse) => response,
       async (e: AxiosError) => {
-        // Mark session as invalid on 401 — EXCEPT when the 401 is an RFC 9470
-        // upgrade challenge. Those two carry the same status and mean opposite
-        // things: an expired session must be cleared, an insufficient one is
-        // valid and merely needs another factor. Invalidating here would log
-        // the user out at the moment we meant to elevate them.
-        if (e.response?.status === HttpStatuses.unauthorized && !isUpgradeChallengeResponse(e.response)) {
+        // Mark the session invalid on a 401 — unless this particular request
+        // carries positive evidence that the 401 is part of an elevation.
+        //
+        // Evidence, both per-request and both necessary:
+        //
+        //   1. the failed request is one of the upgrade transaction's two rounds
+        //      (`/auth/upgrade/start`, or the committing `/auth/refresh`). Those
+        //      401s mean "wrong code" or "spent challenge" and carry NO RFC 9470
+        //      vocabulary at all, so the response cannot be used to recognise
+        //      them. Without this limb a mistyped TOTP digit logs the user out
+        //      mid-prompt, which is the defect this feature exists to fix.
+        //   2. the response itself carried a parseable challenge, which covers a
+        //      challenge arriving outside any elevation.
+        //
+        // On neither, the 401 invalidates exactly as it always has. That matters
+        // as much as the suppression: keying on the ABSENCE of challenge
+        // vocabulary would mean an expired or revoked session never invalidates,
+        // leaving the user in a broken "authenticated" UI — the mirror image of
+        // the same bug. Scoping to the one request that failed also keeps a
+        // genuine expiry on an unrelated background request invalidating
+        // normally while a prompt is open.
+        if (e.response?.status === HttpStatuses.unauthorized && !this.isUpgradeTransactionError(e)) {
           this.tokenDeliveryManager.setSessionInvalid();
+        }
+
+        // An elevation seam, consulted here because a later-registered
+        // interceptor would only ever see the `PassflowError` below.
+        if (e.response && this.upgradeHandler) {
+          const challenge = readUpgradeChallengeFrom(e.response);
+          if (challenge) {
+            try {
+              return await this.upgradeHandler(e, challenge);
+            } catch (upgradeError) {
+              // The core DECLINED to act — `not-a-challenge`, `out-of-scope` or
+              // `replay-unsupported` all settle by re-rejecting the error we
+              // handed in. Returning that rejection would hand an SDK caller a
+              // raw `AxiosError` where every existing consumer pattern-matches
+              // on `PassflowError.id`, and it would skip the rate-limit path
+              // below as well. The identity comparison is the whole test: the
+              // same object back means "not mine", anything else is a genuine
+              // step-up outcome and belongs to the caller untouched.
+              //
+              // Reachable in a configuration, not just in theory: with no `url`
+              // configured, domain 1 is `null`, so Passflow's own challenges are
+              // all out of scope and every one of them took this path.
+              if (upgradeError !== e) {
+                throw upgradeError;
+              }
+            }
+          }
         }
 
         // Handle rate limiting with retry logic
@@ -222,6 +302,32 @@ export class AxiosClient {
         return this.handleAxiosError(e);
       },
     );
+  }
+
+  /**
+   * The `setSessionInvalid()` suppression predicate, keyed on the request that
+   * failed and on the response that came back — never on "this response does not
+   * speak upgrade vocabulary", which is unsound in both directions.
+   */
+  private isUpgradeTransactionError(e: AxiosError): boolean {
+    return hasUpgradeTransactionMarker(e.config) || (e.response !== undefined && isUpgradeChallengeResponse(e.response));
+  }
+
+  /**
+   * Installs (or clears) the handler consulted when a response carries an
+   * upgrade challenge. Passing `undefined` detaches it.
+   */
+  setUpgradeInterceptor(handler: AxiosUpgradeHandler | undefined): void {
+    this.upgradeHandler = handler;
+  }
+
+  /**
+   * Re-issues a request after an elevation. Exposed for the upgrade handler,
+   * which owns the replay-once decision; the marker preventing a second
+   * elevation travels on the config the caller passes in.
+   */
+  replay<T = unknown>(config: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+    return this.instance.request<T>(config);
   }
 
   private isProtectedEndpoint(url?: string): boolean {
