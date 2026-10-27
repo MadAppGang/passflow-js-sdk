@@ -50,7 +50,7 @@ describe('UNKNOWN assurance is not authorization', () => {
     const responses = [challengeResponse(), challengeResponse()];
     let sent = 0;
     const wrapped = upgradeFetch(
-      async () => responses[sent++],
+      async () => responses[sent++]!,
       options({
         elevate: (c, w) => f.controller.elevate(c, w),
         readObtainedBar: () => ({}),
@@ -91,13 +91,13 @@ describe('joining and replay settlement', () => {
     entries.slice(0, 9).forEach((e) => e.waiter.report({ outcome: 'replayed' }));
     expect(f.controller.active).toBe(true);
     expect(f.summaries).toEqual([]);
-    entries[9].waiter.report({ outcome: 'replayed' });
+    entries[9]!.waiter.report({ outcome: 'replayed' });
 
     await vi.waitFor(() => expect(f.controller.currentState).toBe('idle'));
     expect(f.summaries).toHaveLength(1);
-    expect(f.summaries[0].terminal).toBe('success');
-    expect(f.summaries[0].waiters).toHaveLength(10);
-    expect(f.summaries[0].waiters.every((w) => w.outcome === 'replayed')).toBe(true);
+    expect(f.summaries[0]!.terminal).toBe('success');
+    expect(f.summaries[0]!.waiters).toHaveLength(10);
+    expect(f.summaries[0]!.waiters.every((w) => w.outcome === 'replayed')).toBe(true);
   });
 
   test('REQ-32 REQ-99 C18 T-J1 pre-selection stronger join raises and reranks the same prompt', async () => {
@@ -105,13 +105,13 @@ describe('joining and replay settlement', () => {
     const a = f.controller.elevate(challenge(2), request('a'));
     await vi.waitFor(() => expect(f.driver.requests).toHaveLength(1));
     const raised: { challenge: ReturnType<typeof challenge>; factors: readonly { type: string }[] }[] = [];
-    f.driver.requests[0].onRequirementRaised = (next) => {
+    f.driver.requests[0]!.onRequirementRaised = (next) => {
       raised.push(next);
     };
     const b = f.controller.elevate(challenge(3), request('b'));
     await vi.waitFor(() => expect(raised).toHaveLength(1));
-    expect(raised[0].challenge.requiredLevel).toBe(3);
-    expect(raised[0].factors[0].type).toBe('passkey');
+    expect(raised[0]!.challenge.requiredLevel).toBe(3);
+    expect(raised[0]!.factors[0]!.type).toBe('passkey');
     expect(f.driver.requests).toHaveLength(1);
     f.driver.select(0, 'passkey');
     f.driver.submit(0, 'passkey');
@@ -119,7 +119,7 @@ describe('joining and replay settlement', () => {
     entries.forEach((e) => e.waiter.report({ outcome: 'replayed' }));
     await vi.waitFor(() => expect(f.controller.active).toBe(false));
     expect(f.commits).toHaveLength(1);
-    expect(f.summaries[0].terminal).toBe('success');
+    expect(f.summaries[0]!.terminal).toBe('success');
   });
 
   test('REQ-59 REQ-63 REQ-66 REQ-100 C18a C18e C24a T-J2 selected-but-unsubmitted never reranks; mixed results stay per-waiter', async () => {
@@ -127,7 +127,7 @@ describe('joining and replay settlement', () => {
     const a = f.controller.elevate(challenge(2), request('a'));
     await vi.waitFor(() => expect(f.driver.requests).toHaveLength(1));
     const raised: unknown[] = [];
-    f.driver.requests[0].onRequirementRaised = (next) => {
+    f.driver.requests[0]!.onRequirementRaised = (next) => {
       raised.push(next);
     };
     f.driver.select(); // selection, not submission, is the boundary
@@ -169,7 +169,7 @@ describe('joining and replay settlement', () => {
     a.waiter.report({ outcome: 'replayed' });
     b.waiter.report({ outcome: 'replayed' });
     await vi.waitFor(() => expect(f.controller.active).toBe(false));
-    expect(f.summaries[0].waiters).toHaveLength(2);
+    expect(f.summaries[0]!.waiters).toHaveLength(2);
   });
 
   test('REQ-102 T-J4 after final settlement a stronger request opens a fresh flight', async () => {
@@ -182,7 +182,7 @@ describe('joining and replay settlement', () => {
     await vi.waitFor(() => expect(f.controller.currentState).toBe('idle'));
     const second = observed(f.controller.elevate(challenge(3), request('b')));
     await vi.waitFor(() => expect(f.driver.requests).toHaveLength(2));
-    expect(f.driver.requests[1].challenge.requiredLevel).toBe(3);
+    expect(f.driver.requests[1]!.challenge.requiredLevel).toBe(3);
     f.driver.cancel(1);
     expect(await second).toMatchObject({ ok: false, error: { code: 'upgrade_cancelled' } });
     await vi.waitFor(() => expect(f.controller.active).toBe(false));
@@ -264,13 +264,13 @@ describe('joining and replay settlement', () => {
     fail = false;
     const retry = controller.elevate(challenge(3), request('retry'));
     await vi.waitFor(() => expect(driver.requests).toHaveLength(3));
-    expect(driver.requests[2].previousError).toBeUndefined();
+    expect(driver.requests[2]!.previousError).toBeUndefined();
     driver.select(2, 'passkey');
     driver.submit(2, 'passkey');
     (await retry).waiter.report({ outcome: 'replayed' });
     await vi.waitFor(() => expect(controller.active).toBe(false));
     expect(spent).toEqual(['challenge-1', 'challenge-2', 'challenge-3']);
     expect(summaries).toHaveLength(2);
-    expect(summaries[1].terminal).toBe('success');
+    expect(summaries[1]!.terminal).toBe('success');
   });
 });

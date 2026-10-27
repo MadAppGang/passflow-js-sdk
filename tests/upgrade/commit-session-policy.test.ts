@@ -81,7 +81,7 @@ test.each([UpgradeErrorIds.twoFactorCodeInvalid])(
     driver.submit();
     await vi.waitFor(() => expect(driver.requests).toHaveLength(2));
 
-    expect(driver.requests[1].previousError).toMatchObject({ kind: 'wrong_code', retryable: true });
+    expect(driver.requests[1]!.previousError).toMatchObject({ kind: 'wrong_code', retryable: true });
     expect(session).toBe(live);
     expect(controller.currentState).toBe('collecting');
     expect(summaries).toEqual([]);

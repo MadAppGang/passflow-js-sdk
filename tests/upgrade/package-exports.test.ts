@@ -91,7 +91,7 @@ describe('package entry point exposes the upgrade module', () => {
     expect(challenge).toBeDefined();
 
     const offered = selectFactors(DEFAULT_UPGRADE_FACTORS, challenge as UpgradeChallenge);
-    expect(offered[0].type).toBe('passkey');
+    expect(offered[0]!.type).toBe('passkey');
 
     expect(factorRegistry(offered).get('totp')).toBe(totpFactor);
   });

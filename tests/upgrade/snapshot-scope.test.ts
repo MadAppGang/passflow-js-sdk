@@ -51,7 +51,7 @@ describe('request snapshot scope', () => {
       expect(original.bodyUsed).toBe(false);
       if (inside) {
         expect(result.status).toBe(200);
-        expect(new URL(exchanges[1], base).href).toBe(normalized.href);
+        expect(new URL(exchanges[1]!, base).href).toBe(normalized.href);
       } else {
         expect(result).toBe(original);
         expect(cloneReads).toBe(0);
@@ -172,6 +172,6 @@ describe('request snapshot scope', () => {
     response.resolve(challengeResponse());
     expect((await pending).status).toBe(200);
     expect(prompts).toBe(1);
-    expect(new URL(seen[1], base).href).toBe('https://app.example/api/x');
+    expect(new URL(seen[1]!, base).href).toBe('https://app.example/api/x');
   });
 });

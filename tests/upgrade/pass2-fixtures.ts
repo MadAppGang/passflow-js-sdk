@@ -21,10 +21,10 @@ export function promptDriver() {
       answers.push(answer);
       return answer.promise;
     },
-    select: (index = 0, factor: 'totp' | 'passkey' = 'totp') => requests[index].onFactorSelected(factor),
+    select: (index = 0, factor: 'totp' | 'passkey' = 'totp') => requests[index]!.onFactorSelected(factor),
     submit: (index = 0, factor: 'totp' | 'passkey' = 'totp') =>
-      answers[index].resolve({ type: 'submit', factor, code: '123456' }),
-    cancel: (index = 0) => answers[index].resolve({ type: 'cancel' }),
+      answers[index]!.resolve({ type: 'submit', factor, code: '123456' }),
+    cancel: (index = 0) => answers[index]!.resolve({ type: 'cancel' }),
   };
 }
 

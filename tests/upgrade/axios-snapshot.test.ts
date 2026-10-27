@@ -49,10 +49,10 @@ test('REQ-49 REQ-94 C35 T-S4a ReplayPlan exposes a frozen snapshot detached from
     }),
   ).toBe(reply);
   expect(sent).toHaveLength(1);
-  expect(sent[0].url).toBe(snapshot.href);
-  expect(sent[0].method).toBe(snapshot.method);
-  expect(sent[0].headers.get('x-caller')).toBe('original');
-  expect(await sent[0].text()).toBe('original-body');
+  expect(sent[0]!.url).toBe(snapshot.href);
+  expect(sent[0]!.method).toBe(snapshot.method);
+  expect(sent[0]!.headers.get('x-caller')).toBe('original');
+  expect(await sent[0]!.text()).toBe('original-body');
   expect(plan.snapshot).toBe(snapshot);
 });
 
@@ -114,10 +114,10 @@ test('REQ-94 C33 T-S4a axios config mutations during proof cannot redirect repla
   expect(scopeUrls.length).toBeGreaterThan(0);
   expect(scopeUrls.every((url) => url === 'https://app.example/api/original')).toBe(true);
   expect(replays).toHaveLength(1);
-  expect(new URL(replays[0].url!, replays[0].baseURL).href).toBe('https://app.example/api/original');
-  expect(replays[0].method?.toUpperCase()).toBe('POST');
-  expect(replays[0].data).toBe('original-body');
-  expect(new Headers(replays[0].headers as HeadersInit).get('x-caller')).toBe('original');
+  expect(new URL(replays[0]!.url!, replays[0]!.baseURL).href).toBe('https://app.example/api/original');
+  expect(replays[0]!.method?.toUpperCase()).toBe('POST');
+  expect(replays[0]!.data).toBe('original-body');
+  expect(new Headers(replays[0]!.headers as HeadersInit).get('x-caller')).toBe('original');
   expect(diagnostics).toContainEqual(
     expect.objectContaining({
       reason: 'elevated-insufficient',

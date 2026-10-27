@@ -30,7 +30,7 @@ function applicationFixture(initial = tokensFor('A', 'session-A')) {
   });
   const parsed = () => {
     if (!cached || !identityReadable) return undefined;
-    const decode = (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+    const decode = (token: string) => JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString());
     return {
       access_token: decode(cached.access_token),
       id_token: decode(cached.id_token),
@@ -307,7 +307,7 @@ describe('token application identity pin', () => {
       expect(f.warnings).toHaveLength(1);
       expect(dispatches).toBe(1);
       await vi.waitFor(() => expect(summaries).toHaveLength(1));
-      expect(summaries[0].terminal).toBe('failed');
+      expect(summaries[0]!.terminal).toBe('failed');
     } finally {
       disable();
     }

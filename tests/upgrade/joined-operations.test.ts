@@ -79,7 +79,7 @@ test('REQ-59 REQ-60 REQ-66 REQ-100 REQ-101 C18a C18b C24a late stronger caller a
   perUrl.set('https://app.example/strong', 0);
   const retry = wrapped('https://app.example/strong');
   await vi.waitFor(() => expect(driver.requests).toHaveLength(2));
-  expect(driver.requests[1].challenge.requiredLevel).toBe(3);
+  expect(driver.requests[1]!.challenge.requiredLevel).toBe(3);
   obtained = 3;
   driver.select(1);
   driver.submit(1);
@@ -87,7 +87,7 @@ test('REQ-59 REQ-60 REQ-66 REQ-100 REQ-101 C18a C18b C24a late stronger caller a
   await vi.waitFor(() => expect(controller.active).toBe(false));
   expect(commits).toBe(2);
   expect(perUrl.get('https://app.example/weak')).toBe(2);
-  expect(summaries[1].terminal).toBe('success');
+  expect(summaries[1]!.terminal).toBe('success');
 });
 
 test.each([2, 3])('REQ-62 REQ-103 C18d T-J5 replay-window join at level %i cannot open a second prompt', async (required) => {

@@ -1,8 +1,9 @@
 // @vitest-environment node
 // REQ-41 C27: shared suite over the declared adapter constructors and internal-seam factory.
 // This does NOT claim Passflow's internal AxiosClient session-invalidating interceptor is tested.
-import axios, { AxiosError, AxiosHeaders, type AxiosAdapter, type AxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosHeaders, type AxiosAdapter } from 'axios';
 import { describe, expect, test } from 'vitest';
+import type { AxiosConfigLike } from '../../lib/upgrade/axios-adapter';
 import { createUpgradeClient } from '../../lib/upgrade/client';
 import {
   isUpgradeCancelled,
@@ -103,7 +104,7 @@ function harness(adapter: Adapter, outcome: string, backend: string[] = ['https:
     invoke = (url) => wrapped(url);
   } else if (adapter === 'internal-seam') {
     // Drive the exact documented registration edge, including re-entry on replay errors.
-    const dispatch = async (config: AxiosRequestConfig): Promise<unknown> => {
+    const dispatch = async (config: AxiosConfigLike): Promise<unknown> => {
       try {
         return await wire({
           ...config,
