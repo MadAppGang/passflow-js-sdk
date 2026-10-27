@@ -33,9 +33,7 @@ vi.mock('../../lib/storage', () => ({
     getScopes: () => [],
     storage: {
       getItem: (key: string) => mockStorageGetItem(key),
-      // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op for mock
       setItem: () => {},
-      // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op for mock
       removeItem: () => {},
     },
   })),

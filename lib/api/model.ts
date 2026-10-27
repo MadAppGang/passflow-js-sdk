@@ -1,12 +1,14 @@
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/types';
 import type { AxiosRequestConfig } from 'axios';
 
 import type { PlatformAdapter } from '../platform';
 import type { Tokens } from '../types';
+import type { UpgradeAssertion, UpgradeFactor } from '../upgrade/factors';
 
 export type RequestOptions<D> = {
   data?: D;
@@ -73,6 +75,8 @@ export enum PassflowEndpointPaths {
   // CLI Auth endpoints
   cliAuthStatus = '/cli/auth/status/:sessionId',
   cliAuthComplete = '/cli/auth/complete',
+  // Assurance upgrade (step-up) endpoints. The commit round reuses `refresh`.
+  upgradeStart = '/auth/upgrade/start',
 }
 
 export enum PassflowAdminEndpointPaths {
@@ -140,6 +144,87 @@ export type PassflowConfig = {
    * Pass a custom adapter to support React Native or other platforms.
    */
   platform?: PlatformAdapter;
+  /**
+   * Assurance upgrade (step-up) configuration. Construction-time only: the
+   * prompt handler is deliberately NOT here, because it is a lifetime-scoped
+   * resource that has to be torn down, which configuration cannot express.
+   */
+  upgrade?: PassflowUpgradeConfig;
+};
+
+export type PassflowUpgradeConfig = {
+  /** Relying-party id forwarded verbatim to `POST /auth/upgrade/start` for passkey upgrades. */
+  relyingPartyId?: string;
+  /** Overrides the factor set offered during an upgrade. Defaults to what this SDK can complete. */
+  factors?: readonly UpgradeFactor[];
+};
+
+/**
+ * Passflow's own API, as an interception scope — "domain 1".
+ *
+ * A challenge arriving from here is handled with zero configuration, because
+ * `url` is an input the SDK already takes and whatever it points at is
+ * unambiguously ours.
+ */
+export type UpgradeDomain = {
+  /** The API origin, e.g. `https://api.passflow.dev`. */
+  origin: string;
+  /** The path prefix when `url` carries one, normalised without a trailing slash. */
+  pathPrefix?: string;
+};
+
+/**
+ * Resolves domain 1 from `PassflowConfig.url`.
+ *
+ * `url` is OPTIONAL, and the absent case is specified rather than guessed: the
+ * domain is EMPTY (`null`), and nothing throws. Throwing would break apps that
+ * never enabled step-up, and substituting a default origin — `PASSFLOW_CLOUD_URL`,
+ * the document origin, the origin the first 401 came from — would be the SDK
+ * inferring a trust boundary it has no information about. An empty domain is not
+ * silent: the first parseable challenge on an attached surface must raise a
+ * diagnostic naming `url` as the fix.
+ *
+ * Note this deliberately does NOT mirror `AxiosClient`'s `url || PASSFLOW_CLOUD_URL`
+ * fallback. That fallback decides where to send our own traffic; this decides
+ * whose 401s may drive a security prompt, and the two questions do not share an
+ * answer.
+ */
+export const resolveUpgradeDomain = (url?: string): UpgradeDomain | null => {
+  if (!url) {
+    return null;
+  }
+  try {
+    const parsed = new URL(url);
+    const prefix = parsed.pathname.replace(/\/+$/, '');
+    return { origin: parsed.origin, pathPrefix: prefix === '' ? undefined : prefix };
+  } catch {
+    // A `url` the platform's own URL parser rejects cannot be matched against a
+    // response URL either. Same treatment as absent: empty, and never a throw.
+    return null;
+  }
+};
+
+/** The raw `POST /auth/upgrade/start` body, snake_case exactly as the server sends it. */
+export type UpgradeStartWire = {
+  challenge_id: string;
+  method: string;
+  /** RFC 3339. The server enforces the TTL; the SDK carries this for display only. */
+  expires_at: string;
+  /** WebAuthn assertion options, present only for a passkey upgrade. */
+  webauthn?: PublicKeyCredentialRequestOptionsJSON;
+  /** Masked delivery target (`j***@x.com`), present only for email / SMS OTP. */
+  code_sent_to?: string;
+};
+
+/**
+ * The `upgrade` field of `POST /auth/refresh` — the commit round.
+ *
+ * The server types `assertion` as `json.RawMessage`, so a new factor can extend
+ * the payload without a wire-format change.
+ */
+export type UpgradeRefreshField = {
+  type: string;
+  assertion: UpgradeAssertion;
 };
 
 export type PassflowAuthorizationResponse = Tokens & {

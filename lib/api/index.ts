@@ -6,4 +6,5 @@ export * from './model';
 export * from './setting';
 export * from './tenant';
 export * from './two-factor';
+export * from './upgrade';
 export * from './user';

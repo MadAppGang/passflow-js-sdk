@@ -10,19 +10,19 @@ describe('parseChallengeHeader', () => {
   test('parses the acr_values challenge RequireAuthLevel emits', () => {
     const challenge = parseChallengeHeader('Bearer error="insufficient_user_authentication", acr_values="2"', 401);
 
-    expect(challenge).toEqual({ acrValues: '2', maxAge: undefined, status: 401 });
+    expect(challenge).toMatchObject({ acrValues: '2', maxAge: undefined, status: 401 });
   });
 
   test('parses the max_age challenge RequireFreshAuth emits', () => {
     const challenge = parseChallengeHeader('Bearer error="insufficient_user_authentication", max_age=300', 401);
 
-    expect(challenge).toEqual({ acrValues: undefined, maxAge: 300, status: 401 });
+    expect(challenge).toMatchObject({ acrValues: undefined, maxAge: 300, status: 401 });
   });
 
   test('parses both parameters together', () => {
     const challenge = parseChallengeHeader('Bearer error="insufficient_user_authentication", acr_values="3", max_age=60', 401);
 
-    expect(challenge).toEqual({ acrValues: '3', maxAge: 60, status: 401 });
+    expect(challenge).toMatchObject({ acrValues: '3', maxAge: 60, status: 401 });
   });
 
   test('accepts a space-separated acr_values list', () => {
@@ -77,13 +77,13 @@ describe('parseChallengeBody', () => {
   test('parses the ADR-2 403 upgrade_required body', () => {
     const challenge = parseChallengeBody({ error: 'upgrade_required', acr_values: '2', max_age: 300 }, 403);
 
-    expect(challenge).toEqual({ acrValues: '2', maxAge: 300, status: 403 });
+    expect(challenge).toMatchObject({ acrValues: '2', maxAge: 300, status: 403 });
   });
 
   test('parses a body carrying only the error code', () => {
     const challenge = parseChallengeBody({ error: 'upgrade_required' }, 403);
 
-    expect(challenge).toEqual({ acrValues: undefined, maxAge: undefined, status: 403 });
+    expect(challenge).toMatchObject({ acrValues: undefined, maxAge: undefined, status: 403 });
   });
 
   test('ignores unrelated bodies', () => {
@@ -95,7 +95,7 @@ describe('parseChallengeBody', () => {
 });
 
 describe('parseUpgradeChallenge', () => {
-  test('prefers the header when both are present', () => {
+  test('REQ-C19 keeps the stronger header when both are present', () => {
     const challenge = parseUpgradeChallenge(
       403,
       headers({ 'www-authenticate': 'Bearer error="insufficient_user_authentication", acr_values="3"' }),
@@ -105,10 +105,20 @@ describe('parseUpgradeChallenge', () => {
     expect(challenge?.acrValues).toBe('3');
   });
 
-  test('falls back to the body when the header is absent', () => {
-    const challenge = parseUpgradeChallenge(403, headers({}), { error: 'upgrade_required', acr_values: '2' });
+  test('REQ-C19 accepts the stronger body even when a weaker header is present', () => {
+    const challenge = parseUpgradeChallenge(
+      403,
+      headers({ 'www-authenticate': 'Bearer error="insufficient_user_authentication", acr_values="1"' }),
+      { error: 'upgrade_required', acr_values: '2' },
+    );
 
-    expect(challenge).toEqual({ acrValues: '2', maxAge: undefined, status: 403 });
+    expect(challenge).toEqual({
+      acrValues: '2',
+      requiredLevel: 2,
+      maxAge: undefined,
+      status: 403,
+      channels: ['header', 'body'],
+    });
   });
 
   test('only 401 and 403 can carry a challenge', () => {

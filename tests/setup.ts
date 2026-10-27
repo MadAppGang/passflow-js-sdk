@@ -1,5 +1,11 @@
 import { vi } from 'vitest';
 
+// Some suites opt into the `node` environment (`// @vitest-environment node`) because they
+// need the standards `Request`/`Response`/`ReadableStream` implementations. There is no
+// `window` there, and the mocks below must not replace node's real globals, so every
+// browser-only patch in this file is applied only when a DOM is present.
+const hasDom = typeof window !== 'undefined';
+
 // Mock window location
 const mockLocation = {
   hostname: 'example.com',
@@ -13,10 +19,12 @@ const mockLocation = {
   assign: vi.fn(),
 };
 
-Object.defineProperty(window, 'location', {
-  value: mockLocation,
-  writable: true,
-});
+if (hasDom) {
+  Object.defineProperty(window, 'location', {
+    value: mockLocation,
+    writable: true,
+  });
+}
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -37,10 +45,12 @@ const localStorageMock = (() => {
   };
 })();
 
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-  writable: false,
-});
+if (hasDom) {
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+    writable: false,
+  });
+}
 
 // Mock URLSearchParams
 class MockURLSearchParams {
@@ -91,4 +101,6 @@ class MockURLSearchParams {
   }
 }
 
-global.URLSearchParams = MockURLSearchParams as any;
+if (hasDom) {
+  global.URLSearchParams = MockURLSearchParams as any;
+}

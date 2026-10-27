@@ -9,6 +9,7 @@ const challenge = (acrValues?: string, maxAge?: number): UpgradeChallenge => ({
   acrValues,
   maxAge,
   status: 401,
+  channels: ['header'],
 });
 
 /** The factor types offered, in order — the shape every assertion here cares about. */
