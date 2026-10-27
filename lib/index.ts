@@ -91,8 +91,8 @@ export {
   UpgradeUnsatisfiableError,
   selectFactors,
   // Error classification is `@passflow/core`'s to own, and the react layer maps
-  // a dialog state from it rather than re-deriving a parallel table. These four
-  // were reachable from `lib/upgrade/index.ts` but NOT from the package entry,
+  // a dialog state from it rather than re-deriving a parallel table. These were
+  // reachable from `lib/upgrade/index.ts` but NOT from the package entry,
   // so a consumer had to import source through a bundler to get them — which is
   // how the divergence this contract exists to prevent started.
   classifyUpgradeError,
@@ -104,14 +104,6 @@ export {
   SESSION_INVALIDATING_COMMIT_ERROR_IDS,
   UpgradeErrorIds,
   UpgradeTransportError,
-  // §13's core, its supporting pure modules, and the four adapters over it.
-  // The developer-facing names are `withAuth`, `attachAuth`, `createClient` and
-  // `interceptFetch`, all reached through a configured `Passflow` instance;
-  // these are the pieces they are assembled from.
-  attachUpgradeAuth,
-  barOf,
-  coreOutcomeToError,
-  handleChallenge,
   isUpgradeCancelled,
   isUpgradeExhausted,
   isUpgradeInsufficient,
@@ -119,19 +111,12 @@ export {
   isUpgradeTransportFailure,
   isUpgradeUnavailable,
   isUpgradeUnsatisfiable,
-  mergeChallenges,
-  parseAcrToken,
-  parseMaxAge,
-  planReplay,
-  readAcrValues,
-  readUpgradeChallenge,
+  // ACR parsing belongs to the core for the same reason error classification
+  // does: `passflow-react-sdk`'s UpgradeProvider derives a required level from
+  // `options.acrValues` and must not grow a second parser. It is the one member
+  // of §13's assembly set with a live out-of-tree consumer, and the single `.`
+  // export condition means there is no deep-import route to it.
   requiredAcrLevel,
-  createUpgradeClient,
-  createUpgradeFacade,
-  settleAxiosOutcome,
-  settleFetchOutcome,
-  tagUpgradeOutcome,
-  upgradeFetch,
   UpgradeInsufficientError,
   UpgradeSessionChangedError,
   UpgradeUnavailableError,
