@@ -9,9 +9,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      # `contents: write` is for the release page below, not for the publish:
-      # npm auth is OIDC (`id-token`), so no registry secret is involved.
-      contents: write
+      contents: read
       id-token: write
 
     steps:
@@ -32,6 +30,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      # The tag names the release; `package.json` names what npm publishes.
+      # Nothing tied the two together, so a tag pushed against a stale manifest
+      # published the manifest's version and went green. `passflow-react-sdk`'s
+      # workflow has carried this check for several releases.
+      - name: Verify tag matches package version
+        run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
+
       - name: Run tests
         run: pnpm test
 
@@ -43,12 +48,31 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ''
 
-      # The release page is the only record of a version that a reader without
-      # npm access can find, and it lapsed for every tag from v0.13.2 to v0.16.0
-      # because nothing created it. It runs after the publish so a failed
-      # publish leaves no page claiming the version shipped, and `--verify-tag`
-      # refuses a page for a tag that is not on the remote.
+  # The release page is the only record of a version that a reader without npm
+  # access can find, and it lapsed for every tag from v0.13.2 to v0.16.0 because
+  # nothing created it.
+  #
+  # It is a SECOND JOB rather than a step, so `contents: write` is never held
+  # while `pnpm install`, `pnpm test` and `pnpm build` run third-party code in
+  # the publish job — that job keeps `contents: read`. `needs: publish` means a
+  # failed publish leaves no page claiming the version shipped. There is no
+  # checkout: `gh` works against the API, so the write token never reaches a
+  # working tree. Note that a release created with `GITHUB_TOKEN` does not fire
+  # `release: published`, so nothing may be keyed on that event.
+  release-page:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
       - name: Create GitHub release
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; nothing to create."
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
