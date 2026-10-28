@@ -53,8 +53,10 @@ yarn.lock
 all-in-one.txt
 all-in-one2.txt
 
-# AI/Claude artifacts
-ai-docs/
+# AI/Claude artifacts. `ai-docs/` itself is TRACKED: it holds the notes a future
+# session needs to work here, such as the release playbook. Only the per-session
+# scratch below is machine-local.
+ai-docs/sessions/
 
 .mnemex/
 
