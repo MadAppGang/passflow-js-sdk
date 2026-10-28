@@ -22,9 +22,19 @@
         "multimodel@magus": "latest",
         "dev@magus": "latest",
         "bunjs@magus": "latest",
-        "terminal@magus": "latest"
+        "terminal@magus": "latest",
+        "browser-use@magus": "latest"
       },
-      "createdAt": "2026-10-26T01:16:24.625Z"
+      "createdAt": "2026-10-26T01:16:24.625Z",
+      "mcpServers": {
+        "linear-mag": {
+          "type": "http",
+          "url": "https://mcp.linear.app/mcp",
+          "headers": {
+            "Authorization": "Bearer ${LINEAR_API_KEY_MAG}"
+          }
+        }
+      }
     }
   },
   "default": "default"

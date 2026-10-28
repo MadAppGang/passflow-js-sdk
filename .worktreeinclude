@@ -3,3 +3,6 @@
 .mcp.json
 .claude/models.json
 .claude/profiles/active.json
+
+# Personal secrets (LINEAR_API_KEY_MAG for the linear-mag MCP server), copied when present
+.claude/settings.local.json
