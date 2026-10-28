@@ -3,7 +3,12 @@
  * adapters, and the only construction surface a consumer touches.
  *
  * `UpgradeController`, the transport, `upgradeFetch` and the fetch registry stay
- * internal. They are exported as types for testing, not as things to build.
+ * internal. Tests reach their types by importing this directory's modules
+ * directly, not through the package entry, because a type on `lib/index.ts` is
+ * a supported name whether or not anything public produces a value of it.
+ * `UpgradeFacadeDeps` is declared here and exported for that in-tree use only.
+ * `UpgradeSessionPin`, declared in `./session`, is the exception: it IS on the
+ * entry, because `AuthService.readSessionPin()` is public and returns one.
  *
  * **Five members, and the rule is written down because `structural.md` names
  * Facade-as-God-Object as this family's characteristic failure: adding a sixth

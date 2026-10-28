@@ -122,15 +122,22 @@ export {
   UpgradeUnavailableError,
 } from './upgrade';
 export type {
+  // `ChallengeChannel` and `UpgradeSessionPin` are the two members of §13's
+  // internal vocabulary that a PUBLIC signature still exposes, so they stay
+  // nameable: `UpgradeChallenge.channels` is a `ChallengeChannel[]` on the type
+  // `parseUpgradeChallenge` returns and `UpgradeFacade.elevate` accepts, and
+  // `AuthService.readSessionPin()` returns an `UpgradeSessionPin`. Withdrawing
+  // either leaves a consumer writing `NonNullable<UpgradeChallenge['channels']>[number]`
+  // or re-spelling `'header' | 'body'` at the call site — a second copy of the
+  // union, which is the drift the named type exists to prevent.
+  ChallengeChannel,
   CreateClientConfig,
   FetchLike,
   ResponseInterceptorHost,
-  Settlement,
   UpgradeEnableOptions,
   UpgradeEndpoint,
   UpgradeErrorKind,
   UpgradeFacade,
-  UpgradeFacadeDeps,
   UpgradeOptions,
   UpgradeResult,
   UpgradeSessionPin,
@@ -151,16 +158,6 @@ export type {
   UpgradeTransport,
   AssuranceBar,
   BodyKind,
-  ChallengeChannel,
-  ChallengeContext,
-  ChallengeInput,
-  ChallengeReadOptions,
-  ChallengeReading,
-  CoreOutcome,
-  InterceptionScope,
-  MaxAgeReading,
-  ReplayHints,
-  ReplayPlan,
   ReplayPolicy,
   UpgradeDiagnostic,
   UpgradeDiagnosticReason,
@@ -168,7 +165,6 @@ export type {
   UpgradeElevation,
   UpgradeFlightState,
   UpgradeFlightSummary,
-  UpgradeInterceptorOptions,
   UpgradeProof,
   UpgradeReplayInfo,
   UpgradeWaiterSummary,
