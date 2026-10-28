@@ -9,7 +9,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # `contents: write` is for the release page below, not for the publish:
+      # npm auth is OIDC (`id-token`), so no registry secret is involved.
+      contents: write
       id-token: write
 
     steps:
@@ -40,3 +42,13 @@ jobs:
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ''
+
+      # The release page is the only record of a version that a reader without
+      # npm access can find, and it lapsed for every tag from v0.13.2 to v0.16.0
+      # because nothing created it. It runs after the publish so a failed
+      # publish leaves no page claiming the version shipped, and `--verify-tag`
+      # refuses a page for a tag that is not on the remote.
+      - name: Create GitHub release
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
