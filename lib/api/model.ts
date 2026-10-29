@@ -238,6 +238,9 @@ export type PassflowAuthorizationResponse = Tokens & {
 
 export type PassflowValidationResponse = Tokens & {
   redirect_url: string;
+  requires_2fa?: boolean;
+  challenge_id?: string;
+  tfa_token?: string;
 };
 
 export type PassflowSuccessResponse = {
@@ -754,11 +757,13 @@ export type TwoFactorConfirmRequest = {
 export type TwoFactorVerifyRequest = {
   code: string;
   tfa_token: string;
+  trust_device?: boolean;
 };
 
 export type TwoFactorRecoveryRequest = {
   recovery_code: string;
   tfa_token: string;
+  trust_device?: boolean;
 };
 
 export type TwoFactorDisableRequest = {
@@ -790,6 +795,36 @@ export type TwoFactorConfirmResponse = {
 
 export type TwoFactorVerifyResponse = Tokens & {
   success: true;
+};
+
+/**
+ * Options for the call that completes a sign-in with its second factor.
+ */
+export type TwoFactorCompletionOptions = {
+  /**
+   * Ask the server to trust this device, so later sign-ins from it skip the
+   * second factor where the app allows that. The server keeps the trust in
+   * an HttpOnly cookie; nothing is stored by the SDK.
+   */
+  trustDevice?: boolean;
+};
+
+/**
+ * A device the user trusted to stand in for their second factor on this app.
+ */
+export type TwoFactorTrustedDevice = {
+  id: string;
+  user_agent?: string;
+  created_at: string;
+  last_used_at?: string;
+  expires_at: string;
+  /** True for the device the request came from. */
+  current: boolean;
+};
+
+/** GET /v2/user/2fa/trusted-devices */
+export type TwoFactorTrustedDevicesResponse = {
+  devices: TwoFactorTrustedDevice[];
 };
 
 export type TwoFactorRecoveryResponse = Tokens & {

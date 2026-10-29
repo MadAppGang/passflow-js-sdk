@@ -172,6 +172,32 @@ export class AuthService {
   }
 
   /**
+   * Reports whether a sign-in response is still waiting on its second factor,
+   * and when it is, hands the 2FA token on.
+   *
+   * Every sign-in path can end this way: the server answers with a
+   * `tfa_token` (or `requires_2fa`) in place of tokens. That response is not
+   * a session, so on `true` the caller returns it as it is — without
+   * `processAuthResponse`, a `SignIn`/`Register` event or a session check.
+   * The `TwoFactorRequired` event is what the TwoFactorService listens to, so
+   * its verify and recovery calls can carry the token.
+   */
+  private handlePendingSecondFactor(
+    response: Pick<PassflowAuthorizationResponse, 'requires_2fa' | 'challenge_id' | 'tfa_token'>,
+    email?: string,
+  ): boolean {
+    if (response.requires_2fa !== true && !response.tfa_token) {
+      return false;
+    }
+    this.subscribeStore.notify(PassflowEvent.TwoFactorRequired, {
+      email: email || '',
+      challengeId: response.challenge_id || '',
+      tfaToken: response.tfa_token || '',
+    });
+    return true;
+  }
+
+  /**
    * Forward tokens to BFF server for httpOnly cookie storage
    */
   private async forwardTokensToBFF(tokens: PassflowAuthorizationResponse): Promise<void> {
@@ -249,22 +275,10 @@ export class AuthService {
 
     try {
       const response = await this.authApi.signIn(payload, deviceId, os);
-
-      // Check if 2FA is required (either via requires_2fa flag or tfa_token presence)
-      if (('requires_2fa' in response && response.requires_2fa === true) || ('tfa_token' in response && response.tfa_token)) {
-        // Emit TwoFactorRequired event for TwoFactorService to listen to
-        this.subscribeStore.notify(PassflowEvent.TwoFactorRequired, {
-          email: payload.email || '',
-          challengeId: response.challenge_id || '',
-          tfaToken: response.tfa_token || '',
-        });
-
-        // DO NOT save tokens or emit SignIn event
-        // Return response with requires_2fa flag
+      if (this.handlePendingSecondFactor(response, payload.email)) {
         return response;
       }
 
-      // Normal flow (no 2FA required)
       await this.processAuthResponse(response, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
@@ -313,6 +327,10 @@ export class AuthService {
 
     try {
       const response = await this.authApi.signUp(payload);
+      if (this.handlePendingSecondFactor(response, payload.user.email)) {
+        return response;
+      }
+
       await this.processAuthResponse(response, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.Register, {
         tokens: response,
@@ -383,6 +401,10 @@ export class AuthService {
 
     try {
       const response = await this.authApi.passwordlessSignInComplete(payload);
+      if (this.handlePendingSecondFactor(response)) {
+        return response;
+      }
+
       await this.processAuthResponse(response, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
@@ -733,6 +755,10 @@ export class AuthService {
 
     try {
       const response = await this.authApi.resetPassword(newPassword, sscopes, resetToken);
+      if (this.handlePendingSecondFactor(response)) {
+        return response;
+      }
+
       await this.processAuthResponse(response, sscopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
@@ -772,6 +798,10 @@ export class AuthService {
         challenge_id,
         !this.appId,
       );
+      if (this.handlePendingSecondFactor(responseRegisterComplete)) {
+        return responseRegisterComplete;
+      }
+
       await this.processAuthResponse(responseRegisterComplete, payload.scopes);
       this.subscribeStore.notify(PassflowEvent.Register, {
         tokens: responseRegisterComplete,
@@ -808,6 +838,9 @@ export class AuthService {
         challenge_id,
         !this.appId,
       );
+      if (this.handlePendingSecondFactor(responseAuthenticateComplete)) {
+        return responseAuthenticateComplete;
+      }
 
       if ('access_token' in responseAuthenticateComplete) {
         await this.processAuthResponse(responseAuthenticateComplete, payload.scopes);
@@ -863,6 +896,14 @@ export class AuthService {
         mode: 'popup',
         expectedReturnOrigin: this.platform.getCurrentUrl()?.origin ?? '',
       });
+
+      // A sign-in that owes its second factor comes back with the 2FA token
+      // in the fragment, never the query, and with no tokens. Nothing is saved
+      // and the page is not navigated: it stays to ask for the factor.
+      const hashParams = new URLSearchParams(result.callbackHash.replace(/^#/, ''));
+      if (this.handlePendingSecondFactor({ tfa_token: hashParams.get('tfa_token') ?? undefined })) {
+        return;
+      }
 
       const urlParams = new URLSearchParams(result.callbackSearch);
       const access_token = urlParams.get('access_token') || '';
