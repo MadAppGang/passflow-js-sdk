@@ -36,6 +36,16 @@ import {
   UpgradeRefreshField,
 } from './model';
 
+/**
+ * Request config for the calls that end a sign-in.
+ *
+ * They go with credentials so the browser sends the trusted-device cookie
+ * (`passflow_trusted_device_<appID>`) the server reads to skip the second
+ * factor, and so a cross-origin response can set it. Only the per-request
+ * flag: the Authorization and CSRF handling stay as the interceptor has them.
+ */
+const SIGN_IN_REQUEST_CONFIG: AxiosRequestConfig = { withCredentials: true };
+
 export class AuthAPI {
   protected axiosClient: AxiosClient;
 
@@ -98,6 +108,7 @@ export class AuthAPI {
     return this.axiosClient.post<PassflowAuthorizationResponse, PassflowSignInExtendedPayload>(
       PassflowEndpointPaths.signin,
       defaultPayload,
+      SIGN_IN_REQUEST_CONFIG,
     );
   }
 
@@ -111,6 +122,7 @@ export class AuthAPI {
     return this.axiosClient.post<PassflowAuthorizationResponse, PassflowSignUpPayload>(
       PassflowEndpointPaths.signup,
       defaultPayload,
+      SIGN_IN_REQUEST_CONFIG,
     );
   }
 
@@ -136,6 +148,7 @@ export class AuthAPI {
     return this.axiosClient.post<PassflowValidationResponse, PassflowPasswordlessSignInCompletePayload>(
       PassflowEndpointPaths.passwordlessComplete,
       payload,
+      SIGN_IN_REQUEST_CONFIG,
     );
   }
 
@@ -206,7 +219,11 @@ export class AuthAPI {
       ? PassflowAdminEndpointPaths.passkeyRegisterComplete
       : PassflowEndpointPaths.passkeyRegisterComplete;
 
-    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowPasskeyRegisterPayload>(endpoint, payload);
+    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowPasskeyRegisterPayload>(
+      endpoint,
+      payload,
+      SIGN_IN_REQUEST_CONFIG,
+    );
   }
 
   passkeyAuthenticateStart(
@@ -248,7 +265,11 @@ export class AuthAPI {
       ? PassflowAdminEndpointPaths.passkeyAuthenticateComplete
       : PassflowEndpointPaths.passkeyAuthenticateComplete;
 
-    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowPasskeyAuthenticatePayload>(endpoint, payload);
+    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowPasskeyAuthenticatePayload>(
+      endpoint,
+      payload,
+      SIGN_IN_REQUEST_CONFIG,
+    );
   }
 
   passkeyValidate(

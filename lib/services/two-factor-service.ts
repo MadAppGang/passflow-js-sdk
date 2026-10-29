@@ -3,6 +3,7 @@ import {
   TwoFactorAlternativeRequest,
   TwoFactorChallengeRequest,
   TwoFactorChallengeResponse,
+  TwoFactorCompletionOptions,
   TwoFactorConfirmResponse,
   TwoFactorDisableResponse,
   TwoFactorMethod,
@@ -12,6 +13,7 @@ import {
   TwoFactorSetupMagicLinkValidationResponse,
   TwoFactorSetupResponse,
   TwoFactorStatusResponse,
+  TwoFactorTrustedDevice,
   TwoFactorVerifyRequestV2,
   TwoFactorVerifyResponse,
   TwoFactorVerifyResponseV2,
@@ -159,8 +161,10 @@ export class TwoFactorService {
   /**
    * Verify TOTP code during login
    * Completes authentication if successful
+   *
+   * @param options.trustDevice - ask the server to trust this device for later sign-ins
    */
-  async verify(code: string): Promise<TwoFactorVerifyResponse> {
+  async verify(code: string, options?: TwoFactorCompletionOptions): Promise<TwoFactorVerifyResponse> {
     // Validate TOTP code format with configured digits
     if (!isValidTOTPCode(code, this.totpDigits)) {
       throw new Error(`Invalid TOTP code format. Code must be exactly ${this.totpDigits} digits.`);
@@ -182,6 +186,7 @@ export class TwoFactorService {
       const response = await this.twoFactorApi.verify({
         code,
         tfa_token: this.partialAuthState.tfaToken,
+        ...(options?.trustDevice ? { trust_device: true } : {}),
       });
 
       // Clear partial auth state (includes sessionStorage)
@@ -198,8 +203,10 @@ export class TwoFactorService {
   /**
    * Use recovery code for authentication
    * Completes authentication if successful
+   *
+   * @param options.trustDevice - ask the server to trust this device for later sign-ins
    */
-  async useRecoveryCode(code: string): Promise<TwoFactorRecoveryResponse> {
+  async useRecoveryCode(code: string, options?: TwoFactorCompletionOptions): Promise<TwoFactorRecoveryResponse> {
     try {
       // Normalize and validate recovery code format
       const normalizedCode = normalizeRecoveryCode(code);
@@ -222,6 +229,7 @@ export class TwoFactorService {
       const response = await this.twoFactorApi.useRecoveryCode({
         recovery_code: normalizedCode,
         tfa_token: this.partialAuthState.tfaToken,
+        ...(options?.trustDevice ? { trust_device: true } : {}),
       });
 
       // Clear partial auth state (includes sessionStorage)
@@ -362,6 +370,13 @@ export class TwoFactorService {
         // Ignore sessionStorage errors
       }
     }
+  }
+
+  /**
+   * The 2FA token of the sign-in waiting on its second factor, if any.
+   */
+  private pendingTfaToken(): string | undefined {
+    return this.isVerificationRequired() ? this.partialAuthState?.tfaToken || undefined : undefined;
   }
 
   /**
@@ -574,7 +589,7 @@ export class TwoFactorService {
    */
   async requestChallenge(payload: TwoFactorChallengeRequest): Promise<TwoFactorChallengeResponse> {
     try {
-      const response = await this.twoFactorApi.requestChallenge(payload);
+      const response = await this.twoFactorApi.requestChallenge(payload, this.pendingTfaToken());
       this.subscribeStore.notify(PassflowEvent.TwoFactorChallengeReceived, {
         challengeId: response.challenge_id,
         method: response.method,
@@ -588,11 +603,13 @@ export class TwoFactorService {
 
   /**
    * Verify 2FA challenge (v2)
+   * Set `trust_device` on the payload to ask the server to trust this device.
    */
   async verifyV2(payload: TwoFactorVerifyRequestV2): Promise<TwoFactorVerifyResponseV2> {
     try {
-      const response = await this.twoFactorApi.verifyV2(payload);
+      const response = await this.twoFactorApi.verifyV2(payload, this.pendingTfaToken());
       if (response.success) {
+        this.clearPartialAuthState();
         this.subscribeStore.notify(PassflowEvent.TwoFactorVerified, {
           tokens: {
             access_token: response.access_token,
@@ -614,7 +631,7 @@ export class TwoFactorService {
    */
   async switchToAlternative(payload: TwoFactorAlternativeRequest): Promise<TwoFactorChallengeResponse> {
     try {
-      const response = await this.twoFactorApi.switchToAlternative(payload);
+      const response = await this.twoFactorApi.switchToAlternative(payload, this.pendingTfaToken());
       this.subscribeStore.notify(PassflowEvent.TwoFactorMethodSwitched, {
         challengeId: response.challenge_id,
         method: response.method,
@@ -627,9 +644,10 @@ export class TwoFactorService {
   }
 
   /**
-   * Get trusted devices
+   * List the devices the user trusted to skip the second factor on this app.
+   * The one this request came from has `current: true`.
    */
-  async getTrustedDevices(): Promise<unknown[]> {
+  async getTrustedDevices(): Promise<TwoFactorTrustedDevice[]> {
     try {
       return await this.twoFactorApi.getTrustedDevices();
     } catch (error) {
@@ -638,7 +656,8 @@ export class TwoFactorService {
   }
 
   /**
-   * Revoke trusted device
+   * Revoke a trusted device; its next sign-in asks for the second factor again.
+   * Rejects with the server's 404 when the user has no such device.
    */
   async revokeTrustedDevice(deviceId: string): Promise<void> {
     try {

@@ -28,12 +28,14 @@ import {
   SettingAPI,
   TenantAPI,
   TwoFactorApiClient,
+  type TwoFactorCompletionOptions,
   type TwoFactorConfirmResponse,
   type TwoFactorDisableResponse,
   type TwoFactorRecoveryResponse,
   type TwoFactorRegenerateResponse,
   type TwoFactorSetupResponse,
   type TwoFactorStatusResponse,
+  type TwoFactorTrustedDevice,
   type TwoFactorVerifyResponse,
   UpgradeAPI,
   type UpgradeDomain,
@@ -573,6 +575,13 @@ export class Passflow {
       }
     }
 
+    // A sign-in that owes its second factor lands with `#tfa_token=` and no
+    // tokens (a federated GET callback on a non-PKCE app).
+    if (!urlParams.get('access_token') && this.adoptTwoFactorTokenFromUrl(currentUrl)) {
+      this.error = undefined;
+      return undefined;
+    }
+
     const access_token = urlParams.get('access_token');
     const refresh_token = urlParams.get('refresh_token');
     const id_token = urlParams.get('id_token');
@@ -635,6 +644,36 @@ export class Passflow {
       this.error = this.checkErrorsFromURL();
     }
     return undefined;
+  }
+
+  /**
+   * Adopts a `#tfa_token=` fragment: the 2FA token goes to the TwoFactorService
+   * through `TwoFactorRequired`, exactly as a password sign-in's does, and the
+   * fragment is stripped from the URL. Nothing is saved as a session.
+   *
+   * @returns true when the URL carried a 2FA token
+   */
+  private adoptTwoFactorTokenFromUrl(currentUrl: CurrentUrlInfo | null): boolean {
+    if (!currentUrl?.hash) return false;
+    const hashParams = new URLSearchParams(currentUrl.hash.substring(1));
+    const tfaToken = hashParams.get('tfa_token');
+    if (!tfaToken) return false;
+
+    hashParams.delete('tfa_token');
+    const rest = hashParams.toString();
+    this.platform.replaceUrl(currentUrl.pathname + currentUrl.search + (rest ? `#${rest}` : ''));
+
+    if (!isValidJWTFormat(tfaToken)) {
+      const errorPayload: ErrorPayload = {
+        message: 'Invalid 2FA token format received',
+        code: 'INVALID_TOKEN_FORMAT',
+      };
+      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      return true;
+    }
+
+    this.subscribeStore.notify(PassflowEvent.TwoFactorRequired, { email: '', challengeId: '', tfaToken });
+    return true;
   }
 
   private checkErrorsFromURL(): Error | undefined {
@@ -1762,6 +1801,8 @@ export class Passflow {
    * Completes the authentication process and saves tokens.
    *
    * @param code - 6-digit TOTP code from authenticator app
+   * @param options - `trustDevice: true` asks the server to trust this device,
+   *   so later sign-ins from it skip the second factor where the app allows it
    * @returns Promise with verification response containing tokens
    * @throws {PassflowError} If verification fails
    *
@@ -1769,14 +1810,14 @@ export class Passflow {
    * ```typescript
    * // After signIn returns requires_2fa: true
    * if (passflow.isTwoFactorVerificationRequired()) {
-   *   const response = await passflow.verifyTwoFactor('123456');
+   *   const response = await passflow.verifyTwoFactor('123456', { trustDevice: true });
    *   console.log('Authentication complete', response.access_token);
    * }
    * ```
    */
-  async verifyTwoFactor(code: string): Promise<TwoFactorVerifyResponse> {
+  async verifyTwoFactor(code: string, options?: TwoFactorCompletionOptions): Promise<TwoFactorVerifyResponse> {
     try {
-      const response = await this.twoFactorService.verify(code);
+      const response = await this.twoFactorService.verify(code, options);
 
       // Passflow layer handles token saving (NOT service layer)
       this.storageManager.saveTokens(response);
@@ -1797,6 +1838,7 @@ export class Passflow {
    * Completes the authentication process and saves tokens.
    *
    * @param code - Recovery code from the list provided during setup
+   * @param options - `trustDevice: true` asks the server to trust this device
    * @returns Promise with recovery response containing tokens and remaining codes count
    * @throws {PassflowError} If recovery code is invalid
    *
@@ -1808,9 +1850,9 @@ export class Passflow {
    * console.log(`${result.remaining_recovery_codes} recovery codes remaining`);
    * ```
    */
-  async useTwoFactorRecoveryCode(code: string): Promise<TwoFactorRecoveryResponse> {
+  async useTwoFactorRecoveryCode(code: string, options?: TwoFactorCompletionOptions): Promise<TwoFactorRecoveryResponse> {
     try {
-      const response = await this.twoFactorService.useRecoveryCode(code);
+      const response = await this.twoFactorService.useRecoveryCode(code, options);
 
       // Passflow layer handles token saving (NOT service layer)
       this.storageManager.saveTokens(response);
@@ -1868,6 +1910,47 @@ export class Passflow {
       return await this.twoFactorService.regenerateRecoveryCodes(code);
     } catch (error) {
       this.handleError(error, 'Regenerate 2FA recovery codes');
+    }
+  }
+
+  /**
+   * List the devices the signed-in user trusted to skip the second factor on
+   * this app. The device making the request has `current: true`.
+   *
+   * @returns Promise with the trusted devices
+   * @throws {PassflowError} If the request fails
+   *
+   * @example
+   * ```typescript
+   * const devices = await passflow.getTrustedDevices();
+   * devices.forEach((d) => console.log(d.user_agent, d.current ? '(this device)' : ''));
+   * ```
+   */
+  async getTrustedDevices(): Promise<TwoFactorTrustedDevice[]> {
+    try {
+      return await this.twoFactorService.getTrustedDevices();
+    } catch (error) {
+      this.handleError(error, 'Get trusted devices');
+    }
+  }
+
+  /**
+   * Revoke one of the signed-in user's trusted devices. Its next sign-in
+   * asks for the second factor again.
+   *
+   * @param id - The trusted device's `id` from `getTrustedDevices()`
+   * @throws {PassflowError} If the request fails, including a 404 for an unknown id
+   *
+   * @example
+   * ```typescript
+   * await passflow.revokeTrustedDevice(device.id);
+   * ```
+   */
+  async revokeTrustedDevice(id: string): Promise<void> {
+    try {
+      await this.twoFactorService.revokeTrustedDevice(id);
+    } catch (error) {
+      this.handleError(error, 'Revoke trusted device');
     }
   }
 

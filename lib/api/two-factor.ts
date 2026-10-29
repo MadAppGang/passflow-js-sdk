@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from 'axios';
 import { DeviceService } from '../device';
 import { StorageManager } from '../storage';
 
@@ -22,12 +23,30 @@ import {
   TwoFactorSetupMagicLinkValidationResponse,
   TwoFactorSetupResponse,
   TwoFactorStatusResponse,
+  TwoFactorTrustedDevice,
+  TwoFactorTrustedDevicesResponse,
   TwoFactorVerifyRequest,
   TwoFactorVerifyRequestV2,
   TwoFactorVerifyResponse,
   TwoFactorVerifyResponseV2,
   pathWithParams,
 } from './model';
+
+/** The 2FA token as the Bearer credential, or no config when there is none. */
+const bearer = (tfaToken?: string): AxiosRequestConfig =>
+  tfaToken ? { headers: { Authorization: `Bearer ${tfaToken}` } } : {};
+
+/**
+ * Request config for the calls that end a sign-in with its second factor.
+ *
+ * They go with credentials so that a `trust_device` answer can set the
+ * HttpOnly trusted-device cookie on a cross-origin response, and so the
+ * browser sends the one it already holds.
+ */
+const credentialed = (tfaToken?: string): AxiosRequestConfig => ({
+  withCredentials: true,
+  ...bearer(tfaToken),
+});
 
 /** Backend response format (snake_case) for magic link validation */
 interface TwoFactorSetupMagicLinkBackendResponse {
@@ -86,15 +105,13 @@ export class TwoFactorApiClient {
    * Uses tfa_token as Bearer token for authentication
    */
   verify(payload: TwoFactorVerifyRequest): Promise<TwoFactorVerifyResponse> {
-    const { tfa_token, code } = payload;
-    return this.axiosClient.post<TwoFactorVerifyResponse, { code: string }>(
+    const { tfa_token, code, trust_device } = payload;
+    // `trust_device` is sent only when asked for, so a plain verify stays the
+    // body it always was.
+    return this.axiosClient.post<TwoFactorVerifyResponse, { code: string; trust_device?: true }>(
       PassflowEndpointPaths.twoFactorVerify,
-      { code },
-      {
-        headers: {
-          Authorization: `Bearer ${tfa_token}`,
-        },
-      },
+      { code, ...(trust_device ? { trust_device: true as const } : {}) },
+      credentialed(tfa_token),
     );
   }
 
@@ -104,15 +121,11 @@ export class TwoFactorApiClient {
    * Uses tfa_token as Bearer token for authentication
    */
   useRecoveryCode(payload: TwoFactorRecoveryRequest): Promise<TwoFactorRecoveryResponse> {
-    const { tfa_token, recovery_code } = payload;
-    return this.axiosClient.post<TwoFactorRecoveryResponse, { recovery_code: string }>(
+    const { tfa_token, recovery_code, trust_device } = payload;
+    return this.axiosClient.post<TwoFactorRecoveryResponse, { recovery_code: string; trust_device?: true }>(
       PassflowEndpointPaths.twoFactorRecovery,
-      { recovery_code },
-      {
-        headers: {
-          Authorization: `Bearer ${tfa_token}`,
-        },
-      },
+      { recovery_code, ...(trust_device ? { trust_device: true as const } : {}) },
+      credentialed(tfa_token),
     );
   }
 
@@ -303,47 +316,64 @@ export class TwoFactorApiClient {
   /**
    * Request 2FA challenge during login
    * POST /v2/auth/2fa/challenge
+   * `tfaToken`, when given, goes as the Bearer token the route is gated on.
    */
-  requestChallenge(payload: TwoFactorChallengeRequest): Promise<TwoFactorChallengeResponse> {
+  requestChallenge(payload: TwoFactorChallengeRequest, tfaToken?: string): Promise<TwoFactorChallengeResponse> {
     return this.axiosClient.post<TwoFactorChallengeResponse, TwoFactorChallengeRequest>(
       PassflowEndpointPaths.TwoFactorChallenge,
       payload,
+      bearer(tfaToken),
     );
   }
 
   /**
    * Verify 2FA challenge (v2)
-   * POST /v2/auth/2fa/verify
+   * POST /v2/auth/2fa/verify (the server's verify-challenge)
+   *
+   * `tfaToken` is the 2FA token the first factor returned; the route is gated
+   * on it, so it goes as the Bearer token when given.
    */
-  verifyV2(payload: TwoFactorVerifyRequestV2): Promise<TwoFactorVerifyResponseV2> {
+  verifyV2(payload: TwoFactorVerifyRequestV2, tfaToken?: string): Promise<TwoFactorVerifyResponseV2> {
+    const { trust_device, ...rest } = payload;
     return this.axiosClient.post<TwoFactorVerifyResponseV2, TwoFactorVerifyRequestV2>(
       PassflowEndpointPaths.TwoFactorVerifyV2,
-      payload,
+      { ...rest, ...(trust_device ? { trust_device: true } : {}) },
+      credentialed(tfaToken),
     );
   }
 
   /**
    * Switch to alternative 2FA method during challenge
    * POST /v2/auth/2fa/alternative
+   * `tfaToken`, when given, goes as the Bearer token the route is gated on.
    */
-  switchToAlternative(payload: TwoFactorAlternativeRequest): Promise<TwoFactorChallengeResponse> {
+  switchToAlternative(payload: TwoFactorAlternativeRequest, tfaToken?: string): Promise<TwoFactorChallengeResponse> {
     return this.axiosClient.post<TwoFactorChallengeResponse, TwoFactorAlternativeRequest>(
       PassflowEndpointPaths.TwoFactorAlternative,
       payload,
+      bearer(tfaToken),
     );
   }
 
   /**
-   * Get trusted devices
+   * List the devices the user trusted on this app
    * GET /v2/user/2fa/trusted-devices
+   *
+   * Sent with credentials so the server sees this device's trust cookie and
+   * can mark it `current`.
    */
-  getTrustedDevices(): Promise<unknown[]> {
-    return this.axiosClient.get<unknown[]>(PassflowEndpointPaths.TwoFactorTrustedDevices);
+  async getTrustedDevices(): Promise<TwoFactorTrustedDevice[]> {
+    const response = await this.axiosClient.get<TwoFactorTrustedDevicesResponse>(
+      PassflowEndpointPaths.TwoFactorTrustedDevices,
+      { withCredentials: true },
+    );
+    return response?.devices ?? [];
   }
 
   /**
    * Revoke trusted device
    * DELETE /v2/user/2fa/trusted-devices/:id
+   * The server answers 404 when the user has no such device.
    */
   revokeTrustedDevice(deviceId: string): Promise<void> {
     const endpoint = pathWithParams(PassflowEndpointPaths.TwoFactorTrustedDeviceRevoke, { id: deviceId });

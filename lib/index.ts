@@ -30,6 +30,7 @@ export { isValidEmail, isValidJWTFormat, isValidPhoneNumber, isValidUsername, sa
 
 // Re-export Two-Factor Authentication types (explicitly for clarity)
 export type {
+  TwoFactorCompletionOptions,
   TwoFactorConfirmRequest,
   TwoFactorConfirmResponse,
   TwoFactorDisableRequest,
@@ -46,6 +47,8 @@ export type {
   TwoFactorSetupMagicLinkValidationResponse,
   TwoFactorSetupResponse,
   TwoFactorStatusResponse,
+  TwoFactorTrustedDevice,
+  TwoFactorTrustedDevicesResponse,
   TwoFactorVerifyRequest,
   TwoFactorVerifyResponse,
 } from './api/model';
