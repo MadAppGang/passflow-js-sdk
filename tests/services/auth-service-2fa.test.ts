@@ -51,6 +51,7 @@ describe('AuthService — a sign-in pending its second factor', () => {
       passkeyRegisterComplete: vi.fn().mockResolvedValue(PENDING),
       passkeyAuthenticateStart: vi.fn().mockResolvedValue({ challenge_id: 'pk-1', publicKey: {} }),
       passkeyAuthenticateComplete: vi.fn().mockResolvedValue(PENDING),
+      resetPassword: vi.fn().mockResolvedValue(PENDING),
       validateSession: vi.fn(),
     };
 
@@ -99,6 +100,7 @@ describe('AuthService — a sign-in pending its second factor', () => {
     ['signUp', () => authService.signUp({ user: { email: 'a@example.com', password: 'pw' } })],
     ['passwordlessSignInComplete', () => authService.passwordlessSignInComplete({ challenge_id: 'pl-1', otp: '123456' })],
     ['passkeyAuthenticate', () => authService.passkeyAuthenticate({ relying_party_id: 'app.example.com' })],
+    ['resetPassword', () => authService.resetPassword('new-password')],
     [
       'passkeyRegister',
       () => authService.passkeyRegister({ scopes: ['id'], relying_party_id: 'app.example.com', redirect_url: ORIGIN }),
@@ -160,6 +162,17 @@ describe('AuthService — a sign-in pending its second factor', () => {
     expect(storageManager.saveTokens).toHaveBeenCalled();
     expect(events).toContain(PassflowEvent.Register);
     expect(events).not.toContain(PassflowEvent.TwoFactorRequired);
+  });
+
+  test('a completed sign-in clears a pending second factor', async () => {
+    // Left from an abandoned attempt, or planted with a `#tfa_token=` link.
+    await authService.signIn({ email: 'a@example.com', password: 'pw' });
+    expect(twoFactor.isVerificationRequired()).toBe(true);
+
+    authApi.signIn.mockResolvedValueOnce({ ...VALID_TOKENS });
+    await authService.signIn({ email: 'a@example.com', password: 'pw' });
+
+    expect(twoFactor.isVerificationRequired()).toBe(false);
   });
 
   test('a federated popup with tokens in its query still signs in', async () => {

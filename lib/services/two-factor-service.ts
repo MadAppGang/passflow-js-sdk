@@ -72,10 +72,20 @@ export class TwoFactorService {
           const tfPayload = payload as TwoFactorRequiredPayload;
           this.setPartialAuthState(tfPayload.email, tfPayload.challengeId, tfPayload.tfaToken);
         }
+        // A completed sign-in supersedes any pending second factor: one left
+        // from an abandoned attempt, or planted with a `#tfa_token=` link,
+        // must not send the signed-in user to the 2FA screen.
+        if (event === PassflowEvent.SignIn || event === PassflowEvent.Register) {
+          this.clearPartialAuthState();
+        }
       },
     };
 
-    this.subscribeStore.subscribe(eventSubscriber, [PassflowEvent.TwoFactorRequired]);
+    this.subscribeStore.subscribe(eventSubscriber, [
+      PassflowEvent.TwoFactorRequired,
+      PassflowEvent.SignIn,
+      PassflowEvent.Register,
+    ]);
   }
 
   /**

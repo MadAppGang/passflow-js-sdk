@@ -755,6 +755,10 @@ export class AuthService {
 
     try {
       const response = await this.authApi.resetPassword(newPassword, sscopes, resetToken);
+      if (this.handlePendingSecondFactor(response)) {
+        return response;
+      }
+
       await this.processAuthResponse(response, sscopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
