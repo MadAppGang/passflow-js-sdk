@@ -42,6 +42,14 @@ jobs:
       - name: Lint code
         run: pnpm lint
 
+      # Fails when the vendored corpus differs from the mirror commit named in its
+      # SOURCE file. It skips only while SOURCE is `pending` and the mirror repository
+      # returns 404. With a commit in SOURCE, that 404 fails.
+      - name: Check vendored corpus
+        run: pnpm corpus:check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
       - name: Run tests
         run: pnpm test
 
