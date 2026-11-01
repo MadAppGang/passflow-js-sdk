@@ -12,7 +12,8 @@
       "**/vite.config.ts",
       "**/examples/**",
       "**/.claude/**",
-      "**/.mnemex/**"
+      "**/.mnemex/**",
+      "**/tests/upgrade/testdata/corpus/**"
     ]
   },
   "formatter": {

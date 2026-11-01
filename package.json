@@ -29,6 +29,7 @@
     "test:services": "vitest run tests/services",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
+    "corpus:check": "node scripts/check-corpus.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check . --apply",
     "format": "biome format . --write",
