@@ -66,7 +66,11 @@ export type PassflowEventPayload = {
   [PassflowEvent.Refresh]: { tokens?: Tokens; parsedTokens?: ParsedTokens };
   [PassflowEvent.RefreshStart]: { tokenId?: string };
   [PassflowEvent.TokenCacheExpired]: { isExpired: boolean };
-  [PassflowEvent.TwoFactorRequired]: { email: string; challengeId: string; tfaToken: string };
+  [PassflowEvent.TwoFactorRequired]: {
+    email: string;
+    challengeId: string;
+    tfaToken: string;
+  };
   [PassflowEvent.TwoFactorSetupStarted]: { secret: string; method?: TwoFactorMethod };
   [PassflowEvent.TwoFactorEnabled]: { recoveryCodes: string[]; clearRecoveryCodes: () => void };
   [PassflowEvent.TwoFactorDisabled]: Record<string, never>;

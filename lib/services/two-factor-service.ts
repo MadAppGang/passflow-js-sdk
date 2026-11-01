@@ -20,6 +20,7 @@ import {
 } from '../api/model';
 import { TwoFactorApiClient } from '../api/two-factor';
 import { PassflowEvent, PassflowStore } from '../store';
+import type { Tokens } from '../types';
 import { isValidTOTPCode, normalizeRecoveryCode } from '../utils/validation';
 
 /**
@@ -38,6 +39,19 @@ interface TwoFactorRequiredPayload {
   email: string;
   challengeId: string;
   tfaToken: string;
+}
+
+/**
+ * Owns what a second factor's answer turns into: this service never stores tokens
+ * or holds the PKCE verifier. `AuthService` implements it.
+ */
+export interface SignInCompleter {
+  /** Redeems the code a second factor answered with on a PKCE sign-in, and applies the tokens. */
+  completePkceSignIn(code: string): Promise<Tokens>;
+  /** Applies the tokens a second factor answered with directly. */
+  applyTokens(tokens: Tokens): Promise<void>;
+  hasPendingPkceSignIn(): boolean;
+  forgetPkceSignIn(): void;
 }
 
 /** Error with optional id field */
@@ -63,6 +77,7 @@ export class TwoFactorService {
   constructor(
     private twoFactorApi: TwoFactorApiClient,
     private subscribeStore: PassflowStore,
+    private signInCompleter?: SignInCompleter,
   ) {
     // Listen for TwoFactorRequired event from AuthService
     // Create a subscriber that handles the TwoFactorRequired event
@@ -199,12 +214,11 @@ export class TwoFactorService {
         ...(options?.trustDevice ? { trust_device: true } : {}),
       });
 
-      // Clear partial auth state (includes sessionStorage)
-      this.clearPartialAuthState();
+      const completed = await this.finishSignIn(response);
 
-      this.subscribeStore.notify(PassflowEvent.TwoFactorVerified, { tokens: response });
+      this.subscribeStore.notify(PassflowEvent.TwoFactorVerified, { tokens: completed });
 
-      return response;
+      return completed;
     } catch (error) {
       this.emitErrorAndThrow(error, 'Verify 2FA code');
     }
@@ -236,14 +250,13 @@ export class TwoFactorService {
         throw new Error('No TFA token found. User must sign in first.');
       }
 
-      const response = await this.twoFactorApi.useRecoveryCode({
-        recovery_code: normalizedCode,
-        tfa_token: this.partialAuthState.tfaToken,
-        ...(options?.trustDevice ? { trust_device: true } : {}),
-      });
-
-      // Clear partial auth state (includes sessionStorage)
-      this.clearPartialAuthState();
+      const response = await this.finishSignIn(
+        await this.twoFactorApi.useRecoveryCode({
+          recovery_code: normalizedCode,
+          tfa_token: this.partialAuthState.tfaToken,
+          ...(options?.trustDevice ? { trust_device: true } : {}),
+        }),
+      );
 
       // Check for recovery codes exhaustion
       if (response.remaining_recovery_codes === 0) {
@@ -373,6 +386,7 @@ export class TwoFactorService {
    */
   clearPartialAuthState(): void {
     this.partialAuthState = undefined;
+    this.signInCompleter?.forgetPkceSignIn();
     if (typeof sessionStorage !== 'undefined') {
       try {
         sessionStorage.removeItem(this.SESSION_STORAGE_KEY);
@@ -380,6 +394,34 @@ export class TwoFactorService {
         // Ignore sessionStorage errors
       }
     }
+  }
+
+  /**
+   * Ends the pending sign-in with the second factor's answer. On a PKCE app that
+   * answer is a code, redeemed and replaced by the tokens, so no caller or
+   * subscriber ever gets a code where tokens belong. Tokens are applied once, by
+   * the completer, in the app's delivery mode. The pending state goes only after
+   * that has worked, except when no verifier can ever redeem the code.
+   */
+  private async finishSignIn<T extends { code?: string }>(response: T): Promise<T & Tokens> {
+    const { code, ...rest } = response;
+    if (code && !this.signInCompleter?.hasPendingPkceSignIn()) {
+      this.clearPartialAuthState();
+      const error: ErrorWithId = new Error('The sign-in answered with a PKCE code, but its verifier is gone');
+      error.id = 'PKCE_VERIFIER_MISSING';
+      throw error;
+    }
+
+    let completed = response as T & Tokens;
+    if (code && this.signInCompleter) {
+      const tokens = await this.signInCompleter.completePkceSignIn(code);
+      completed = { ...rest, ...tokens } as unknown as T & Tokens;
+    } else {
+      await this.signInCompleter?.applyTokens(completed);
+    }
+
+    this.clearPartialAuthState();
+    return completed;
   }
 
   /**
@@ -618,19 +660,20 @@ export class TwoFactorService {
   async verifyV2(payload: TwoFactorVerifyRequestV2): Promise<TwoFactorVerifyResponseV2> {
     try {
       const response = await this.twoFactorApi.verifyV2(payload, this.pendingTfaToken());
-      if (response.success) {
-        this.clearPartialAuthState();
-        this.subscribeStore.notify(PassflowEvent.TwoFactorVerified, {
-          tokens: {
-            access_token: response.access_token,
-            refresh_token: response.refresh_token,
-          },
-        });
-        if (response.device_trusted) {
-          this.subscribeStore.notify(PassflowEvent.TwoFactorDeviceTrusted, {});
-        }
+      if (!response.success) {
+        return response;
       }
-      return response;
+      const completed = await this.finishSignIn(response);
+      this.subscribeStore.notify(PassflowEvent.TwoFactorVerified, {
+        tokens: {
+          access_token: completed.access_token,
+          refresh_token: completed.refresh_token,
+        },
+      });
+      if (completed.device_trusted) {
+        this.subscribeStore.notify(PassflowEvent.TwoFactorDeviceTrusted, {});
+      }
+      return completed;
     } catch (error) {
       this.emitErrorAndThrow(error, 'Verify 2FA challenge');
     }

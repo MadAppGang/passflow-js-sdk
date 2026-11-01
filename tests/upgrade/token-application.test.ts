@@ -4,23 +4,27 @@
 // No module mocks, private fields, epoch-field access or mock invocation assertions.
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { AuthService } from '../../lib/services/auth-service';
+import { StorageManager } from '../../lib/storage';
 import { PassflowEvent } from '../../lib/store';
 import { isUpgradeSessionChanged } from '../../lib/upgrade/core';
 import { createUpgradeFacade } from '../../lib/upgrade/facade';
 import { createMockPlatform } from '../helpers/mock-platform';
+import { FakeStorage } from '../storage/fake-storage';
 import { challengeResponse, deferred } from './fetch-fixtures';
 import { challenge, observed, tokensFor } from './pass2-fixtures';
 
 type AuthArgs = ConstructorParameters<typeof AuthService>;
 type AuthResponse = Awaited<ReturnType<AuthService['refreshToken']>>;
 
-// Dependency shapes are the already-supplied tests/services/auth-service.test.ts fixture surface.
-// State is observable through real service getters and public auth events, not spy call counts.
+// The token store is the real StorageManager over an in-memory backing, so an identity read goes
+// through the same path it takes in production. State is observable through real service getters
+// and public auth events, not spy call counts.
 function applicationFixture(initial = tokensFor('A', 'session-A')) {
-  let stored: typeof initial | undefined = initial;
+  const backing = new FakeStorage();
+  const storage = new StorageManager({ storage: backing as unknown as Storage });
+  storage.saveTokens(initial);
   let cached: typeof initial | undefined = initial;
   let login = initial;
-  let identityReadable = true;
   const reply = deferred<AuthResponse>();
   const entered = deferred<void>();
   const events: { event: unknown; data: unknown }[] = [];
@@ -29,7 +33,7 @@ function applicationFixture(initial = tokensFor('A', 'session-A')) {
     warnings.push(args);
   });
   const parsed = () => {
-    if (!cached || !identityReadable) return undefined;
+    if (!cached) return undefined;
     const decode = (token: string) => JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString());
     return {
       access_token: decode(cached.access_token),
@@ -37,19 +41,6 @@ function applicationFixture(initial = tokensFor('A', 'session-A')) {
       refresh_token: decode(cached.refresh_token),
       scopes: cached.scopes,
     };
-  };
-  const storage = {
-    saveTokens: (tokens: typeof initial) => {
-      stored = { ...tokens };
-    },
-    getTokens: () => stored,
-    getToken: () => stored?.refresh_token,
-    deleteTokens: () => {
-      stored = undefined;
-    },
-    getDeviceId: () => 'qa-device',
-    clearIdToken: () => {},
-    clearCsrfToken: () => {},
   };
   const cache = {
     setTokensCache: (tokens?: typeof initial) => {
@@ -74,7 +65,7 @@ function applicationFixture(initial = tokensFor('A', 'session-A')) {
       },
     } as unknown as AuthArgs[0],
     { getDeviceId: () => 'qa-device' } as unknown as AuthArgs[1],
-    storage as unknown as AuthArgs[2],
+    storage,
     {
       notify: (event: unknown, data: unknown) => {
         events.push({ event, data });
@@ -95,15 +86,29 @@ function applicationFixture(initial = tokensFor('A', 'session-A')) {
     entered,
     events,
     warnings,
-    storage: () => stored,
+    storage: () => storage.getTokens(),
     async relogin(sub: string, sid: string) {
       login = tokensFor(sub, sid);
       await service.logOut();
       await service.signIn({ email: sub.toLowerCase() + '@example.com', password: 'qa-password' });
-      return { ...stored! };
+      return { ...storage.getTokens()! };
     },
+    async signInWithCookieDelivery() {
+      login = { ...tokensFor('A', 'session-A'), token_delivery: 'cookie' } as typeof initial;
+      await service.logOut();
+      await service.signIn({ email: 'a@example.com', password: 'qa-password' });
+    },
+    // Corrupts the stored access token, the one source `readSessionPin` reads the identity from.
     makeUnreadable() {
-      identityReadable = false;
+      const accessToken = storage.getTokens()!.access_token;
+      for (const [key, value] of backing.data) {
+        if (value === accessToken) backing.setItem(key, 'not-a-jwt');
+      }
+    },
+    failStorageReads() {
+      vi.spyOn(backing, 'getItem').mockImplementation(() => {
+        throw new Error('storage is not available');
+      });
     },
   };
 }
@@ -227,29 +232,49 @@ describe('token application identity pin', () => {
     }
   });
 
-  // Coverage gap: makeUnreadable changes a fake cache accessor, not a documented identity source.
-  // Restore this test only with a public fixture that proves identity is unreadable at application.
-  test.skip('REQ-55 C41 captured pin fails closed if application-time identity becomes unreadable', async () => {
+  test('C38 C41 cookie delivery: a captured pin with no identity at application discards the tokens', async () => {
     const f = applicationFixture();
-    const before = { ...f.storage()! };
+    const pin = f.service.readSessionPin();
+    await f.signInWithCookieDelivery();
+    const before = f.storage();
+    const checkpoint = f.events.length;
+    const result = observed(f.service.refreshToken({ type: 'totp', assertion: { code: '123456' } }, pin));
+    await f.entered.promise;
+    f.reply.resolve(tokensFor('A', 'session-A', '2'));
+
+    expect(await result).toMatchObject({ ok: false, error: { code: 'upgrade_session_changed' } });
+    expect(f.storage()).toEqual(before);
+    expect(
+      f.events.slice(checkpoint).filter((e) => e.event === PassflowEvent.SignOut || e.event === PassflowEvent.Refresh),
+    ).toEqual([]);
+    expect(f.warnings).toHaveLength(1);
+  });
+
+  test('C41 an identity read that throws reads as no identity', () => {
+    const f = applicationFixture();
+    f.failStorageReads();
+    expect(f.service.readSessionPin()).toBeUndefined();
+  });
+
+  test('REQ-55 C41 captured pin fails closed if application-time identity becomes unreadable', async () => {
+    const f = applicationFixture();
     const pin = f.service.readSessionPin();
     expect(pin).toBeDefined();
     const result = observed(f.service.refreshToken({ type: 'totp', assertion: { code: '123456' } }, pin));
     await f.entered.promise;
     f.makeUnreadable();
+    expect(f.service.readSessionPin()).toBeUndefined();
+    const before = { ...f.storage()! };
     f.reply.resolve(tokensFor('A', 'session-A', '2'));
 
     expect(await result).toMatchObject({ ok: false, error: { code: 'upgrade_session_changed' } });
     expect(f.storage()).toEqual(before);
-    expect(await f.service.getTokens(false)).toEqual(before);
     expect(f.events.filter((e) => e.event === PassflowEvent.SignOut || e.event === PassflowEvent.Refresh)).toEqual([]);
     expect(f.warnings).toHaveLength(1);
   });
 
-  // Same unproven makeUnreadable precondition as the C41 test above; not evidence of a product defect.
-  test.skip('REQ-52 REQ-55 REQ-96 C38 C41 all joined operations settle and preserve live tokens on unreadable application identity', async () => {
+  test('REQ-52 REQ-55 REQ-96 C38 C41 all joined operations settle and preserve live tokens on unreadable application identity', async () => {
     const f = applicationFixture();
-    const live = { ...f.storage()! };
     const summaries: { terminal: string }[] = [];
     const facade = createUpgradeFacade({
       platform: createMockPlatform(),
@@ -294,6 +319,7 @@ describe('token application identity pin', () => {
       );
       const imperative = observed(facade());
       f.makeUnreadable();
+      const live = { ...f.storage()! };
       f.reply.resolve(tokensFor('A', 'session-A', '2'));
       const response = await first;
       expect(response).toBe(originals[0]);
@@ -302,7 +328,6 @@ describe('token application identity pin', () => {
       expect(await second).toMatchObject({ ok: false, error: { code: 'upgrade_session_changed' } });
       expect(await imperative).toMatchObject({ ok: false, error: { code: 'upgrade_session_changed' } });
       expect(f.storage()).toEqual(live);
-      expect(await f.service.getTokens(false)).toEqual(live);
       expect(f.events.filter((e) => e.event === PassflowEvent.SignOut || e.event === PassflowEvent.Refresh)).toEqual([]);
       expect(f.warnings).toHaveLength(1);
       expect(dispatches).toBe(1);
@@ -313,9 +338,9 @@ describe('token application identity pin', () => {
     }
   });
 
-  // TEST_ISSUE: readSessionPin remains readable in this fixture. C41 also does not specify
-  // a no-pin compatibility exception; obtain a governing contract before restoring this case.
-  test.skip('REQ-55 C41 compatibility: a refresh which never captured a pin still applies tokens', async () => {
+  // The no-pin exception is Phase 4 round 3's reading of C41: a delivery mode that keeps the access
+  // token out of reach never has an identity, and the epoch guard is its protection.
+  test('REQ-55 C41 compatibility: a refresh which never captured a pin still applies tokens', async () => {
     const f = applicationFixture();
     f.makeUnreadable();
     expect(f.service.readSessionPin()).toBeUndefined();

@@ -126,6 +126,15 @@ export class AuthAPI {
     );
   }
 
+  /** Redeems the code a PKCE sign-in answered with for the tokens it stands for. */
+  pkceExchange(code: string, verifier: string): Promise<PassflowAuthorizationResponse> {
+    return this.axiosClient.post<PassflowAuthorizationResponse, { authz_code: string; verifier: string }>(
+      PassflowEndpointPaths.pkceExchange,
+      { authz_code: code, verifier },
+      SIGN_IN_REQUEST_CONFIG,
+    );
+  }
+
   passwordlessSignIn(
     payload: PassflowPasswordlessSignInPayload,
     deviceId: string,
@@ -170,10 +179,16 @@ export class AuthAPI {
     );
   }
 
-  resetPassword(newPassword: string, scopes: string[], resetToken?: string): Promise<PassflowAuthorizationResponse> {
+  resetPassword(
+    newPassword: string,
+    scopes: string[],
+    resetToken?: string,
+    codeChallenge?: string,
+  ): Promise<PassflowAuthorizationResponse> {
     const payload = {
       password: newPassword,
       scopes,
+      ...(codeChallenge ? { code_challenge: codeChallenge } : {}),
     };
 
     return this.axiosClient.post<PassflowAuthorizationResponse, typeof payload>(PassflowEndpointPaths.resetPassword, payload, {

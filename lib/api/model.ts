@@ -26,6 +26,7 @@ export enum RequestMethod {
 export enum PassflowEndpointPaths {
   signin = '/auth/login',
   signup = '/auth/register',
+  pkceExchange = '/auth/pkce_exchange',
   signInWithProvider = '/auth/federated/start/',
   passwordless = '/auth/passwordless/start',
   passwordlessComplete = '/auth/passwordless/complete',
@@ -228,6 +229,13 @@ export type UpgradeRefreshField = {
 };
 
 export type PassflowAuthorizationResponse = Tokens & {
+  /**
+   * The authorization code a PKCE app answers with in place of tokens. The SDK
+   * redeems it, so a response handed back to a caller never carries one.
+   */
+  code?: string;
+  /** Where the server sends the user next; a password reset answers with its link's redirect. */
+  redirect_url?: string;
   requires_2fa?: boolean;
   challenge_id?: string;
   tfa_token?: string;
@@ -293,6 +301,7 @@ export type PassflowSignInPayload = {
   password: string;
   scopes?: string[];
   invite_token?: string;
+  code_challenge?: string;
 } & (
   | { email: string; phone?: never; username?: never }
   | { phone: string; email?: never; username?: never }
@@ -339,6 +348,7 @@ export type PassflowSignUpPayload = {
   create_tenant?: boolean;
   anonymous?: boolean;
   invite_token?: string;
+  code_challenge?: string;
 };
 
 export type PassflowPasswordlessSignInPayload = {
@@ -464,6 +474,7 @@ export type PassflowPasskeyRegisterStartPayload = {
 
   relying_party_id: string;
   redirect_url: string;
+  code_challenge?: string;
 };
 
 export type PassflowPasskeyRegisterStartExtendedPayload = PassflowPasskeyRegisterStartPayload & {
@@ -496,6 +507,7 @@ export type PassflowPasskeyAuthenticateStartPayload = {
   scopes?: string[];
   user_id?: string;
   invite_token?: string;
+  code_challenge?: string;
 };
 
 export type PassflowPasskeyAuthenticateStartExtendedPayload = PassflowPasskeyAuthenticateStartPayload & {
@@ -795,6 +807,8 @@ export type TwoFactorConfirmResponse = {
 
 export type TwoFactorVerifyResponse = Tokens & {
   success: true;
+  /** On a PKCE app; `TwoFactorService` redeems it, so its callers never see one. */
+  code?: string;
 };
 
 /**
@@ -830,6 +844,8 @@ export type TwoFactorTrustedDevicesResponse = {
 export type TwoFactorRecoveryResponse = Tokens & {
   success: true;
   remaining_recovery_codes: number;
+  /** On a PKCE app; `TwoFactorService` redeems it, so its callers never see one. */
+  code?: string;
 };
 
 export type TwoFactorDisableResponse = {
@@ -936,6 +952,8 @@ export interface TwoFactorVerifyResponseV2 {
   success: boolean;
   access_token?: string;
   refresh_token?: string;
+  /** On a PKCE app; `TwoFactorService` redeems it, so its callers never see one. */
+  code?: string;
   device_trusted?: boolean;
 }
 
