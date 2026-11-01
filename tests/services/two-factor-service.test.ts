@@ -11,9 +11,13 @@ import {
   TwoFactorVerifyResponse,
 } from '../../lib/api/model';
 import { TwoFactorApiClient } from '../../lib/api/two-factor';
+import { s256Challenge } from '../../lib/pkce';
+import { AuthService } from '../../lib/services/auth-service';
 import { TwoFactorService } from '../../lib/services/two-factor-service';
 import { StorageManager } from '../../lib/storage';
 import { PassflowEvent, PassflowStore } from '../../lib/store';
+import { VALID_TOKENS } from '../helpers/fixtures';
+import { createMockPlatform } from '../helpers/mock-platform';
 
 // Mock dependencies
 vi.mock('../../lib/api/two-factor');
@@ -104,6 +108,146 @@ describe('TwoFactorService', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  // ===================================
+  // A PKCE app: the second factor answers with a code
+  // ===================================
+
+  describe('a PKCE sign-in pending its second factor', () => {
+    const CODE = 'authz-code';
+    const TFA_TOKEN = 'tfa.jwt.token';
+    const SCOPES = ['id', 'openid'];
+
+    // The store and the storage are real: this file mocks both modules for its other tests, and
+    // the hand-over from the first factor to the exchange is what is under test here.
+    async function pkceSignIn({ scopes, pkceEnabled = true }: { scopes?: string[]; pkceEnabled?: boolean } = {}) {
+      const { PassflowStore: RealStore } = await vi.importActual<typeof import('../../lib/store')>('../../lib/store');
+      const { StorageManager: RealStorage } = await vi.importActual<typeof import('../../lib/storage')>('../../lib/storage');
+      const storage = new RealStorage({ prefix: '' });
+      const store = new RealStore();
+      const events: { event: PassflowEvent; payload: unknown }[] = [];
+      store.subscribe({ onAuthChange: (event, payload) => events.push({ event, payload }) });
+
+      const authApi = {
+        signIn: vi.fn().mockResolvedValue({ tfa_token: TFA_TOKEN, requires_2fa: true }),
+        pkceExchange: vi.fn().mockResolvedValue({ ...VALID_TOKENS }),
+      };
+      const twoFactorApi = {
+        verify: vi.fn().mockResolvedValue({ success: true, code: CODE }),
+        verifyV2: vi.fn().mockResolvedValue({ success: true, code: CODE, device_trusted: true }),
+        useRecoveryCode: vi.fn().mockResolvedValue({ success: true, code: CODE, remaining_recovery_codes: 5 }),
+      };
+      const auth = new AuthService(
+        authApi as never,
+        { getDeviceId: () => 'device-1' } as never,
+        storage,
+        store as never,
+        { setTokensCache: vi.fn(), getParsedTokens: vi.fn() } as never,
+        SCOPES,
+        false,
+        'https://auth.example.com',
+        {},
+        'app-1',
+        undefined,
+        createMockPlatform() as never,
+        async () => pkceEnabled,
+      );
+      const service = new TwoFactorService(twoFactorApi as never, store as never, auth);
+      await auth.signIn({ email: 'a@example.com', password: 'pw', ...(scopes ? { scopes } : {}) });
+      return { authApi, twoFactorApi, service, storage, events, store, auth };
+    }
+
+    const verified = (events: { event: PassflowEvent; payload: unknown }[]) =>
+      events.filter((e) => e.event === PassflowEvent.TwoFactorVerified).map((e) => e.payload);
+
+    beforeEach(() => {
+      vi.useRealTimers();
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+
+    test('verifyV2 exchanges the code with the verifier of the first factor and completes the session', async () => {
+      const { authApi, twoFactorApi, service, storage, events } = await pkceSignIn();
+      expect(events.map((e) => e.event)).toContain(PassflowEvent.TwoFactorRequired);
+      expect(service.isVerificationRequired()).toBe(true);
+
+      const result = await service.verifyV2({ challenge_id: 'c', method: 'totp', response: '123456' });
+
+      const verifier = authApi.pkceExchange.mock.calls[0]?.[1] as string;
+      expect(authApi.pkceExchange).toHaveBeenCalledExactlyOnceWith(CODE, verifier);
+      expect(authApi.signIn.mock.calls[0]?.[0].code_challenge).toBe(await s256Challenge(verifier));
+      expect(twoFactorApi.verifyV2).toHaveBeenCalledWith(expect.anything(), TFA_TOKEN);
+
+      expect(result).not.toHaveProperty('code');
+      expect(result).toMatchObject({
+        success: true,
+        device_trusted: true,
+        access_token: VALID_TOKENS.access_token,
+        refresh_token: VALID_TOKENS.refresh_token,
+      });
+      expect(storage.getTokens()).toMatchObject({
+        access_token: VALID_TOKENS.access_token,
+        refresh_token: VALID_TOKENS.refresh_token,
+        scopes: SCOPES,
+      });
+      expect(service.isVerificationRequired()).toBe(false);
+      expect(verified(events)).toEqual([
+        { tokens: { access_token: VALID_TOKENS.access_token, refresh_token: VALID_TOKENS.refresh_token } },
+      ]);
+      expect(events.map((e) => e.event)).toContain(PassflowEvent.TwoFactorDeviceTrusted);
+    });
+
+    test('verify exchanges the code the same way', async () => {
+      const { authApi, service, storage, events } = await pkceSignIn();
+
+      const result = await service.verify('123456');
+
+      const verifier = authApi.pkceExchange.mock.calls[0]?.[1] as string;
+      expect(authApi.signIn.mock.calls[0]?.[0].code_challenge).toBe(await s256Challenge(verifier));
+      expect(result).not.toHaveProperty('code');
+      expect(result.access_token).toBe(VALID_TOKENS.access_token);
+      expect(storage.getTokens()?.access_token).toBe(VALID_TOKENS.access_token);
+      expect(service.isVerificationRequired()).toBe(false);
+      expect(verified(events)[0]).toMatchObject({ tokens: { access_token: VALID_TOKENS.access_token } });
+      expect(verified(events)[0]).not.toHaveProperty('tokens.code');
+    });
+
+    test('useRecoveryCode exchanges the code the same way', async () => {
+      const { authApi, service, storage } = await pkceSignIn();
+
+      const result = await service.useRecoveryCode('ABCD-1234');
+
+      expect(authApi.pkceExchange).toHaveBeenCalledTimes(1);
+      expect(result).not.toHaveProperty('code');
+      expect(result).toMatchObject({ remaining_recovery_codes: 5, access_token: VALID_TOKENS.access_token });
+      expect(storage.getTokens()?.access_token).toBe(VALID_TOKENS.access_token);
+      expect(service.isVerificationRequired()).toBe(false);
+    });
+
+    test('the verifier and the scopes of the first factor survive a page reload', async () => {
+      const { authApi, twoFactorApi, storage, store, auth } = await pkceSignIn({ scopes: ['id'] });
+
+      const reloaded = new TwoFactorService(twoFactorApi as never, store as never, auth);
+      await reloaded.verifyV2({ challenge_id: 'c', method: 'totp', response: '123456' });
+
+      expect(authApi.pkceExchange).toHaveBeenCalledTimes(1);
+      expect(storage.getTokens()?.scopes).toEqual(['id']);
+    });
+
+    test('a code with no verifier emits PKCE_VERIFIER_MISSING and stores nothing', async () => {
+      const { authApi, service, storage, events } = await pkceSignIn({ pkceEnabled: false });
+      expect(authApi.signIn.mock.calls[0]?.[0]).not.toHaveProperty('code_challenge');
+
+      await expect(service.verifyV2({ challenge_id: 'c', method: 'totp', response: '123456' })).rejects.toThrow(/verifier/);
+
+      expect(authApi.pkceExchange).not.toHaveBeenCalled();
+      expect(storage.getTokens()).toBeUndefined();
+      expect(verified(events)).toEqual([]);
+      expect(events.filter((e) => e.event === PassflowEvent.Error).map((e) => e.payload)).toEqual([
+        expect.objectContaining({ code: 'PKCE_VERIFIER_MISSING' }),
+      ]);
+    });
   });
 
   // ===================================

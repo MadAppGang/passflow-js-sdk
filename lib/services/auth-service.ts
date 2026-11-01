@@ -20,6 +20,7 @@ import {
   getOSFromDeviceType,
 } from '../api';
 import { DeviceService } from '../device';
+import { type PkcePair, createPkcePair } from '../pkce';
 import { type PlatformAdapter, PopupClosedError } from '../platform';
 import { webAdapter } from '../platform';
 import { StorageManager } from '../storage';
@@ -30,7 +31,19 @@ import { ParsedTokens, Tokens } from '../types';
 import { UpgradeSessionChangedError, UpgradeTransportError } from '../upgrade/errors';
 import { type UpgradeSessionPin, readSessionPin, sessionPinMatches } from '../upgrade/session';
 import { isValidEmail, isValidPhoneNumber, isValidUsername } from '../utils/validation';
+import { getDefaultLogger } from './logger';
 import { TokenCacheService } from './token-cache-service';
+
+/** The proof key of a PKCE sign-in that is waiting on its second factor. */
+type PendingPkceSignIn = {
+  verifier: string;
+  scopes?: string[];
+  expiresAt: number;
+};
+
+const PENDING_PKCE_STORAGE_KEY = 'passflow_2fa_pkce';
+/** As long as the pending second factor it belongs to. */
+const PENDING_PKCE_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
  * Service for handling authentication related functionality
@@ -38,6 +51,7 @@ import { TokenCacheService } from './token-cache-service';
 export class AuthService {
   private tokenDeliveryManager: TokenDeliveryManager;
   private tokenExchangeConfig?: TokenExchangeConfig;
+  private pendingPkce?: PendingPkceSignIn;
 
   constructor(
     private authApi: AuthAPI,
@@ -55,6 +69,7 @@ export class AuthService {
     private appId?: string,
     tokenExchangeConfig?: TokenExchangeConfig,
     private platform: PlatformAdapter = webAdapter,
+    private readPkceEnabled?: () => Promise<boolean>,
   ) {
     this.tokenExchangeConfig = tokenExchangeConfig;
     this.tokenDeliveryManager = new TokenDeliveryManager(storageManager);
@@ -143,6 +158,10 @@ export class AuthService {
    * In BFF mode, forwards tokens to BFF server
    */
   private async processAuthResponse(response: PassflowAuthorizationResponse, scopes: string[]): Promise<void> {
+    if (response.code && !response.access_token) {
+      throw new Error('A PKCE authorization code was not exchanged, so there are no tokens to apply');
+    }
+
     // BFF mode overrides server-returned delivery mode
     if (this.tokenExchangeConfig?.enabled) {
       // Don't change mode from BFF
@@ -180,14 +199,23 @@ export class AuthService {
    * a session, so on `true` the caller returns it as it is — without
    * `processAuthResponse`, a `SignIn`/`Register` event or a session check.
    * The `TwoFactorRequired` event is what the TwoFactorService listens to, so
-   * its verify and recovery calls can carry the token.
+   * its verify and recovery calls can carry the token. On a PKCE sign-in the
+   * server keeps the login's challenge, so the second factor's answer is a code:
+   * the verifier stays here for `completePkceSignIn`, off the public event.
    */
   private handlePendingSecondFactor(
     response: Pick<PassflowAuthorizationResponse, 'requires_2fa' | 'challenge_id' | 'tfa_token'>,
     email?: string,
+    pkce?: PkcePair,
+    scopes?: string[],
   ): boolean {
     if (response.requires_2fa !== true && !response.tfa_token) {
       return false;
+    }
+    if (pkce) {
+      this.rememberPkceSignIn(pkce.verifier, scopes);
+    } else {
+      this.forgetPkceSignIn();
     }
     this.subscribeStore.notify(PassflowEvent.TwoFactorRequired, {
       email: email || '',
@@ -195,6 +223,119 @@ export class AuthService {
       tfaToken: response.tfa_token || '',
     });
     return true;
+  }
+
+  /**
+   * Keeps the verifier in memory, which is where it is read from first. The copy
+   * in sessionStorage is only for a redirect or reload during the second factor,
+   * which would otherwise lose the sign-in.
+   */
+  private rememberPkceSignIn(verifier: string, scopes?: string[]): void {
+    this.pendingPkce = { verifier, scopes, expiresAt: Date.now() + PENDING_PKCE_TIMEOUT_MS };
+    if (typeof sessionStorage === 'undefined') {
+      return;
+    }
+    try {
+      sessionStorage.setItem(PENDING_PKCE_STORAGE_KEY, JSON.stringify(this.pendingPkce));
+    } catch {
+      // Disabled or full: the sign-in still completes unless the page goes away.
+    }
+  }
+
+  private readPendingPkce(): PendingPkceSignIn | undefined {
+    if (!this.pendingPkce && typeof sessionStorage !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem(PENDING_PKCE_STORAGE_KEY);
+        this.pendingPkce = stored ? (JSON.parse(stored) as PendingPkceSignIn) : undefined;
+      } catch {
+        this.pendingPkce = undefined;
+      }
+    }
+    if (this.pendingPkce && Date.now() >= this.pendingPkce.expiresAt) {
+      this.forgetPkceSignIn();
+    }
+    return this.pendingPkce;
+  }
+
+  /** Whether a PKCE sign-in is waiting for the code its second factor answers with. */
+  hasPendingPkceSignIn(): boolean {
+    return this.readPendingPkce() !== undefined;
+  }
+
+  /** Drops the verifier of a pending sign-in. `TwoFactorService` calls this with its own state. */
+  forgetPkceSignIn(): void {
+    this.pendingPkce = undefined;
+    if (typeof sessionStorage === 'undefined') {
+      return;
+    }
+    try {
+      sessionStorage.removeItem(PENDING_PKCE_STORAGE_KEY);
+    } catch {
+      // Nothing to do: it expires with the second factor.
+    }
+  }
+
+  /**
+   * The proof key for a sign-in on a PKCE app, undefined on any other app.
+   *
+   * It is sent whether or not the sign-in has a parent: the parent is added to
+   * the request outside this SDK, so it is not visible here, and `pkce.Challenge`
+   * on the server wants it under a device parent and ignores it under an OIDC one.
+   * When the setting cannot be read the sign-in goes out without a challenge, and
+   * a PKCE app refuses it with its own error.
+   */
+  private async startPkce(): Promise<PkcePair | undefined> {
+    let enabled = false;
+    try {
+      enabled = (await this.readPkceEnabled?.()) ?? false;
+    } catch (error) {
+      getDefaultLogger().warn('Passflow: could not read the app settings, so this sign-in sends no PKCE challenge', error);
+      return undefined;
+    }
+    return enabled ? createPkcePair() : undefined;
+  }
+
+  /**
+   * Swaps a code in a sign-in's answer for what the code stands for; any other
+   * answer passes through. That can still be a 2FA token: the server re-runs its
+   * gate at the exchange unless the code records a passed second factor.
+   */
+  private async exchangeCode(
+    response: PassflowAuthorizationResponse,
+    pkce: PkcePair | undefined,
+  ): Promise<PassflowAuthorizationResponse> {
+    if (!response.code || !pkce) {
+      return response;
+    }
+    return await this.authApi.pkceExchange(response.code, pkce.verifier);
+  }
+
+  /**
+   * Finishes a PKCE sign-in whose code came from its second factor: redeems the
+   * code with the first factor's verifier and applies the tokens. `TwoFactorService`
+   * is the caller, and clears the pending state once this has succeeded.
+   */
+  async completePkceSignIn(code: string): Promise<PassflowAuthorizationResponse> {
+    const pending = this.readPendingPkce();
+    if (!pending) {
+      throw new Error('The sign-in answered with a PKCE code, but its verifier is gone');
+    }
+    const tokens = await this.authApi.pkceExchange(code, pending.verifier);
+    await this.processAuthResponse(tokens, pending.scopes ?? this.scopes);
+    return tokens;
+  }
+
+  /**
+   * Applies tokens that were issued outside this service, honouring the delivery
+   * mode: this is the one place they reach the BFF and browser storage, so no
+   * caller saves them itself. An answer that carries no tokens is left alone.
+   */
+  async applyTokens(tokens: Tokens): Promise<void> {
+    const response = tokens as PassflowAuthorizationResponse;
+    if (!response.access_token && !response.id_token && !response.token_delivery) {
+      return;
+    }
+    await this.processAuthResponse(response, response.scopes ?? this.readPendingPkce()?.scopes ?? this.scopes);
   }
 
   /**
@@ -274,7 +415,13 @@ export class AuthService {
     payload.scopes = payload.scopes ?? this.scopes;
 
     try {
-      const response = await this.authApi.signIn(payload, deviceId, os);
+      const pkce = await this.startPkce();
+      const answer = await this.authApi.signIn(pkce ? { ...payload, code_challenge: pkce.challenge } : payload, deviceId, os);
+      if (this.handlePendingSecondFactor(answer, payload.email, pkce, payload.scopes)) {
+        return answer;
+      }
+
+      const response = await this.exchangeCode(answer, pkce);
       if (this.handlePendingSecondFactor(response, payload.email)) {
         return response;
       }
@@ -326,7 +473,13 @@ export class AuthService {
     payload.create_tenant = this.createTenantForNewUser;
 
     try {
-      const response = await this.authApi.signUp(payload);
+      const pkce = await this.startPkce();
+      const answer = await this.authApi.signUp(pkce ? { ...payload, code_challenge: pkce.challenge } : payload);
+      if (this.handlePendingSecondFactor(answer, payload.user.email, pkce, payload.scopes)) {
+        return answer;
+      }
+
+      const response = await this.exchangeCode(answer, pkce);
       if (this.handlePendingSecondFactor(response, payload.user.email)) {
         return response;
       }
@@ -460,6 +613,7 @@ export class AuthService {
     }
 
     // Clear all local state (both modes)
+    this.forgetPkceSignIn();
     this.storageManager.deleteTokens();
     this.storageManager.clearIdToken();
     this.storageManager.clearCsrfToken();
@@ -477,11 +631,11 @@ export class AuthService {
    * nothing to read and the answer is `undefined`.
    */
   readSessionPin(): UpgradeSessionPin | undefined {
-    const token = this.storageManager.getToken(TokenType.access_token);
-    if (!token) {
-      return undefined;
-    }
     try {
+      const token = this.storageManager.getToken(TokenType.access_token);
+      if (!token) {
+        return undefined;
+      }
       return readSessionPin(parseToken(token) as { sub?: unknown; sid?: unknown });
     } catch {
       return undefined;
@@ -754,11 +908,21 @@ export class AuthService {
     const sscopes = scopes ?? this.scopes;
 
     try {
-      const response = await this.authApi.resetPassword(newPassword, sscopes, resetToken);
-      if (this.handlePendingSecondFactor(response)) {
-        return response;
+      const pkce = await this.startPkce();
+      const answer = pkce
+        ? await this.authApi.resetPassword(newPassword, sscopes, resetToken, pkce.challenge)
+        : await this.authApi.resetPassword(newPassword, sscopes, resetToken);
+      if (this.handlePendingSecondFactor(answer, undefined, pkce, sscopes)) {
+        return answer;
       }
 
+      const exchanged = await this.exchangeCode(answer, pkce);
+      if (this.handlePendingSecondFactor(exchanged)) {
+        return exchanged;
+      }
+
+      // The reset link's redirect is on the code's answer: the exchange returns only tokens.
+      const response = answer.redirect_url ? { ...exchanged, redirect_url: answer.redirect_url } : exchanged;
       await this.processAuthResponse(response, sscopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
@@ -786,18 +950,24 @@ export class AuthService {
     payload.create_tenant = this.createTenantForNewUser;
 
     try {
-      const { challenge_id, publicKey } = await this.authApi.passkeyRegisterStart(payload, deviceId, os, !this.appId);
+      const pkce = await this.startPkce();
+      const { challenge_id, publicKey } = await this.authApi.passkeyRegisterStart(
+        pkce ? { ...payload, code_challenge: pkce.challenge } : payload,
+        deviceId,
+        os,
+        !this.appId,
+      );
       // user handle should be base64 encoded for simplewebauthn lib we are using
       publicKey.user.id = this.platform.btoa(publicKey.user.id);
       const webauthn = await this.platform.passkeys.startRegistration(publicKey);
       if (!webauthn) throw new Error('Passkey registration was not completed');
 
-      const responseRegisterComplete = await this.authApi.passkeyRegisterComplete(
-        webauthn,
-        deviceId,
-        challenge_id,
-        !this.appId,
-      );
+      const answer = await this.authApi.passkeyRegisterComplete(webauthn, deviceId, challenge_id, !this.appId);
+      if (this.handlePendingSecondFactor(answer, undefined, pkce, payload.scopes)) {
+        return answer;
+      }
+
+      const responseRegisterComplete = await this.exchangeCode(answer, pkce);
       if (this.handlePendingSecondFactor(responseRegisterComplete)) {
         return responseRegisterComplete;
       }
@@ -828,16 +998,22 @@ export class AuthService {
     payload.scopes = payload.scopes ?? this.scopes;
 
     try {
-      const { challenge_id, publicKey } = await this.authApi.passkeyAuthenticateStart(payload, deviceId, os, !this.appId);
+      const pkce = await this.startPkce();
+      const { challenge_id, publicKey } = await this.authApi.passkeyAuthenticateStart(
+        pkce ? { ...payload, code_challenge: pkce.challenge } : payload,
+        deviceId,
+        os,
+        !this.appId,
+      );
       const webauthn = await this.platform.passkeys.startAuthentication(publicKey);
       if (!webauthn) throw new Error('Passkey authentication was not completed');
 
-      const responseAuthenticateComplete = await this.authApi.passkeyAuthenticateComplete(
-        webauthn,
-        deviceId,
-        challenge_id,
-        !this.appId,
-      );
+      const answer = await this.authApi.passkeyAuthenticateComplete(webauthn, deviceId, challenge_id, !this.appId);
+      if (this.handlePendingSecondFactor(answer, undefined, pkce, payload.scopes)) {
+        return answer;
+      }
+
+      const responseAuthenticateComplete = await this.exchangeCode(answer, pkce);
       if (this.handlePendingSecondFactor(responseAuthenticateComplete)) {
         return responseAuthenticateComplete;
       }

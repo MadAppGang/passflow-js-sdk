@@ -126,6 +126,9 @@ export class Passflow {
   private createSessionCallback?: ({ tokens, parsedTokens }: { tokens?: Tokens; parsedTokens?: ParsedTokens }) => Promise<void>;
   private expiredSessionCallback?: () => Promise<void>;
 
+  // The app's PKCE setting, read once per appId
+  private pkceEnabledRead?: Promise<boolean>;
+
   // State
   error?: Error;
   private platform: PlatformAdapter;
@@ -186,6 +189,7 @@ export class Passflow {
       this.appId ?? '',
       config.tokenExchange,
       this.platform,
+      () => this.readPkceEnabled(),
     );
 
     this.userService = new UserService(this.userApi, this.deviceService, this.platform);
@@ -195,7 +199,7 @@ export class Passflow {
 
     this.invitationService = new InvitationService(this.invitationApi);
 
-    this.twoFactorService = new TwoFactorService(this.twoFactorApi, this.subscribeStore);
+    this.twoFactorService = new TwoFactorService(this.twoFactorApi, this.subscribeStore, this.authService);
     this.twoFactor = this.twoFactorService;
 
     this.upgrade = createUpgradeFacade({
@@ -242,6 +246,27 @@ export class Passflow {
   }
 
   /**
+   * Whether the current app wants PKCE. A sign-in asks before a passkey ceremony,
+   * where a round-trip eats into the browser's user-gesture window, so the answer
+   * is kept for the appId. A failed read is not kept: the next sign-in asks again.
+   */
+  private readPkceEnabled(): Promise<boolean> {
+    if (!this.appId) {
+      return Promise.resolve(false);
+    }
+    if (!this.pkceEnabledRead) {
+      const read: Promise<boolean> = this.appApi.getAppSettings().then((settings) => settings.pkce_enabled);
+      this.pkceEnabledRead = read;
+      read.catch(() => {
+        if (this.pkceEnabledRead === read) {
+          this.pkceEnabledRead = undefined;
+        }
+      });
+    }
+    return this.pkceEnabledRead;
+  }
+
+  /**
    * Update the appId and propagate it to all API clients.
    * This ensures that all future API requests use the new appId in their headers.
    *
@@ -255,6 +280,7 @@ export class Passflow {
    */
   setAppId(appId: string): void {
     this.appId = appId;
+    this.pkceEnabledRead = undefined;
 
     // Update all API clients
     this.authApi.setAppId(appId);
@@ -1495,8 +1521,7 @@ export class Passflow {
     try {
       const response = await this.tenant.joinInvitation(token, scopes);
       response.scopes = scopes ?? this.scopes;
-      this.storageManager.saveTokens(response);
-      this.tokenCacheService.setTokensCache(response);
+      await this.authService.applyTokens(response);
       return response;
     } catch (error) {
       this.handleError(error, 'Join invitation');
@@ -1817,11 +1842,9 @@ export class Passflow {
    */
   async verifyTwoFactor(code: string, options?: TwoFactorCompletionOptions): Promise<TwoFactorVerifyResponse> {
     try {
+      // The service has applied the tokens in the app's delivery mode.
       const response = await this.twoFactorService.verify(code, options);
 
-      // Passflow layer handles token saving (NOT service layer)
-      this.storageManager.saveTokens(response);
-      this.tokenCacheService.setTokensCache(response);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -1852,11 +1875,9 @@ export class Passflow {
    */
   async useTwoFactorRecoveryCode(code: string, options?: TwoFactorCompletionOptions): Promise<TwoFactorRecoveryResponse> {
     try {
+      // The service has applied the tokens in the app's delivery mode.
       const response = await this.twoFactorService.useRecoveryCode(code, options);
 
-      // Passflow layer handles token saving (NOT service layer)
-      this.storageManager.saveTokens(response);
-      this.tokenCacheService.setTokensCache(response);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
