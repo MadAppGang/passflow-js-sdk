@@ -1,0 +1,18 @@
+# pnpm 12 settings. This is a single-package repo: there is no `packages:` list, and this
+# file holds settings only (pnpm 12 reads settings from here, not from .npmrc). Unknown keys
+# fail the install with ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS, so a typo cannot pass silently.
+
+# Supply-chain age gate (pnpm 12). A version must have been on the registry for at least
+# 4320 minutes (3 days) before pnpm will resolve it, and an existing lockfile entry younger
+# than that fails every install, CI included (frozen installs re-verify the lockfile).
+# 3 days, not the 1-day default: it covers a weekend of detection lag for a compromised
+# publish. Not 7: this repo upgrades often, and a week turns every bump into a wait.
+# Explicit, so strict: CI fails instead of silently adding exclusions. See CONTRIBUTING.md.
+minimumReleaseAge: 4320
+minimumReleaseAgeStrict: true
+minimumReleaseAgeExclude:
+  # First-party packages are published only by our own publish.yml via npm OIDC trusted
+  # publishing with provenance. A fresh @passflow release must be consumable at once (e.g. a
+  # core fix that another Passflow package needs the same day). No @passflow/* dependency
+  # exists here today; the rule is kept so every Passflow repo carries the same policy.
+  - '@passflow/*'

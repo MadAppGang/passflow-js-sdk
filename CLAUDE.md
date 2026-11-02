@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Package Management
-- Uses pnpm as package manager (requires pnpm@10.8.0+)
+- pnpm 12, pinned by `packageManager`; dependency age policy in `pnpm-workspace.yaml` (see CONTRIBUTING.md)
 - `pnpm install` - Install dependencies
 
 ### Build and Development

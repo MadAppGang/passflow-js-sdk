@@ -34,9 +34,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
 
-
       - name: Install dependencies
-        run: pnpm install
+        # Frozen is pnpm's CI default; spelled out so the intent survives a local copy-paste.
+        # pnpm 12 also re-verifies every locked version against minimumReleaseAge here.
+        run: pnpm install --frozen-lockfile
 
       - name: Lint code
         run: pnpm lint
