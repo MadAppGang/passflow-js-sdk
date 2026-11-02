@@ -28,11 +28,10 @@
     "target": "ES6",
     "lib": ["ES2021", "DOM", "DOM.Iterable"],
     "outDir": "./dist",
-    "baseUrl": "./",
     "emitDeclarationOnly": true,
     "rootDir": "./",
     "paths": {
-      "lib/*": ["lib/*"]
+      "lib/*": ["./lib/*"]
     },
     "types": ["vitest/globals", "vitest"]
   },
