@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs';
 import path from 'path';
 import { defineConfig } from 'vitest/config'; // Import from 'vitest/config'
 import tsconfigPaths from 'vite-tsconfig-paths';
+
+// Read once, not `require()`d: this config is ESM (`"type": "module"`).
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 export default defineConfig(({ command }) => {
   // Only use tsconfig.build.json for build, use default for tests
@@ -22,15 +26,18 @@ export default defineConfig(({ command }) => {
         // module, silently yielding an empty namespace to `require()`. `.cjs` pins the format.
         fileName: (format) => (format === 'es' ? 'index.mjs' : 'index.cjs'),
       },
-      rollupOptions: {
+      rolldownOptions: {
         // Externalize dependencies to reduce bundle size
-        external: [
-          ...Object.keys(require('./package.json').dependencies || {}),
-          ...Object.keys(require('./package.json').peerDependencies || {}),
-        ],
+        external: [...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.peerDependencies || {})],
         // Exclude test files from build
         input: {
           index: path.resolve(__dirname, 'lib/index.ts')
+        },
+        output: {
+          // Rolldown's default ('auto') copies only source directives, so the CJS bundle
+          // lost the `"use strict"` Rollup always emitted. The ESM source assumes strict
+          // semantics, so restore it.
+          strict: true,
         },
       },
       sourcemap: true,

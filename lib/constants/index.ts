@@ -1,5 +1,7 @@
+// A named import, not the default object: Rolldown (Vite 8) inlines a default-imported
+// JSON module whole, which shipped every script and devDependency in dist.
 // @ts-ignore - package.json is outside the TypeScript project
-import packageJson from '../../package.json';
+import { version } from '../../package.json';
 
 export const APP_ID_HEADER_KEY = 'X-Passflow-Clientid';
 export const AUTHORIZATION_HEADER_KEY = 'Authorization';
@@ -10,7 +12,7 @@ export const DEVICE_TYPE_HEADER_KEY = 'X-Passflow-DeviceType';
  * SDK version from package.json.
  * Useful for debugging and logging version information.
  */
-export const SDK_VERSION = packageJson.version as string;
+export const SDK_VERSION = version as string;
 
 /**
  * Minimal set of scopes for basic authentication.
