@@ -17,31 +17,38 @@ vi.mock('axios', () => ({
   AxiosError: class AxiosError extends Error {},
 }));
 
+// Constructor mocks use `function`, not arrows: since Vitest 4 a vi.fn() keeps its
+// implementation's call semantics, and an arrow function cannot be called with `new`.
+
 // Mock DeviceService
 vi.mock('../../lib/device', () => ({
-  DeviceService: vi.fn(() => ({
-    getDeviceId: () => 'test-device-id-123',
-  })),
+  DeviceService: vi.fn(function () {
+    return { getDeviceId: () => 'test-device-id-123' };
+  }),
 }));
 
 // Configurable storage mock — tests can override getItem behavior
 let mockStorageGetItem: (key: string) => string | null = () => null;
 
 vi.mock('../../lib/storage', () => ({
-  StorageManager: vi.fn(() => ({
-    getTokens: () => null,
-    getScopes: () => [],
-    storage: {
-      getItem: (key: string) => mockStorageGetItem(key),
-      setItem: () => {},
-      removeItem: () => {},
-    },
-  })),
+  StorageManager: vi.fn(function () {
+    return {
+      getTokens: () => null,
+      getScopes: () => [],
+      storage: {
+        getItem: (key: string) => mockStorageGetItem(key),
+        setItem: () => {},
+        removeItem: () => {},
+      },
+    };
+  }),
 }));
 
 // Mock TokenService
 vi.mock('../../lib/token', () => ({
-  TokenService: vi.fn(() => ({})),
+  TokenService: vi.fn(function () {
+    return {};
+  }),
   isTokenExpired: vi.fn(),
   parseToken: vi.fn(),
 }));
