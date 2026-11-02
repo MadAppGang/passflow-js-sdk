@@ -2,7 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "types": ["node"],
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "declarationDir": "./dist/.tsc",
+    "declarationMap": false
   },
   "include": ["lib"],
   "exclude": ["dist", "node_modules", "tests", "**/*.test.ts"]

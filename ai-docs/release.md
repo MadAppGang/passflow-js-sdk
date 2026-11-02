@@ -45,7 +45,7 @@ workflow.
 ## CI/CD
 
 `publish.yml`, triggered on `push` of a tag matching `v*`. Two jobs: `publish`
-installs, runs `pnpm test`, builds, then `npm publish --provenance --access public`
+installs, runs `pnpm test`, builds, runs `pnpm check:types-consumer --skip-build` (the packed tarball must type-check under node16, nodenext, bundler and CJS), then `npm publish --provenance --access public`
 with `id-token: write` and `NODE_AUTH_TOKEN: ''` — the empty token is deliberate; auth
 is OIDC trusted publishing, so no npm secret exists and a local npm login is
 irrelevant. `release-page` then `needs: publish` and creates the GitHub release.

@@ -1,25 +1,30 @@
 {
   "name": "@passflow/core",
   "description": "Passflow JS SDK",
-  "version": "0.20.0",
+  "version": "0.20.1",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
-  "types": "./dist/lib/index.d.ts",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/lib/index.d.ts",
+        "types": "./dist/index.d.ts",
         "default": "./dist/index.mjs"
       },
       "require": {
-        "types": "./dist/lib/index.d.ts",
+        "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
     }
   },
   "files": [
-    "dist"
+    "dist/index.mjs",
+    "dist/index.mjs.map",
+    "dist/index.cjs",
+    "dist/index.cjs.map",
+    "dist/index.d.ts",
+    "dist/index.d.cts"
   ],
   "engines": {
     "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
@@ -28,13 +33,14 @@
     "dev": "pnpm vite",
     "watch": "vite build --watch",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
-    "build:dts": "tsc --build tsconfig.build.json",
+    "build:dts": "tsc -p tsconfig.build.json && rolldown -c rolldown.dts.config.mjs && rm -rf dist/.tsc",
     "build": "pnpm clean && pnpm vite build && pnpm build:dts",
     "test": "vitest run --reporter=default",
     "test:services": "vitest run tests/services",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "corpus:check": "node scripts/check-corpus.mjs",
+    "check:types-consumer": "node scripts/check-types-consumer.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check . --write",
     "format": "biome format . --write",
@@ -47,6 +53,8 @@
     "@vitest/coverage-v8": "^5.0.5",
     "@vitest/ui": "^5.0.5",
     "jsdom": "^30.1.3",
+    "rolldown": "~1.2.16",
+    "rolldown-plugin-dts": "~0.29.0",
     "typescript": "^7.0.2",
     "uuid": "^14.0.3",
     "vite": "^8.3.5",
@@ -79,5 +87,5 @@
     "type": "git",
     "url": "git+https://github.com/MadAppGang/passflow-js-sdk.git"
   },
-  "packageManager": "pnpm@10.34.9"
+  "packageManager": "pnpm@12.16.1"
 }

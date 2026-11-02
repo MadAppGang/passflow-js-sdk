@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Package Management
-- Uses pnpm as package manager (requires pnpm@10.8.0+)
+- pnpm 12, pinned by `packageManager`; dependency age policy in `pnpm-workspace.yaml` (see CONTRIBUTING.md)
 - `pnpm install` - Install dependencies
 
 ### Build and Development
@@ -70,7 +70,7 @@ The SDK is organized around a main `Passflow` class that orchestrates multiple s
 - Fake storage implementation for testing
 
 ### Build System
-- TypeScript compilation with declaration files
+- TypeScript declarations are emitted by `tsc` to `dist/.tsc` and bundled by rolldown-plugin-dts into `dist/index.d.ts` + `dist/index.d.cts` (`rolldown.dts.config.mjs`); `dist/.tsc` is removed after bundling
 - Vite for bundling (both ESM and CJS outputs)
 - Biome for linting and formatting
 - Supports both import and require usage

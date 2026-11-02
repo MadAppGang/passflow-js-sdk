@@ -34,9 +34,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
 
-
       - name: Install dependencies
-        run: pnpm install
+        # Frozen is pnpm's CI default; spelled out so the intent survives a local copy-paste.
+        # pnpm 12 also re-verifies every locked version against minimumReleaseAge here.
+        run: pnpm install --frozen-lockfile
 
       - name: Lint code
         run: pnpm lint
@@ -54,3 +55,9 @@ jobs:
 
       - name: Build project
         run: pnpm build
+
+      # Packs the build, installs the tarball into a throwaway consumer with npm, and runs
+      # tsc under node16, nodenext, bundler and node16-CJS with skipLibCheck off. This is the
+      # check that would have caught the 0.19.0/0.20.0 extensionless-specifier types.
+      - name: Check published types resolve (packed tarball)
+        run: pnpm check:types-consumer --skip-build
