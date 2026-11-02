@@ -79,5 +79,5 @@
     "type": "git",
     "url": "git+https://github.com/MadAppGang/passflow-js-sdk.git"
   },
-  "packageManager": "pnpm@10.8.0"
+  "packageManager": "pnpm@10.34.9"
 }
