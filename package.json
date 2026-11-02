@@ -40,6 +40,7 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "corpus:check": "node scripts/check-corpus.mjs",
+    "check:types-consumer": "node scripts/check-types-consumer.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check . --write",
     "format": "biome format . --write",

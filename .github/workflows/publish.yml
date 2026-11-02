@@ -43,6 +43,11 @@ jobs:
       - name: Build project
         run: pnpm build
 
+      # The same tarball check as node.js.yml, before anything is published. `npm publish`
+      # re-packs from the same dist/ (the `files` whitelist), so this is what ships.
+      - name: Check published types resolve (packed tarball)
+        run: pnpm check:types-consumer --skip-build
+
       - name: Publish to npm
         run: npm publish --provenance --access public
         env:
