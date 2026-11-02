@@ -10,13 +10,13 @@ import { M2MClient } from '../../../lib/m2m/client';
 import { M2MError } from '../../../lib/m2m/errors';
 import type { RetryStrategy } from '../../../lib/m2m/types';
 import {
+  createMockConfig,
+  createMockToken,
   OAUTH_ERROR_INVALID_CLIENT,
   OAUTH_ERROR_INVALID_SCOPE,
   OAUTH_ERROR_RATE_LIMIT,
   OAUTH_ERROR_SERVER_ERROR,
   OAUTH_ERROR_TEMPORARILY_UNAVAILABLE,
-  createMockConfig,
-  createMockToken,
 } from '../utils/fixtures';
 import { mockFetchError, mockFetchSuccess, mockNetworkError, resetFetchMock, setupFetchMock } from '../utils/mock-fetch';
 

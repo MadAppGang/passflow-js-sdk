@@ -34,7 +34,7 @@
  * module's whole job.
  */
 
-import { type RequestSnapshot, createRequestSnapshot, headersToObject, swapAuthorization } from './snapshot';
+import { createRequestSnapshot, headersToObject, type RequestSnapshot, swapAuthorization } from './snapshot';
 
 /** Our own `fetch` shape. Declared here rather than imported so no DOM lib is required. */
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;

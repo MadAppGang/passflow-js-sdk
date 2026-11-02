@@ -18,26 +18,9 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import {
-  DEFAULT_UPGRADE_FACTORS,
-  INSUFFICIENT_USER_AUTHENTICATION,
-  UPGRADE_REQUIRED,
-  UpgradeCancelledError,
-  UpgradeController,
-  UpgradeFactorError,
-  UpgradeUnsatisfiableError,
-  factorRegistry,
-  parseChallengeBody,
-  parseChallengeHeader,
-  parseUpgradeChallenge,
-  passkeyFactor,
-  recoveryCodesFactor,
-  selectFactors,
-  totpFactor,
-} from '../../lib/index';
 import type {
   UpgradeAssertContext,
   UpgradeAssertion,
@@ -51,6 +34,23 @@ import type {
   UpgradePromptRequest,
   UpgradePromptResult,
   UpgradeTransport,
+} from '../../lib/index';
+import {
+  DEFAULT_UPGRADE_FACTORS,
+  factorRegistry,
+  INSUFFICIENT_USER_AUTHENTICATION,
+  parseChallengeBody,
+  parseChallengeHeader,
+  parseUpgradeChallenge,
+  passkeyFactor,
+  recoveryCodesFactor,
+  selectFactors,
+  totpFactor,
+  UPGRADE_REQUIRED,
+  UpgradeCancelledError,
+  UpgradeController,
+  UpgradeFactorError,
+  UpgradeUnsatisfiableError,
 } from '../../lib/index';
 
 describe('package entry point exposes the upgrade module', () => {

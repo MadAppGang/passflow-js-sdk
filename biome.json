@@ -1,19 +1,24 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
-  "vcs": { "enabled": false, "clientKind": "git", "useIgnoreFile": false },
+  "$schema": "https://biomejs.dev/schemas/2.6.4/schema.json",
+  "vcs": {
+    "enabled": false,
+    "clientKind": "git",
+    "useIgnoreFile": false
+  },
   "files": {
     "ignoreUnknown": false,
-    "ignore": [
-      "**/dist/**",
-      "coverage/**",
-      "**/lib/__test__/**",
-      "**/vitest.config.ts",
-      "**/vitest-setup.ts",
-      "**/vite.config.ts",
-      "**/examples/**",
-      "**/.claude/**",
-      "**/.mnemex/**",
-      "**/tests/upgrade/testdata/corpus/**"
+    "includes": [
+      "**",
+      "!**/dist/**",
+      "!**/coverage/**",
+      "!**/lib/__test__/**",
+      "!**/vitest.config.ts",
+      "!**/vitest-setup.ts",
+      "!**/vite.config.ts",
+      "!**/examples/**",
+      "!**/.claude/**",
+      "!**/.mnemex/**",
+      "!**/tests/upgrade/testdata/corpus/**"
     ]
   },
   "formatter": {
@@ -27,11 +32,17 @@
     "attributePosition": "auto",
     "bracketSpacing": true
   },
-  "organizeImports": { "enabled": true },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": false,
+      "preset": "none",
       "complexity": {
         "noExtraBooleanCast": "error",
         "noUselessCatch": "error",
@@ -120,9 +131,19 @@
     },
     "globals": ["NodeJS"]
   },
+  "markdown": {
+    "formatter": {
+      "enabled": false
+    }
+  },
+  "yaml": {
+    "formatter": {
+      "enabled": false
+    }
+  },
   "overrides": [
     {
-      "include": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+      "includes": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
       "linter": {
         "rules": {
           "correctness": {
@@ -136,9 +157,7 @@
             "noUnreachableSuper": "off"
           },
           "style": {
-            "useConst": "error",
-            "noVar": "error",
-            "noArguments": "error"
+            "useConst": "error"
           },
           "suspicious": {
             "noClassAssign": "off",
@@ -149,112 +168,17 @@
             "noImportAssign": "off",
             "noRedeclare": "off",
             "noUnsafeNegation": "off",
-            "useGetterReturn": "off"
-          }
-        }
-      }
-    },
-    {
-      "include": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "noConstAssign": "off",
-            "noGlobalObjectCalls": "off",
-            "noInvalidBuiltinInstantiation": "off",
-            "noInvalidConstructorSuper": "off",
-            "noSetterReturn": "off",
-            "noUndeclaredVariables": "off",
-            "noUnreachable": "off",
-            "noUnreachableSuper": "off"
+            "useGetterReturn": "off",
+            "noVar": "error"
           },
-          "style": {
-            "useConst": "error",
-            "noVar": "error",
+          "complexity": {
             "noArguments": "error"
-          },
-          "suspicious": {
-            "noClassAssign": "off",
-            "noDuplicateClassMembers": "off",
-            "noDuplicateObjectKeys": "off",
-            "noDuplicateParameters": "off",
-            "noFunctionAssign": "off",
-            "noImportAssign": "off",
-            "noRedeclare": "off",
-            "noUnsafeNegation": "off",
-            "useGetterReturn": "off"
           }
         }
       }
     },
     {
-      "include": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "noConstAssign": "off",
-            "noGlobalObjectCalls": "off",
-            "noInvalidBuiltinInstantiation": "off",
-            "noInvalidConstructorSuper": "off",
-            "noSetterReturn": "off",
-            "noUndeclaredVariables": "off",
-            "noUnreachable": "off",
-            "noUnreachableSuper": "off"
-          },
-          "style": {
-            "useConst": "error",
-            "noVar": "error",
-            "noArguments": "error"
-          },
-          "suspicious": {
-            "noClassAssign": "off",
-            "noDuplicateClassMembers": "off",
-            "noDuplicateObjectKeys": "off",
-            "noDuplicateParameters": "off",
-            "noFunctionAssign": "off",
-            "noImportAssign": "off",
-            "noRedeclare": "off",
-            "noUnsafeNegation": "off",
-            "useGetterReturn": "off"
-          }
-        }
-      }
-    },
-    {
-      "include": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "noConstAssign": "off",
-            "noGlobalObjectCalls": "off",
-            "noInvalidBuiltinInstantiation": "off",
-            "noInvalidConstructorSuper": "off",
-            "noSetterReturn": "off",
-            "noUndeclaredVariables": "off",
-            "noUnreachable": "off",
-            "noUnreachableSuper": "off"
-          },
-          "style": {
-            "useConst": "error",
-            "noVar": "error",
-            "noArguments": "error"
-          },
-          "suspicious": {
-            "noClassAssign": "off",
-            "noDuplicateClassMembers": "off",
-            "noDuplicateObjectKeys": "off",
-            "noDuplicateParameters": "off",
-            "noFunctionAssign": "off",
-            "noImportAssign": "off",
-            "noRedeclare": "off",
-            "noUnsafeNegation": "off",
-            "useGetterReturn": "off"
-          }
-        }
-      }
-    },
-    {
-      "include": ["**/tests/**/*.ts", "**/tests/**/*.tsx"],
+      "includes": ["**/tests/**/*.ts", "**/tests/**/*.tsx"],
       "linter": {
         "rules": {
           "suspicious": {

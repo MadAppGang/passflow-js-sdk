@@ -1,4 +1,4 @@
-import { Mock, afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, Mock, test, vi } from 'vitest';
 import { PassflowError } from '../../lib/api';
 import {
   TwoFactorConfirmResponse,

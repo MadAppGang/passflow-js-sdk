@@ -6,6 +6,7 @@ import { AxiosClient } from './axios-client';
 import {
   PassflowConfig,
   PassflowEndpointPaths,
+  pathWithParams,
   RegisteredTwoFactorMethod,
   TwoFactorAlternativeRequest,
   TwoFactorChallengeRequest,
@@ -29,7 +30,6 @@ import {
   TwoFactorVerifyRequestV2,
   TwoFactorVerifyResponse,
   TwoFactorVerifyResponseV2,
-  pathWithParams,
 } from './model';
 
 /** The 2FA token as the Bearer credential, or no config when there is none. */

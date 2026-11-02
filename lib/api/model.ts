@@ -3,7 +3,7 @@ import type {
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
-} from '@simplewebauthn/types';
+} from '@simplewebauthn/browser';
 import type { AxiosRequestConfig } from 'axios';
 
 import type { PlatformAdapter } from '../platform';

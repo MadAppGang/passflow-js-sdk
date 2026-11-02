@@ -1,4 +1,4 @@
-import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, Mock, test, vi } from 'vitest';
 import { TenantAPI } from '../../lib/api';
 import { TenantService } from '../../lib/services/tenant-service';
 

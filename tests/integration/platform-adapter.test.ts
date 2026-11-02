@@ -6,8 +6,8 @@
  * lifecycle hooks, passkeys, navigation, base64, and auth UI.
  */
 import { describe, expect, test, vi } from 'vitest';
-import { Providers } from '../../lib/api';
 import type { AuthAPI, UserAPI } from '../../lib/api';
+import { Providers } from '../../lib/api';
 import type { DeviceService } from '../../lib/device';
 import { Passflow } from '../../lib/passflow';
 import type { PlatformAdapter, PlatformStorage } from '../../lib/platform';

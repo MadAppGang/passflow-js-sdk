@@ -16,21 +16,20 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
-
-
+        # Every LTS line `engines` admits: 22 (maintenance), 24 (maintenance), 26 (active).
+        # See https://nodejs.org/en/about/previous-releases
+        node-version: [22.x, 24.x, 26.x]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.8.0 
+        # No `version:`: the action reads `packageManager` from package.json, so CI
+        # and local installs run the same pnpm.
+        uses: pnpm/action-setup@v6
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'pnpm'

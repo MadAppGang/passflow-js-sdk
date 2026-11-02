@@ -5,10 +5,10 @@
  * through error messages, logs, callbacks, or serialization.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { M2MClient, M2MError, M2MNetworkError } from '../../../lib/m2m';
-import { OAUTH_ERROR_INVALID_CLIENT, TEST_CLIENT_ID, TEST_CLIENT_SECRET, createMockConfig } from '../utils/fixtures';
+import { createMockConfig, OAUTH_ERROR_INVALID_CLIENT, TEST_CLIENT_ID, TEST_CLIENT_SECRET } from '../utils/fixtures';
 import { mockFetchError, setupFetchMock } from '../utils/mock-fetch';
 
 describe('M2M Client Security Validation', () => {

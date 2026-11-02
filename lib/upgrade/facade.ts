@@ -43,7 +43,7 @@ import { FETCH_PRIORITY_UPGRADE, registerFetchMiddleware } from '../interceptors
 import type { PlatformAdapter } from '../platform';
 
 import { readAcrValues } from './acr';
-import { type AxiosReissue, type ResponseInterceptorHost, attachUpgradeAuth, createAxiosUpgradeHandler } from './axios-adapter';
+import { type AxiosReissue, attachUpgradeAuth, createAxiosUpgradeHandler, type ResponseInterceptorHost } from './axios-adapter';
 import type { AssuranceBar, UpgradeChallenge, UpgradeDiagnosticSink } from './challenge';
 import {
   UpgradeController,
@@ -59,7 +59,7 @@ import type { UpgradeFactor } from './factors';
 import { upgradeFetch } from './fetch-adapter';
 import type { FetchLike, ReplayPolicy } from './replay';
 import type { UpgradeSessionPin } from './session';
-import { type UpgradeTransportDeps, createUpgradeTransport } from './transport';
+import { createUpgradeTransport, type UpgradeTransportDeps } from './transport';
 
 /** Domain 1, as resolved once from `PassflowConfig.url`. `null` = unresolved. */
 export type PassflowUpgradeDomain = { origin: string; pathPrefix?: string } | null;

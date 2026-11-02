@@ -16,11 +16,11 @@ import type { UpgradeRefreshField, UpgradeStartWire } from '../api/model';
 
 import type { UpgradeTransport } from './controller';
 import {
-  UpgradeTransportError,
   classifyUpgradeError,
   invalidatesSessionOnCommit,
   isUpgradeSdkError,
   isUpgradeTransportError,
+  UpgradeTransportError,
 } from './errors';
 import { DEFAULT_UPGRADE_FACTORS, type UpgradeAssertion, type UpgradeFactorType, type UpgradePrepared } from './factors';
 import type { UpgradeSessionPin } from './session';

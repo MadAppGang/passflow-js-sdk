@@ -46,20 +46,19 @@
  * that window queues behind the flight rather than opening a second prompt.
  */
 
+import type { PlatformAdapter } from '../platform';
 import type { AssuranceBar, UpgradeChallenge } from './challenge';
 import { UpgradeInsufficientError, UpgradeSessionChangedError, UpgradeTransportError, UpgradeUnavailableError } from './errors';
 import {
   DEFAULT_UPGRADE_FACTORS,
+  factorRegistry,
   type UpgradeAssertion,
   type UpgradeFactor,
   UpgradeFactorError,
   type UpgradeFactorType,
   type UpgradePrepared,
-  factorRegistry,
 } from './factors';
 import { selectFactors } from './select';
-
-import type { PlatformAdapter } from '../platform';
 
 /** What the UI is shown when an upgrade is required. */
 export type UpgradePromptRequest = {

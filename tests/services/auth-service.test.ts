@@ -1,4 +1,4 @@
-import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, Mock, test, vi } from 'vitest';
 import {
   AuthAPI,
   OS,
@@ -14,9 +14,9 @@ import { AuthService } from '../../lib/services/auth-service';
 import { TokenCacheService } from '../../lib/services/token-cache-service';
 import { StorageManager } from '../../lib/storage';
 import { PassflowEvent, PassflowStore } from '../../lib/store';
-import { Token, TokenService, isTokenExpired, parseToken } from '../../lib/token';
+import { isTokenExpired, parseToken, Token, TokenService } from '../../lib/token';
 import { ParsedTokens, Tokens } from '../../lib/types';
-import { MockPlatform, createMockPlatform } from '../helpers/mock-platform';
+import { createMockPlatform, MockPlatform } from '../helpers/mock-platform';
 
 // Mock dependencies
 vi.mock('../../lib/api/auth');

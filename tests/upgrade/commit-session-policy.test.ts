@@ -2,7 +2,7 @@
 // Revision 5 is authoritative: NEVER assert the complement of recoverable errors.
 import { expect, test, vi } from 'vitest';
 import { UpgradeController } from '../../lib/upgrade/controller';
-import { UpgradeErrorIds, UpgradeTransportError, invalidatesSessionOnCommit } from '../../lib/upgrade/errors';
+import { invalidatesSessionOnCommit, UpgradeErrorIds, UpgradeTransportError } from '../../lib/upgrade/errors';
 import { createUpgradeTransport } from '../../lib/upgrade/transport';
 import { createMockPlatform } from '../helpers/mock-platform';
 import { challenge, observed, promptDriver } from './pass2-fixtures';

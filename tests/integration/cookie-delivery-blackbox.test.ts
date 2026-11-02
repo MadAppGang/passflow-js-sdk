@@ -1,4 +1,4 @@
-import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, Mock, test, vi } from 'vitest';
 import { AUTH_RESPONSE, VALID_ID_TOKEN, VALID_TOKENS } from '../helpers/fixtures';
 
 /**

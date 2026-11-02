@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { M2MClient } from '../../../lib/m2m/client';
 import { M2MConfigError } from '../../../lib/m2m/errors';
 import { M2M_DEFAULTS } from '../../../lib/m2m/types';
-import { TEST_CLIENT_ID, TEST_CLIENT_SECRET, TEST_URL, createMockConfig } from '../utils/fixtures';
+import { createMockConfig, TEST_CLIENT_ID, TEST_CLIENT_SECRET, TEST_URL } from '../utils/fixtures';
 
 describe('M2MClient Constructor', () => {
   describe('Configuration Validation', () => {

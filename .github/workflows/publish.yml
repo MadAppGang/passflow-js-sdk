@@ -13,15 +13,15 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.8.0
+        # No `version:`: the action reads `packageManager` from package.json, so CI
+        # and local installs run the same pnpm.
+        uses: pnpm/action-setup@v6
 
       - name: Use Node.js 24.x
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24.x
           cache: 'pnpm'

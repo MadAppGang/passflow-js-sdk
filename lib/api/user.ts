@@ -1,4 +1,4 @@
-import { RegistrationResponseJSON } from '@simplewebauthn/types';
+import type { RegistrationResponseJSON } from '@simplewebauthn/browser';
 
 import { DeviceService } from '../device';
 import { StorageManager } from '../storage';

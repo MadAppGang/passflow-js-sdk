@@ -1,128 +1,59 @@
+export { type AcrReading, parseAcrToken, readAcrValues, requiredAcrLevel } from './acr';
 export {
-  INSUFFICIENT_USER_AUTHENTICATION,
-  UPGRADE_REQUIRED,
-  parseChallengeBody,
-  parseChallengeHeader,
-  parseUpgradeChallenge,
-  type UpgradeChallenge,
-} from './challenge';
-
+  type AxiosConfigLike,
+  type AxiosReissue,
+  attachUpgradeAuth,
+  createAxiosUpgradeHandler,
+  type ResponseInterceptorHost,
+} from './axios-adapter';
 export {
-  DEFAULT_UPGRADE_FACTORS,
-  factorRegistry,
-  passkeyFactor,
-  recoveryCodesFactor,
-  UpgradeFactorError,
-  totpFactor,
-  type UpgradeAssertion,
-  type UpgradeAssertContext,
-  type UpgradeFactor,
-  type UpgradeFactorInput,
-  type UpgradeFactorType,
-  type UpgradePrepared,
-} from './factors';
-
-export {
-  UpgradeCancelledError,
-  UpgradeController,
-  UpgradeUnsatisfiableError,
-  type UpgradeControllerOptions,
-  type UpgradePromptHandler,
-  type UpgradePromptRequest,
-  type UpgradePromptResult,
-  type UpgradeTransport,
-} from './controller';
-
-export {
-  RECOVERABLE_COMMIT_ERROR_IDS,
-  SESSION_INVALIDATING_COMMIT_ERROR_IDS,
-  UpgradeErrorIds,
-  UpgradeTransportError,
-  classifyUpgradeError,
-  invalidatesSessionOnCommit,
-  isRecoverableCommitFailure,
-  isRetryableUpgradeKind,
-  isUpgradeTransportError,
-  type UpgradeEndpoint,
-  type UpgradeErrorKind,
-  type UpgradeTransportErrorInit,
-} from './errors';
-
-export {
-  UPGRADE_REPLAYED_MARKER,
-  UPGRADE_TRANSACTION_MARKER,
-  hasUpgradeReplayedMarker,
-  hasUpgradeTransactionMarker,
-  markUpgradeReplayed,
-  markUpgradeTransaction,
-  type UpgradeRequestMarkers,
-} from './markers';
-
-export { selectFactors } from './select';
-
-export {
-  RELATIVE_BASE,
-  captureHeaders,
-  createRequestSnapshot,
-  headersToObject,
-  normaliseUrl,
-  snapshotHeader,
-  swapAuthorization,
-  type NormalisedUrl,
-  type RequestSnapshot,
-  type RequestSnapshotInit,
-  type SnapshotHeader,
-} from './snapshot';
-
-export {
-  readSessionPin,
-  sessionPinMatches,
-  type UpgradeSessionClaims,
-  type UpgradeSessionPin,
-} from './session';
-
-export { createUpgradeTransport, toPrepared, type UpgradeTransportDeps } from './transport';
-
-export { parseAcrToken, readAcrValues, requiredAcrLevel, type AcrReading } from './acr';
-
-export {
-  parseMaxAge,
-  readUpgradeChallenge,
   type AssuranceBar,
   type ChallengeChannel,
   type ChallengeInput,
-  type ChallengeReadOptions,
   type ChallengeReading,
+  type ChallengeReadOptions,
+  INSUFFICIENT_USER_AUTHENTICATION,
   type MaxAgeReading,
+  parseChallengeBody,
+  parseChallengeHeader,
+  parseMaxAge,
+  parseUpgradeChallenge,
+  readUpgradeChallenge,
+  UPGRADE_REQUIRED,
+  type UpgradeChallenge,
   type UpgradeDiagnostic,
   type UpgradeDiagnosticReason,
   type UpgradeDiagnosticSink,
 } from './challenge';
-
+export { type CreateClientConfig, createUpgradeClient } from './client';
 export {
   barMeets,
   barOf,
   mergeChallenges,
+  UpgradeCancelledError,
+  UpgradeController,
+  type UpgradeControllerOptions,
   type UpgradeElevation,
   type UpgradeFlightState,
   type UpgradeFlightSummary,
+  type UpgradePromptHandler,
+  type UpgradePromptRequest,
+  type UpgradePromptResult,
   type UpgradeProof,
+  type UpgradeTransport,
+  UpgradeUnsatisfiableError,
   type UpgradeWaiterSummary,
   type Waiter,
   type WaiterEntry,
   type WaiterOutcome,
   type WaiterReport,
 } from './controller';
-
 export {
-  UpgradeInsufficientError,
-  UpgradeSessionChangedError,
-  UpgradeUnavailableError,
-} from './errors';
-
-export {
+  type ChallengeContext,
+  type CoreOutcome,
   coreOutcomeToError,
   handleChallenge,
+  type InterceptionScope,
   isInterceptionScope,
   isUpgradeCancelled,
   isUpgradeExhausted,
@@ -131,41 +62,29 @@ export {
   isUpgradeTransportFailure,
   isUpgradeUnavailable,
   isUpgradeUnsatisfiable,
+  type Settlement,
   settleAxiosOutcome,
   settleFetchOutcome,
   tagUpgradeOutcome,
-  type ChallengeContext,
-  type CoreOutcome,
-  type InterceptionScope,
-  type Settlement,
   type UpgradeInterceptorOptions,
 } from './core';
-
 export {
-  methodOf,
-  planReplay,
-  policyPermits,
-  urlOf,
-  type BodyKind,
-  type FetchLike,
-  type ReplayHints,
-  type ReplayPlan,
-  type ReplayPolicy,
-  type UpgradeReplayInfo,
-} from './replay';
-
-export {
-  attachUpgradeAuth,
-  createAxiosUpgradeHandler,
-  type AxiosConfigLike,
-  type AxiosReissue,
-  type ResponseInterceptorHost,
-} from './axios-adapter';
-
-export { upgradeFetch } from './fetch-adapter';
-
-export { createUpgradeClient, type CreateClientConfig } from './client';
-
+  classifyUpgradeError,
+  invalidatesSessionOnCommit,
+  isRecoverableCommitFailure,
+  isRetryableUpgradeKind,
+  isUpgradeTransportError,
+  RECOVERABLE_COMMIT_ERROR_IDS,
+  SESSION_INVALIDATING_COMMIT_ERROR_IDS,
+  type UpgradeEndpoint,
+  UpgradeErrorIds,
+  type UpgradeErrorKind,
+  UpgradeInsufficientError,
+  UpgradeSessionChangedError,
+  UpgradeTransportError,
+  type UpgradeTransportErrorInit,
+  UpgradeUnavailableError,
+} from './errors';
 export {
   createUpgradeFacade,
   type PassflowUpgradeDomain,
@@ -175,3 +94,61 @@ export {
   type UpgradeOptions,
   type UpgradeResult,
 } from './facade';
+export {
+  DEFAULT_UPGRADE_FACTORS,
+  factorRegistry,
+  passkeyFactor,
+  recoveryCodesFactor,
+  totpFactor,
+  type UpgradeAssertContext,
+  type UpgradeAssertion,
+  type UpgradeFactor,
+  UpgradeFactorError,
+  type UpgradeFactorInput,
+  type UpgradeFactorType,
+  type UpgradePrepared,
+} from './factors';
+export { upgradeFetch } from './fetch-adapter';
+export {
+  hasUpgradeReplayedMarker,
+  hasUpgradeTransactionMarker,
+  markUpgradeReplayed,
+  markUpgradeTransaction,
+  UPGRADE_REPLAYED_MARKER,
+  UPGRADE_TRANSACTION_MARKER,
+  type UpgradeRequestMarkers,
+} from './markers';
+
+export {
+  type BodyKind,
+  type FetchLike,
+  methodOf,
+  planReplay,
+  policyPermits,
+  type ReplayHints,
+  type ReplayPlan,
+  type ReplayPolicy,
+  type UpgradeReplayInfo,
+  urlOf,
+} from './replay';
+export { selectFactors } from './select';
+export {
+  readSessionPin,
+  sessionPinMatches,
+  type UpgradeSessionClaims,
+  type UpgradeSessionPin,
+} from './session';
+export {
+  captureHeaders,
+  createRequestSnapshot,
+  headersToObject,
+  type NormalisedUrl,
+  normaliseUrl,
+  RELATIVE_BASE,
+  type RequestSnapshot,
+  type RequestSnapshotInit,
+  type SnapshotHeader,
+  snapshotHeader,
+  swapAuthorization,
+} from './snapshot';
+export { createUpgradeTransport, toPrepared, type UpgradeTransportDeps } from './transport';

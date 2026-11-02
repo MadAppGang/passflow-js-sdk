@@ -9,7 +9,7 @@ import {
   PassflowUserTenantMembershipResponse,
   TenantAPI,
 } from '../api';
-import { Logger, getDefaultLogger } from './logger';
+import { getDefaultLogger, Logger } from './logger';
 import { TenantUserMembership } from './tenant-user-membership';
 
 /**

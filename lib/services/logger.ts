@@ -13,22 +13,22 @@ export interface Logger {
  */
 export class ConsoleLogger implements Logger {
   error(message: string, ...args: unknown[]): void {
-    // biome-ignore lint/suspicious/noConsole: <explanation>
+    // biome-ignore lint/suspicious/noConsole: this logger exists to write to the console
     console.error(message, ...args);
   }
 
   warn(message: string, ...args: unknown[]): void {
-    // biome-ignore lint/suspicious/noConsole: <explanation>
+    // biome-ignore lint/suspicious/noConsole: this logger exists to write to the console
     console.warn(message, ...args);
   }
 
   info(message: string, ...args: unknown[]): void {
-    // biome-ignore lint/suspicious/noConsole: <explanation>
+    // biome-ignore lint/suspicious/noConsole: this logger exists to write to the console
     console.info(message, ...args);
   }
 
   debug(message: string, ...args: unknown[]): void {
-    // biome-ignore lint/suspicious/noConsole: <explanation>
+    // biome-ignore lint/suspicious/noConsole: this logger exists to write to the console
     console.debug(message, ...args);
   }
 }

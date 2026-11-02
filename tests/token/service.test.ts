@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 import { StorageManager } from '../../lib/storage';
-import { Token, TokenService, TokenType, isTokenExpired, parseToken } from '../../lib/token';
+import { isTokenExpired, parseToken, Token, TokenService, TokenType } from '../../lib/token';
 import { parseMembership } from '../../lib/token/membership';
 
 import { FakeStorage } from '../storage/fake-storage';

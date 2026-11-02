@@ -1,4 +1,4 @@
-import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, Mock, test, vi } from 'vitest';
 import {
   Invitation,
   InvitationAPI,

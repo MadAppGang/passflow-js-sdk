@@ -2,7 +2,7 @@
  * The first factor on a PKCE app: every native sign-in path sends a challenge and
  * redeems the code it gets back, and nothing that is not a token reaches storage.
  */
-import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, Mock, test, vi } from 'vitest';
 import { AuthAPI } from '../../lib/api';
 import { DeviceService } from '../../lib/device';
 import { s256Challenge } from '../../lib/pkce';

@@ -2,17 +2,17 @@
  * Unit tests for M2MClient.getToken() method
  */
 
-import { type Mock, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest';
 import { M2MClient } from '../../../lib/m2m/client';
 import { FakeCache } from '../utils/fake-cache';
 import {
+  createMockConfig,
+  createMockToken,
   TEST_AUDIENCE,
   TEST_CLIENT_ID,
   TEST_CLIENT_SECRET,
   TEST_SCOPES,
   TEST_URL,
-  createMockConfig,
-  createMockToken,
 } from '../utils/fixtures';
 import { getLastFetchBody, getLastFetchHeaders, mockFetchSuccess, resetFetchMock, setupFetchMock } from '../utils/mock-fetch';
 
