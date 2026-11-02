@@ -11,9 +11,6 @@ importers:
       '@simplewebauthn/browser':
         specifier: ^13.2.2
         version: 13.2.2
-      '@simplewebauthn/types':
-        specifier: ^12.0.0
-        version: 12.0.0
       axios:
         specifier: ^1.13.2
         version: 1.13.2
@@ -468,10 +465,6 @@ packages:
 
   '@simplewebauthn/browser@13.2.2':
     resolution: {integrity: sha512-FNW1oLQpTJyqG5kkDg5ZsotvWgmBaC6jCHR7Ej0qUNep36Wl9tj2eZu7J5rP+uhXgHaLk+QQ3lqcw2vS5MX1IA==}
-
-  '@simplewebauthn/types@12.0.0':
-    resolution: {integrity: sha512-q6y8MkoV8V8jB4zzp18Uyj2I7oFp2/ONL8c3j8uT06AOWu3cIChc1au71QYHrP2b+xDapkGTiv+9lX7xkTlAsA==}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -1455,8 +1448,6 @@ snapshots:
     optional: true
 
   '@simplewebauthn/browser@13.2.2': {}
-
-  '@simplewebauthn/types@12.0.0': {}
 
   '@types/chai@5.2.3':
     dependencies:

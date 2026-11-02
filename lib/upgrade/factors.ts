@@ -11,7 +11,7 @@
  * costs a guaranteed round-trip and a 400 on every TOTP upgrade.
  */
 
-import type { AuthenticationResponseJSON, PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/types';
+import type { AuthenticationResponseJSON, PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 import type { PlatformAdapter } from '../platform';
 
 /** Factor types the upgrade protocol understands, named as `upgrade.type` on the wire. */

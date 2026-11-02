@@ -1,4 +1,4 @@
-import { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/types';
+import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/browser';
 import type { AxiosRequestConfig } from 'axios';
 import { APP_ID_HEADER_KEY, AUTHORIZATION_HEADER_KEY } from '../constants';
 
