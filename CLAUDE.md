@@ -70,7 +70,7 @@ The SDK is organized around a main `Passflow` class that orchestrates multiple s
 - Fake storage implementation for testing
 
 ### Build System
-- TypeScript compilation with declaration files
+- TypeScript declarations are emitted by `tsc` to `dist/.tsc` and bundled by rolldown-plugin-dts into `dist/index.d.ts` + `dist/index.d.cts` (`rolldown.dts.config.mjs`); `dist/.tsc` is removed after bundling
 - Vite for bundling (both ESM and CJS outputs)
 - Biome for linting and formatting
 - Supports both import and require usage
