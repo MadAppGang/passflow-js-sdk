@@ -25,21 +25,21 @@
 export { M2MClient } from './client';
 
 // Error classes
-export { M2MError, M2MNetworkError, M2MTokenParseError, M2MConfigError } from './errors';
+export { M2MConfigError, M2MError, M2MNetworkError, M2MTokenParseError } from './errors';
 
 // Types
 export type {
   M2MClientConfig,
-  M2MTokenRequestOptions,
-  M2MTokenRequestInfo,
-  M2MTokenResponse,
-  M2MErrorResponse,
-  M2MTokenClaims,
   M2MErrorCode,
-  M2MTokenCache,
-  RetryStrategy,
+  M2MErrorResponse,
   M2MRateLimitInfo,
+  M2MTokenCache,
+  M2MTokenClaims,
+  M2MTokenRequestInfo,
+  M2MTokenRequestOptions,
+  M2MTokenResponse,
+  RetryStrategy,
 } from './types';
 
 // Constants
-export { M2MErrorCodes, M2M_DEFAULTS } from './types';
+export { M2M_DEFAULTS, M2MErrorCodes } from './types';

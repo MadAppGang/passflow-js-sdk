@@ -6,8 +6,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { M2MClient } from '../../../lib/m2m';
 import type { M2MTokenResponse } from '../../../lib/m2m';
+import { M2MClient } from '../../../lib/m2m';
 import { createMockConfig, createMockToken } from '../utils/fixtures';
 
 describe('M2MClient - Token Validation', () => {

@@ -10,7 +10,7 @@
  * The store and the TwoFactorService are real here, so the hand-over is
  * exercised end to end rather than asserted on a mocked `notify`.
  */
-import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, Mock, test, vi } from 'vitest';
 import { AuthAPI, PassflowAuthorizationResponse, Providers } from '../../lib/api';
 import { TwoFactorApiClient } from '../../lib/api/two-factor';
 import { DeviceService } from '../../lib/device';

@@ -13,10 +13,10 @@ import {
   type PassflowPasskeyAuthenticateStartPayload,
   type PassflowPasskeyRegisterStartPayload,
   type PassflowPasskeySettings,
-  type PassflowPasswordPolicySettings,
   type PassflowPasswordlessResponse,
   type PassflowPasswordlessSignInCompletePayload,
   type PassflowPasswordlessSignInPayload,
+  type PassflowPasswordPolicySettings,
   type PassflowSendPasswordResetEmailPayload,
   type PassflowSettingsAll,
   type PassflowSignInPayload,
@@ -25,6 +25,7 @@ import {
   type PassflowTenantResponse,
   type PassflowValidationResponse,
   type RequestInviteLinkPayload,
+  resolveUpgradeDomain,
   SettingAPI,
   TenantAPI,
   TwoFactorApiClient,
@@ -40,7 +41,6 @@ import {
   UpgradeAPI,
   type UpgradeDomain,
   UserAPI,
-  resolveUpgradeDomain,
 } from './api';
 
 import type { AxiosClient, AxiosUpgradeHandler } from './api/axios-client';
@@ -51,19 +51,18 @@ import { webAdapter } from './platform';
 import { AuthService, InvitationService, TenantService, TokenCacheService, TwoFactorService, UserService } from './services';
 import { StorageManager } from './storage';
 import { type ErrorPayload, PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
-import { TokenType, parseToken } from './token';
+import { parseToken, TokenType } from './token';
+import type { ParsedTokens, SessionParams, Tokens } from './types';
 import {
   type AssuranceBar,
   type CreateClientConfig,
-  type FetchLike,
-  type ResponseInterceptorHost,
-  type UpgradeFacade,
   createUpgradeClient,
   createUpgradeFacade,
+  type FetchLike,
+  type ResponseInterceptorHost,
   readAcrValues,
+  type UpgradeFacade,
 } from './upgrade';
-
-import type { ParsedTokens, SessionParams, Tokens } from './types';
 import { isValidJWTFormat, sanitizeErrorMessage } from './utils/validation';
 
 export class Passflow {

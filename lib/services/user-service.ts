@@ -1,4 +1,4 @@
-import { PassflowSuccessResponse, UserAPI, getOSFromDeviceType } from '../api';
+import { getOSFromDeviceType, PassflowSuccessResponse, UserAPI } from '../api';
 import type { PlatformAdapter } from '../platform';
 import { webAdapter } from '../platform';
 

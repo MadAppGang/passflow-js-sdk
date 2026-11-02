@@ -9,8 +9,8 @@
  * simultaneously. These tests document the ACTUAL behavior.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { M2MClient } from '../../../lib/m2m';
 import { FakeCache } from '../utils/fake-cache';
 import { createExpiredToken, createMockConfig, createMockToken } from '../utils/fixtures';

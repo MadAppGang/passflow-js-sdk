@@ -1,9 +1,9 @@
-import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, Mock, test, vi } from 'vitest';
 import { OS, PassflowSuccessResponse, UserAPI } from '../../lib/api';
 import { DeviceService } from '../../lib/device';
 import type { PlatformAdapter } from '../../lib/platform';
 import { UserService } from '../../lib/services/user-service';
-import { MockPlatform, createMockPlatform } from '../helpers/mock-platform';
+import { createMockPlatform, MockPlatform } from '../helpers/mock-platform';
 
 // Mock dependencies
 vi.mock('../../lib/api/user');

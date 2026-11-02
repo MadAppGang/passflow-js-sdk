@@ -2,15 +2,15 @@
 // Coverage map: REQ-10 (NFR-cancel), REQ-41 (C27), REQ-70 (C24e)
 import { expect, test } from 'vitest';
 import {
-  UpgradeCancelledError,
-  UpgradeSessionChangedError,
-  UpgradeUnavailableError,
-  UpgradeUnsatisfiableError,
   isUpgradeCancelled,
   isUpgradeSessionChanged,
   isUpgradeTransportFailure,
   isUpgradeUnavailable,
   isUpgradeUnsatisfiable,
+  UpgradeCancelledError,
+  UpgradeSessionChangedError,
+  UpgradeUnavailableError,
+  UpgradeUnsatisfiableError,
 } from '../../lib/index';
 import { upgradeFetch } from '../../lib/upgrade/fetch-adapter';
 import { challengeResponse, options } from './fetch-fixtures';

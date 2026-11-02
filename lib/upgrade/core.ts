@@ -27,13 +27,13 @@
 import {
   type AssuranceBar,
   type ChallengeChannel,
+  readUpgradeChallenge,
   type UpgradeChallenge,
   type UpgradeDiagnostic,
   type UpgradeDiagnosticReason,
   type UpgradeDiagnosticSink,
-  readUpgradeChallenge,
 } from './challenge';
-import { UpgradeCancelledError, type UpgradeElevation, UpgradeUnsatisfiableError, type Waiter, barOf } from './controller';
+import { barOf, UpgradeCancelledError, type UpgradeElevation, UpgradeUnsatisfiableError, type Waiter } from './controller';
 import { UpgradeInsufficientError, UpgradeSessionChangedError, UpgradeTransportError, UpgradeUnavailableError } from './errors';
 import type { ReplayHints, ReplayPolicy } from './replay';
 import type { RequestSnapshot } from './snapshot';

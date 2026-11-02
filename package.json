@@ -18,7 +18,9 @@
       }
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
   },
@@ -34,13 +36,13 @@
     "test:ui": "vitest --ui",
     "corpus:check": "node scripts/check-corpus.mjs",
     "lint": "biome check .",
-    "lint:fix": "biome check . --apply",
+    "lint:fix": "biome check . --write",
     "format": "biome format . --write",
-    "lint:format:fix": "biome check . --apply && biome format . --write",
+    "lint:format:fix": "biome check . --write && biome format . --write",
     "ci": "biome ci ."
   },
   "devDependencies": {
-    "@biomejs/biome": "1.9.4",
+    "@biomejs/biome": "2.6.4",
     "@types/node": "^25.0.9",
     "@vitest/coverage-v8": "^5.0.5",
     "@vitest/ui": "^5.0.5",

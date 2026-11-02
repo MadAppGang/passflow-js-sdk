@@ -1,7 +1,7 @@
 // @vitest-environment node
 // REQ-41 C27: shared suite over the declared adapter constructors and internal-seam factory.
 // This does NOT claim Passflow's internal AxiosClient session-invalidating interceptor is tested.
-import axios, { AxiosError, AxiosHeaders, type AxiosAdapter } from 'axios';
+import axios, { type AxiosAdapter, AxiosError, AxiosHeaders } from 'axios';
 import { describe, expect, test } from 'vitest';
 import type { AxiosConfigLike } from '../../lib/upgrade/axios-adapter';
 import { createUpgradeClient } from '../../lib/upgrade/client';
@@ -15,8 +15,8 @@ import {
   isUpgradeUnsatisfiable,
 } from '../../lib/upgrade/core';
 import { UpgradeSessionChangedError } from '../../lib/upgrade/errors';
-import { createUpgradeFacade } from '../../lib/upgrade/facade';
 import type { UpgradeFacadeDeps } from '../../lib/upgrade/facade';
+import { createUpgradeFacade } from '../../lib/upgrade/facade';
 import { createMockPlatform } from '../helpers/mock-platform';
 import { challengeHeader, challengeResponse } from './fetch-fixtures';
 import { observed } from './pass2-fixtures';

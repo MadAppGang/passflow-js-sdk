@@ -22,4 +22,4 @@ export type SessionParams = {
 };
 
 // Token delivery mode and session state exports
-export { TokenDeliveryMode, SessionState };
+export { SessionState, TokenDeliveryMode };

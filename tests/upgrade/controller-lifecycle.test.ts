@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, test, vi } from 'vitest';
 import type { AssuranceBar } from '../../lib/upgrade/challenge';
-import { UpgradeController, barMeets } from '../../lib/upgrade/controller';
 import type { UpgradeFlightSummary } from '../../lib/upgrade/controller';
+import { barMeets, UpgradeController } from '../../lib/upgrade/controller';
 import { isUpgradeInsufficient } from '../../lib/upgrade/core';
 import { UpgradeTransportError } from '../../lib/upgrade/errors';
 import { createUpgradeFacade } from '../../lib/upgrade/facade';

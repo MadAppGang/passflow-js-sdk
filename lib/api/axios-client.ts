@@ -12,7 +12,7 @@ import { DeviceService } from '../device';
 import type { PlatformAdapter } from '../platform';
 import { webAdapter } from '../platform';
 import { StorageManager } from '../storage';
-import { TokenService, isTokenExpired, parseToken } from '../token';
+import { isTokenExpired, parseToken, TokenService } from '../token';
 import { TokenDeliveryManager } from '../token/delivery-manager';
 import type { UpgradeChallenge } from '../upgrade/challenge';
 import { parseUpgradeChallenge } from '../upgrade/challenge';
@@ -26,8 +26,8 @@ import {
   PassflowResponseError,
   RequestMethod,
   RequestOptions,
-  type UpgradeDomain,
   resolveUpgradeDomain,
+  type UpgradeDomain,
 } from './model';
 
 export enum HttpStatuses {
@@ -471,7 +471,7 @@ export class AxiosClient {
   }
 
   // eslint-disable-next-line complexity
-  // biome-ignore lint/suspicious/useAwait: <explanation>
+  // biome-ignore lint/suspicious/useAwait: async so any synchronous throw reaches the interceptor as a rejection
   private async handleAxiosError(e: AxiosError): Promise<unknown> {
     // Handle network
     if (!e.response) {

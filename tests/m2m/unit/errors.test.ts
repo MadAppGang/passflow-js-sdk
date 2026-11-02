@@ -5,16 +5,16 @@
  * network errors, malformed responses, and error callbacks.
  */
 
-import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { M2MClient } from '../../../lib/m2m/client';
 import { M2MError, M2MNetworkError } from '../../../lib/m2m/errors';
 import {
+  createMockConfig,
   OAUTH_ERROR_INVALID_CLIENT,
   OAUTH_ERROR_INVALID_SCOPE,
   OAUTH_ERROR_SERVER_ERROR,
   TEST_URL,
   VALID_TOKEN_RESPONSE,
-  createMockConfig,
 } from '../utils/fixtures';
 import {
   mockFetchError,

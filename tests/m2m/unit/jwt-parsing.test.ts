@@ -3,9 +3,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { M2MClient, M2MTokenParseError } from '../../../lib/m2m';
 import type { M2MTokenClaims } from '../../../lib/m2m';
-import { TEST_CLIENT_ID, TEST_SCOPES, TEST_URL, createMockConfig, createValidJWT } from '../utils/fixtures';
+import { M2MClient, M2MTokenParseError } from '../../../lib/m2m';
+import { createMockConfig, createValidJWT, TEST_CLIENT_ID, TEST_SCOPES, TEST_URL } from '../utils/fixtures';
 
 describe('M2MClient.parseToken()', () => {
   const client = new M2MClient(createMockConfig());

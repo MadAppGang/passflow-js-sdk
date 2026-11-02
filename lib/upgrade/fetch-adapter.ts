@@ -23,12 +23,12 @@
 import {
   type AbortView,
   type ChallengeContext,
-  type UpgradeInterceptorOptionsSource,
   handleChallenge,
   resolveInterceptorOptions,
   settleFetchOutcome,
+  type UpgradeInterceptorOptionsSource,
 } from './core';
-import { type FetchLike, type ReplayHints, type ReplayPlan, planReplay } from './replay';
+import { type FetchLike, planReplay, type ReplayHints, type ReplayPlan } from './replay';
 
 /**
  * How many upgrade-aware fetch layers are DISPATCHING through this one, right

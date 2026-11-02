@@ -2,7 +2,7 @@
  * TwoFactorService: `trustDevice`, the pending 2FA token on the v2 calls, and
  * trusted-device management.
  */
-import { Mock, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, Mock, test, vi } from 'vitest';
 import { TwoFactorApiClient } from '../../lib/api/two-factor';
 import { TwoFactorService } from '../../lib/services/two-factor-service';
 import { PassflowEvent, PassflowStore } from '../../lib/store';

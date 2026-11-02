@@ -1,6 +1,7 @@
 import axios from 'axios';
 import {
   AuthAPI,
+  getOSFromDeviceType,
   PassflowAuthorizationResponse,
   PassflowError,
   PassflowFederatedAuthExtendedPayload,
@@ -17,19 +18,17 @@ import {
   PassflowValidationResponse,
   TokenExchangeConfig,
   type UpgradeRefreshField,
-  getOSFromDeviceType,
 } from '../api';
 import { DeviceService } from '../device';
-import { type PkcePair, createPkcePair } from '../pkce';
-import { type PlatformAdapter, PopupClosedError } from '../platform';
-import { webAdapter } from '../platform';
+import { createPkcePair, type PkcePair } from '../pkce';
+import { type PlatformAdapter, PopupClosedError, webAdapter } from '../platform';
 import { StorageManager } from '../storage';
 import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
-import { TokenType, isTokenExpired, parseToken } from '../token';
+import { isTokenExpired, parseToken, TokenType } from '../token';
 import { TokenDeliveryManager, TokenDeliveryMode } from '../token/delivery-manager';
 import { ParsedTokens, Tokens } from '../types';
 import { UpgradeSessionChangedError, UpgradeTransportError } from '../upgrade/errors';
-import { type UpgradeSessionPin, readSessionPin, sessionPinMatches } from '../upgrade/session';
+import { readSessionPin, sessionPinMatches, type UpgradeSessionPin } from '../upgrade/session';
 import { isValidEmail, isValidPhoneNumber, isValidUsername } from '../utils/validation';
 import { getDefaultLogger } from './logger';
 import { TokenCacheService } from './token-cache-service';

@@ -29,16 +29,16 @@
 import {
   type AbortView,
   type ChallengeContext,
-  type UpgradeInterceptorOptions,
-  type UpgradeInterceptorOptionsSource,
   handleChallenge,
   resolveInterceptorOptions,
   settleAxiosOutcome,
+  type UpgradeInterceptorOptions,
+  type UpgradeInterceptorOptionsSource,
 } from './core';
 import { isUpgradeSdkError } from './errors';
 import { hasUpgradeReplayedMarker, hasUpgradeTransactionMarker, markUpgradeReplayed } from './markers';
-import { type ReplayHints, type UpgradeReplayInfo, policyPermits } from './replay';
-import { type RequestSnapshot, createRequestSnapshot, headersToObject, swapAuthorization } from './snapshot';
+import { policyPermits, type ReplayHints, type UpgradeReplayInfo } from './replay';
+import { createRequestSnapshot, headersToObject, type RequestSnapshot, swapAuthorization } from './snapshot';
 
 /**
  * The only thing we require of a client: that it lets us add and remove a
