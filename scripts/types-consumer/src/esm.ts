@@ -2,10 +2,16 @@
 // It touches representative exports by value and by type, so the shipped declarations are
 // resolved and checked (skipLibCheck: false) under node16, nodenext and bundler.
 import {
+  APP_SECRET_NAMES,
+  type AppSecretName,
+  type AppSettings,
   type ErrorPayload,
   isEmailVerificationStep,
+  isMaskedSecret,
   M2MClient,
   type M2MClientConfig,
+  MASKED_SECRET_PREFIX,
+  type MaskedSecret,
   Passflow,
   type PassflowAuthorizationResponse,
   type PassflowConfig,
@@ -22,6 +28,7 @@ import {
   type RefreshCoordinator,
   RefreshErrorId,
   SDK_VERSION,
+  SETTINGS_MASKED_VALUE_UNKNOWN_ERROR_ID,
   type SessionExpiredReason,
   type Token,
   TokenDeliveryMode,
@@ -72,3 +79,11 @@ export const emailEvent: PassflowEventPayload[PassflowEvent.EmailVerificationReq
 export const emailEv: PassflowEvent = PassflowEvent.EmailVerificationRequired;
 export const codePayload: PassflowEmailCodePayload = { challenge_id: 'c', otp: '123456' };
 export const verified: Promise<PassflowAuthorizationResponse> = pf.verifyEmailCode(codePayload);
+
+// Admin settings secrets (PFL-770): write-only app secret names, masked server settings values.
+export const secretNames: readonly AppSecretName[] = APP_SECRET_NAMES;
+export const secretName: AppSecretName = 'fcm_server_key';
+export const masked: MaskedSecret = `${MASKED_SECRET_PREFIX}********`;
+export const isMasked: boolean = isMaskedSecret(masked);
+export const maskedErrorId: string = SETTINGS_MASKED_VALUE_UNKNOWN_ERROR_ID;
+export const otpCodeSet: AppSettings['debug_otp_code_set'] = true;

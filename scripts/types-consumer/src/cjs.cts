@@ -2,8 +2,12 @@
 // A .cts file under node16 resolves @passflow/core through `exports.require.types`, which
 // must not point at a file TypeScript reads as ESM-only (TS1479).
 import {
+  APP_SECRET_NAMES,
+  type AppSecretName,
   isEmailVerificationStep,
+  isMaskedSecret,
   M2MClient,
+  type MaskedSecret,
   Passflow,
   type PassflowAuthorizationResponse,
   type PassflowConfig,
@@ -13,6 +17,7 @@ import {
   PassflowEvent,
   PassflowRefreshError,
   RefreshErrorId,
+  SETTINGS_MASKED_VALUE_UNKNOWN_ERROR_ID,
   TokenDeliveryMode,
 } from '@passflow/core';
 
@@ -31,3 +36,9 @@ export const emailOp: PassflowEmailVerificationOperation = 'reset-password';
 export const emailEv: PassflowEvent = PassflowEvent.EmailVerificationRequired;
 export const codePayload: PassflowEmailCodePayload = { challenge_id: 'c', otp: '123456' };
 export const verified: Promise<PassflowAuthorizationResponse> = pf.verifyEmailCode(codePayload);
+
+// Admin settings secrets (PFL-770).
+export const secretNames: readonly AppSecretName[] = APP_SECRET_NAMES;
+export const masked: MaskedSecret = 'mask://********/0123456789abcdef';
+export const isMasked: boolean = isMaskedSecret(masked);
+export const maskedErrorId: string = SETTINGS_MASKED_VALUE_UNKNOWN_ERROR_ID;

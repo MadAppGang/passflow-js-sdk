@@ -52,6 +52,7 @@
       - [PassflowSignUpPayload](#passflowsignuppayload)
       - [UserMembership](#usermembership)
       - [PassflowEvent](#passflowevent)
+      - [Admin settings secrets](#admin-settings-secrets)
   - [Detailed Examples](#detailed-examples)
     - [Complete Sign In Flow](#complete-sign-in-flow)
     - [Authentication with Passkeys](#authentication-with-passkeys)
@@ -955,6 +956,28 @@ enum PassflowEvent {
   // ...and the sign-in, 2FA and session events; see lib/store.ts
 }
 ```
+
+#### Admin settings secrets
+
+App secrets are write-only and server settings secrets come back masked. The SDK has no admin
+client; these exports are for admin UIs that call the admin routes themselves.
+
+```typescript
+type AppSettings = {
+  // ...
+  debug_otp_code_for_registration?: string; // write-only: answers return ""
+  debug_otp_code_set?: boolean; // read-only: true when a code is stored
+};
+type AppSecretName = "debug_otp_code_for_registration" | "fcm_server_key" | "webpush_vapid_private_key";
+const APP_SECRET_NAMES: readonly AppSecretName[]; // DELETE /admin/apps/{id}/secrets/{name}
+
+type MaskedSecret = string; // "mask://********" or "mask://********/<16 hex>"
+const MASKED_SECRET_PREFIX = "mask://";
+const SETTINGS_MASKED_VALUE_UNKNOWN_ERROR_ID = "error.server.update.settings.masked.value.unknown";
+function isMaskedSecret(value: unknown): value is MaskedSecret;
+```
+
+Write, keep and clear rules: [docs/admin-secrets.md](docs/admin-secrets.md).
 
 ## Detailed Examples
 
