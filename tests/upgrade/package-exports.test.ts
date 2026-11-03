@@ -199,7 +199,15 @@ const runNode = (source: string, esm = false): string => {
 };
 
 // Symbols spanning several sub-modules, so a partial or tree-shaken bundle is caught too.
-const KNOWN_EXPORTS = ['Passflow', 'CLIAuthAPI', 'UpgradeController', 'parseUpgradeChallenge', 'TwoFactorService', 'M2MClient'];
+const KNOWN_EXPORTS = [
+  'Passflow',
+  'CLIAuthAPI',
+  'UpgradeController',
+  'parseUpgradeChallenge',
+  'TwoFactorService',
+  'M2MClient',
+  'isEmailVerificationStep',
+];
 
 describe.skipIf(!distIsBuilt)('the built package serves both entry conditions', () => {
   test('ships a `.cjs` bundle and no `.js` bundle for Node to misparse', () => {

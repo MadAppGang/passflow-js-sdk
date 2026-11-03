@@ -12,6 +12,7 @@ import {
   PassflowAdminEndpointPaths,
   PassflowAuthorizationResponse,
   PassflowConfig,
+  PassflowEmailCodePayload,
   PassflowEndpointPaths,
   PassflowLogoutResponse,
   PassflowPasskeyAuthenticatePayload,
@@ -157,6 +158,20 @@ export class AuthAPI {
     return this.axiosClient.post<PassflowValidationResponse, PassflowPasswordlessSignInCompletePayload>(
       PassflowEndpointPaths.passwordlessComplete,
       payload,
+      SIGN_IN_REQUEST_CONFIG,
+    );
+  }
+
+  /**
+   * Proves an emailed code for a sign-up, sign-in or password change that answered with
+   * `email_verification_required`. Only `{challenge_id, otp}` is sent: the server reads the
+   * device from the `X-Passflow-DeviceId` header. Sent with credentials, as every call that
+   * ends a sign-in is.
+   */
+  validateEmailCode(payload: PassflowEmailCodePayload): Promise<PassflowAuthorizationResponse> {
+    return this.axiosClient.post<PassflowAuthorizationResponse, PassflowEmailCodePayload>(
+      PassflowEndpointPaths.passkeyValidate,
+      { challenge_id: payload.challenge_id, otp: payload.otp },
       SIGN_IN_REQUEST_CONFIG,
     );
   }

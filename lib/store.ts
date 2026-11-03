@@ -21,6 +21,8 @@ export enum PassflowEvent {
   SignInStart = 'signin:start',
   Register = 'register',
   RegisterStart = 'register:start',
+  /** A sign-up, sign-in or password change is waiting for the email to be proven (no session yet). */
+  EmailVerificationRequired = 'email-verification:required',
   SignOut = 'signout',
   SessionRestored = 'session:restored',
   SessionExpired = 'session:expired',
@@ -59,6 +61,7 @@ export type PassflowOperation =
   | 'passwordless.complete'
   | 'password-reset.send'
   | 'password-reset.complete'
+  | 'email-verification.complete'
   | 'passkey.register'
   | 'passkey.authenticate'
   | 'federated.popup'
@@ -127,6 +130,9 @@ export interface ErrorPayload {
 /** An `Error` payload as the SDK reports it: `operation` is required. */
 export type OperationErrorPayload = ErrorPayload & { operation: PassflowOperation };
 
+/** Which call produced an `EmailVerificationRequired` event. */
+export type PassflowEmailVerificationOperation = 'sign-up' | 'sign-in' | 'reset-password';
+
 /**
  * Event-specific payload types
  */
@@ -140,6 +146,13 @@ export type PassflowEventPayload = {
   [PassflowEvent.SignInStart]: { email?: string; provider?: string };
   [PassflowEvent.Register]: { tokens?: Tokens; parsedTokens?: ParsedTokens };
   [PassflowEvent.RegisterStart]: { email?: string };
+  [PassflowEvent.EmailVerificationRequired]: {
+    /** The address the code or link went to, when the SDK knows it. */
+    email?: string;
+    /** Present when a code was emailed; absent when a link was emailed instead. */
+    challengeId?: string;
+    operation: PassflowEmailVerificationOperation;
+  };
   [PassflowEvent.SignOut]: {
     /** `sub` of the session that ended, when known. */
     userId?: string;

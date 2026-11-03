@@ -8,6 +8,7 @@ import {
   type InviteLinkResponse,
   type PassflowAuthorizationResponse,
   type PassflowConfig,
+  type PassflowEmailCodePayload,
   PassflowError,
   PassflowFederatedAuthPayload,
   type PassflowPasskeyAuthenticateStartPayload,
@@ -911,6 +912,8 @@ export class Passflow {
    * @param payload.password - User's password
    * @param payload.scopes - Optional scopes to request (defaults to SDK scopes)
    * @returns Promise with authorization response containing tokens
+   * May answer an email verification step instead of tokens: check it with
+   * `isEmailVerificationStep(response)`. With a `challenge_id`, finish with `verifyEmailCode`.
    * @throws {PassflowError} If authentication fails
    *
    * @example
@@ -941,6 +944,8 @@ export class Passflow {
    * @param payload.username - Optional username
    * @param payload.scopes - Optional scopes to request
    * @returns Promise with authorization response containing tokens
+   * May answer an email verification step instead of tokens: check it with
+   * `isEmailVerificationStep(response)`. With a `challenge_id`, finish with `verifyEmailCode`.
    * @throws {PassflowError} If registration fails
    *
    * @example
@@ -1013,6 +1018,32 @@ export class Passflow {
     const response = await this.authService.passwordlessSignInComplete(payload);
 
     return response;
+  }
+
+  /**
+   * Finishes a sign-up, sign-in or password change that answered with `email_verification_required`
+   * and a `challenge_id`, using the code the user received by email. Answers like `signIn`: a new
+   * token pair, or a `tfa_token` when a second factor is owed (`isTwoFactorVerificationRequired()`
+   * is then true).
+   *
+   * Emits `Register` for a challenge this instance got from `signUp`, and `SignIn` otherwise. The
+   * challenges are remembered in memory only, so a code typed in another tab or after the
+   * `Passflow` instance was recreated emits `SignIn`, even for a sign-up.
+   *
+   * @param payload.challenge_id - The `challenge_id` from the email verification step
+   * @param payload.otp - The code from the email
+   * @throws {PassflowError} wrong, expired or spent code (`error.otp.*`), unknown challenge (`error.not.found`)
+   *
+   * @example
+   * ```typescript
+   * const step = await passflow.signUp({ user: { email, password } });
+   * if (isEmailVerificationStep(step) && step.challenge_id) {
+   *   const response = await passflow.verifyEmailCode({ challenge_id: step.challenge_id, otp: '123456' });
+   * }
+   * ```
+   */
+  async verifyEmailCode(payload: PassflowEmailCodePayload): Promise<PassflowAuthorizationResponse> {
+    return await this.authService.verifyEmailCode(payload);
   }
 
   /**
@@ -1236,7 +1267,12 @@ export class Passflow {
    *
    * @param newPassword - The new password to set
    * @param scopes - Optional scopes to request after reset
+   * @param resetToken - The reset link's token. Without it the token is read from `?token=` in
+   *   `location.search`, then from a hash route's query (`#/reset?token=…`). Pass it when your
+   *   router keeps the link's query somewhere else (memory router).
    * @returns Promise with authorization response containing new tokens
+   * May answer an email verification step instead of tokens: check it with
+   * `isEmailVerificationStep(response)`. With a `challenge_id`, finish with `verifyEmailCode`.
    * @throws {PassflowError} If reset fails
    *
    * @example
@@ -1250,8 +1286,8 @@ export class Passflow {
    * }
    * ```
    */
-  async resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
-    const response = await this.authService.resetPassword(newPassword, scopes);
+  async resetPassword(newPassword: string, scopes?: string[], resetToken?: string): Promise<PassflowAuthorizationResponse> {
+    const response = await this.authService.resetPassword(newPassword, scopes, resetToken);
 
     return response;
   }

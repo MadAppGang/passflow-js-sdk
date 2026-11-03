@@ -3,10 +3,15 @@
 // resolved and checked (skipLibCheck: false) under node16, nodenext and bundler.
 import {
   type ErrorPayload,
+  isEmailVerificationStep,
   M2MClient,
   type M2MClientConfig,
   Passflow,
+  type PassflowAuthorizationResponse,
   type PassflowConfig,
+  type PassflowEmailCodePayload,
+  type PassflowEmailVerificationOperation,
+  type PassflowEmailVerificationStep,
   PassflowEvent,
   type PassflowEventPayload,
   type PassflowOperation,
@@ -54,3 +59,16 @@ export const interrupted: UpgradeCommitInterruptedError = new UpgradeCommitInter
 export const authIds: readonly string[] = REFRESH_AUTH_FAILURE_IDS;
 export const dispose: () => void = () => pf.dispose();
 export const signedOut: PassflowEventPayload[PassflowEvent.SignOut] = { origin: 'this-tab', userId: 'u' };
+
+// Email verification code step (PFL-724): guard, step and code types, event, verifyEmailCode.
+declare const answer: PassflowAuthorizationResponse;
+export const step: PassflowEmailVerificationStep | undefined = isEmailVerificationStep(answer) ? answer : undefined;
+export const emailOp: PassflowEmailVerificationOperation = 'sign-up';
+export const emailEvent: PassflowEventPayload[PassflowEvent.EmailVerificationRequired] = {
+  email: 'a@example.com',
+  challengeId: 'c',
+  operation: emailOp,
+};
+export const emailEv: PassflowEvent = PassflowEvent.EmailVerificationRequired;
+export const codePayload: PassflowEmailCodePayload = { challenge_id: 'c', otp: '123456' };
+export const verified: Promise<PassflowAuthorizationResponse> = pf.verifyEmailCode(codePayload);

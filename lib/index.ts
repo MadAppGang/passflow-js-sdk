@@ -99,6 +99,7 @@ export { TwoFactorService } from './services/two-factor-service';
 export {
   type ErrorPayload,
   type OperationErrorPayload,
+  type PassflowEmailVerificationOperation,
   PassflowEvent,
   type PassflowEventPayload,
   type PassflowOperation,

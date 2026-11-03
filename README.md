@@ -33,6 +33,7 @@
     - [Federated Authentication](#federated-authentication)
     - [Passkey Authentication](#passkey-authentication)
     - [Password Reset](#password-reset)
+    - [Email verification](#email-verification)
   - [Token Management](#token-management)
   - [Tenant Management](#tenant-management)
   - [Invitation Management](#invitation-management)
@@ -463,7 +464,8 @@ const sendResetEmail = async () => {
 // Reset password (after receiving reset token)
 const resetPassword = async (newPassword) => {
   try {
-    // The token should be in the URL query parameters
+    // The token is read from the URL query, or from the query of a hash route
+    // (#/reset?token=...). Pass it as the third argument when it lives elsewhere.
     const response = await passflow.resetPassword(newPassword);
     console.log("Password reset successful", response);
   } catch (error) {
@@ -471,6 +473,59 @@ const resetPassword = async (newPassword) => {
   }
 };
 ```
+
+### Email verification
+
+When the server needs the user's email proven first, `signIn`, `signUp` and `resetPassword` answer
+with an email verification step instead of a session. They do not throw: the step comes back as the
+response, no tokens are stored, and the SDK emits `PassflowEvent.EmailVerificationRequired`.
+
+```typescript
+type PassflowEmailVerificationStep = {
+  email_verification_required: true;
+  message: string; // e.g. "We sent a code to a***@example.com."
+  challenge_id?: string; // present when a code was emailed
+};
+```
+
+Check the answer with `isEmailVerificationStep`. With a `challenge_id`, ask the user for the code
+from the email and finish with `verifyEmailCode({ challenge_id, otp })`:
+
+```typescript
+import { isEmailVerificationStep } from "@passflow/core";
+
+const response = await passflow.signUp({
+  user: { email: "user@example.com", password: "password123" },
+});
+
+if (isEmailVerificationStep(response)) {
+  showMessage(response.message);
+  if (response.challenge_id) {
+    const otp = await askUserForCode();
+    const session = await passflow.verifyEmailCode({
+      challenge_id: response.challenge_id,
+      otp,
+    });
+    // session holds a new token pair, or a tfa_token when a second factor is owed
+  }
+}
+```
+
+`verifyEmailCode` answers like `signIn`: a new token pair, or a `tfa_token` when a second factor is
+owed (`isTwoFactorVerificationRequired()` is then true and `TwoFactorRequired` is emitted). A wrong,
+expired or spent code throws a `PassflowError` with an `error.otp.*` id, and an unknown challenge
+throws `error.not.found`. To send a fresh code, call the original method again; the new step has a
+new `challenge_id`.
+
+- **Register or SignIn.** `verifyEmailCode` emits `Register` for a challenge this `Passflow`
+  instance got from `signUp`, and `SignIn` for one from `signIn` or `resetPassword`. Challenges are
+  remembered in memory only, so a code entered in another tab, after a reload, or on a recreated
+  instance emits `SignIn`, even for a sign-up. It emits no `SignInStart` or `RegisterStart`.
+- **No `challenge_id`.** The code budget is spent and the server emailed a link instead. There is
+  nothing to call: show `message` and let the user follow the link.
+- **Password reset.** `resetPassword(newPassword, scopes?, resetToken?)` takes the reset token as
+  an optional third argument. Without it, the SDK reads `token` from the URL query, then from the
+  query of a hash route (`#/reset?token=...`).
 
 ## Token Management
 
@@ -658,6 +713,12 @@ const subscriber = {
       case "refresh":
         // Handle token refresh
         break;
+      case "email-verification:required":
+        // signIn, signUp or resetPassword is waiting for the email to be proven.
+        // source: { email?, challengeId?, operation: "sign-up" | "sign-in" | "reset-password" }
+        // challengeId is set when a code was emailed (finish with verifyEmailCode),
+        // and absent when a link was emailed instead. email is set when the SDK knows it.
+        break;
     }
   },
 };
@@ -736,7 +797,8 @@ Configuration options:
 | `passkeyRegister(payload)`                                 | Register a new passkey                 |
 | `passkeyAuthenticate(payload)`                             | Authenticate with a passkey            |
 | `sendPasswordResetEmail(payload)`                          | Send password reset email              |
-| `resetPassword(newPassword, scopes)`                       | Reset password                         |
+| `resetPassword(newPassword, scopes?, resetToken?)`         | Reset password                         |
+| `verifyEmailCode({ challenge_id, otp })`                   | Finish an email verification step      |
 
 **Token Methods**
 
@@ -889,6 +951,7 @@ enum PassflowEvent {
   RefreshRecovered = "refresh:recovered",
   SessionExpired = "session:expired",
   TokenCacheExpired = "token-cache-expired",
+  EmailVerificationRequired = "email-verification:required",
   // ...and the sign-in, 2FA and session events; see lib/store.ts
 }
 ```

@@ -263,7 +263,39 @@ export type PassflowAuthorizationResponse = Tokens & {
   token_delivery?: 'json_body' | 'cookie' | 'mobile';
   cookies?: string[];
   csrf_token?: string;
+  /** `true` when the server needs the email proven before this sign-in finishes. No tokens come with it. */
+  email_verification_required?: boolean;
+  /** Human-readable text from the server, e.g. "We sent a code to a***@example.com." */
+  message?: string;
 };
+
+/**
+ * A sign-up, sign-in or password change that waits for the email to be proven.
+ * With `challenge_id`: a code was emailed, finish with `Passflow.verifyEmailCode`.
+ * Without: the code budget is spent and a link was emailed instead.
+ * `message` is what the server sent; a malformed answer may leave it out.
+ */
+export type PassflowEmailVerificationStep = {
+  email_verification_required: true;
+  message: string;
+  challenge_id?: string;
+};
+
+/** The emailed code for a `PassflowEmailVerificationStep` that carried a `challenge_id`. */
+export type PassflowEmailCodePayload = {
+  challenge_id: string;
+  otp: string;
+};
+
+/**
+ * Whether an auth answer is an email verification step rather than a session. Only the
+ * `email_verification_required` flag is checked, so an answer with the flag is never taken
+ * for a session.
+ */
+export const isEmailVerificationStep = (response: unknown): response is PassflowEmailVerificationStep =>
+  typeof response === 'object' &&
+  response !== null &&
+  (response as { email_verification_required?: unknown }).email_verification_required === true;
 
 export type PassflowValidationResponse = Tokens & {
   redirect_url: string;
