@@ -1,5 +1,11 @@
-import { beforeEach, describe, expect, Mock, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, Mock, test, vi } from 'vitest';
+import { AuthAPI } from '../../lib/api';
+import { StorageManager } from '../../lib/storage';
+import { type ErrorPayload, PassflowEvent } from '../../lib/store';
+import type { Tokens } from '../../lib/types';
 import { AUTH_RESPONSE, VALID_ID_TOKEN, VALID_TOKENS } from '../helpers/fixtures';
+import { jwt } from '../refresh/jwt';
+import { createSdkWorld, endsOf, httpError, outage, type SdkWorld, type Tab } from '../refresh/sdk-tabs';
 
 /**
  * Black Box Integration Tests for Cookie Delivery Support
@@ -532,6 +538,237 @@ describe('Cookie Delivery Support - Black Box Tests', () => {
 
       // Should be false (missing ID token)
       expect(isAuthenticated).toBe(false);
+    });
+  });
+});
+
+/**
+ * REQ-6: Refresh in cookie and BFF mode (PFL-792 architecture §2.11), on real `Passflow` tabs.
+ *
+ * No refresh token is readable in these modes, so there is no token fence: what applies is the
+ * lock, `session-refreshed` adoption, the classification, the schedule and the strikes. A
+ * transient failure keeps the session valid (it no longer marks it invalid); only the end does
+ * (the last strike), and then the id token and CSRF token are cleared.
+ */
+describe('REQ-6: Refresh in cookie and BFF mode (PFL-792)', () => {
+  let world: SdkWorld | undefined;
+  const SESSION_KEY = 'passflow_session_state';
+  const ID_KEY = 'passflow_id_token';
+  const CSRF_KEY = 'passflow_csrf_token';
+  let issued = 0;
+  const idToken = (sub = 'user-1') => {
+    issued += 1;
+    return jwt({ sub, exp: 4_102_444_800, iat: 1_700_000_000 + issued, jti: `id-${issued}`, type: 'id' });
+  };
+
+  const seedSession = (w: SdkWorld, mode: 'cookie' | 'bff') => {
+    const view = w.shared.view('seed');
+    view.setItem('passflow_delivery_mode', mode);
+    view.setItem(SESSION_KEY, 'valid');
+    const seeded = new StorageManager({ storage: view });
+    seeded.setIdToken(idToken());
+    if (mode === 'cookie') seeded.setCsrfToken('csrf-1');
+  };
+  /** The explicit refresh (AuthService.refreshToken; Passflow.refreshToken still needs a cached refresh token, as in 0.20.1). */
+  const refresh = (tab: Tab) =>
+    (tab.passflow as unknown as { authService: { refreshToken: () => Promise<unknown> } }).authService.refreshToken();
+  const errorsOf = (tab: Tab) =>
+    tab.events.filter((e) => e.event === PassflowEvent.Error).map((e) => e.payload as ErrorPayload);
+
+  afterEach(() => {
+    world?.dispose();
+    world = undefined;
+    vi.restoreAllMocks();
+  });
+
+  describe('cookie mode', () => {
+    const COOKIES = { cookiesSupported: vi.fn().mockReturnValue(true) };
+    const start = (answer: Parameters<typeof createSdkWorld>[0]) => {
+      const w = createSdkWorld(answer);
+      world = w;
+      vi.spyOn(AuthAPI.prototype, 'validateSession').mockResolvedValue({ valid: true } as never);
+      seedSession(w, 'cookie');
+      return w;
+    };
+    const cookieAnswer = (): { tokens: Tokens } => ({
+      tokens: { id_token: idToken(), csrf_token: 'csrf-2', token_delivery: 'cookie' } as unknown as Tokens,
+    });
+
+    test('a transient failure keeps the session valid and the id token; one tab retries on the schedule; no SessionExpired', async () => {
+      const w = start(() => ({ error: outage() }));
+      const a = w.open('a', {}, COOKIES);
+      const b = w.open('b', {}, COOKIES);
+      await w.ready();
+      const idBefore = w.shared.items.get(ID_KEY);
+
+      w.track(refresh(a));
+      await w.run(14_000);
+
+      expect(w.requests.map((r) => [r.tab, r.at, r.refreshToken])).toEqual([
+        ['a', 0, ''],
+        ['a', 1_000, ''],
+        ['a', 4_000, ''],
+        ['a', 14_000, ''],
+      ]);
+      expect(w.shared.items.get(SESSION_KEY)).toBe('valid');
+      expect(w.shared.items.get(ID_KEY)).toBe(idBefore);
+      expect(w.shared.items.get(CSRF_KEY)).toBe('csrf-1');
+      expect(a.passflow.getCachedTokens()?.id_token).toBe(idBefore);
+      expect(errorsOf(a).every((e) => e.refresh?.classification === 'transient' && e.refresh.willRetry)).toBe(true);
+      expect(a.of(PassflowEvent.RefreshFailing)).toEqual([{ since: 0, nextRetryAt: 1_000, origin: 'this-tab' }]);
+      expect(b.of(PassflowEvent.RefreshFailing)).toEqual([{ since: 0, nextRetryAt: 1_000, origin: 'other-tab' }]);
+      for (const tab of [a, b]) expect(endsOf(tab)).toEqual([]);
+    });
+
+    test('recovery: the next attempt stores the new id token and CSRF token; the other tab adopts through session-refreshed', async () => {
+      const w = start((r) => (r.at < 1_000 ? { error: outage() } : cookieAnswer()));
+      const a = w.open('a', {}, COOKIES);
+      const b = w.open('b', {}, COOKIES);
+      await w.ready();
+      const idBefore = w.shared.items.get(ID_KEY);
+
+      const call = w.track(refresh(a));
+      await w.run(1_000);
+
+      expect(w.requests).toHaveLength(2);
+      expect(call.status).toBe('rejected');
+      expect(w.shared.items.get(ID_KEY)).not.toBe(idBefore);
+      expect(w.shared.items.get(CSRF_KEY)).toBe('csrf-2');
+      expect(w.shared.items.get(SESSION_KEY)).toBe('valid');
+      expect(w.postedTypes()).toContain('session-refreshed');
+      expect(a.of(PassflowEvent.Refresh).map((r) => r.source)).toEqual(['refresh']);
+      expect(a.of(PassflowEvent.RefreshRecovered)).toEqual([{ since: 0, origin: 'this-tab' }]);
+      expect(b.of(PassflowEvent.Refresh).map((r) => r.source)).toEqual(['adopted']);
+      expect(b.of(PassflowEvent.RefreshRecovered)).toEqual([{ since: 0, origin: 'other-tab' }]);
+      expect(b.passflow.getCachedTokens()?.id_token).toBe(w.shared.items.get(ID_KEY));
+    });
+
+    test('auth failures keep the session until the last strike; the third ends every tab and clears the id and CSRF tokens', async () => {
+      const w = start(() => ({ error: httpError('error.token.invalid.error', 400) }));
+      const a = w.open('a', {}, COOKIES);
+      const b = w.open('b', {}, COOKIES);
+      await w.ready();
+
+      w.track(refresh(a));
+      await w.run(1_500);
+      expect(w.requests).toHaveLength(2);
+      expect(w.shared.items.get(SESSION_KEY)).toBe('valid');
+      expect(w.shared.items.get(ID_KEY)).toBeDefined();
+      for (const tab of [a, b]) expect(endsOf(tab)).toEqual([]);
+
+      await w.run(3_000);
+      expect(w.requests.map((r) => r.at)).toEqual([0, 1_000, 4_000]);
+      expect(errorsOf(a).map((e) => [e.refresh?.classification, e.refresh?.strikes, e.refresh?.willRetry])).toEqual([
+        ['auth', 1, true],
+        ['auth', 2, true],
+        ['auth', 3, false],
+      ]);
+      expect(a.of(PassflowEvent.SessionExpired)).toEqual([{ reason: 'refresh_failed', origin: 'this-tab' }]);
+      expect(b.of(PassflowEvent.SessionExpired)).toEqual([{ reason: 'refresh_failed', origin: 'other-tab' }]);
+      expect(w.shared.items.get(SESSION_KEY)).toBe('invalid');
+      expect(w.shared.items.has(ID_KEY)).toBe(false);
+      expect(w.shared.items.has(CSRF_KEY)).toBe(false);
+      for (const tab of [a, b]) {
+        expect(endsOf(tab)[0]?.cached).toBeUndefined();
+        expect(tab.passflow.getCachedTokens()).toBeUndefined();
+      }
+    });
+
+    test('a session already marked invalid by a 401: getTokens(true) during an outage resolves with the kept id token', async () => {
+      const w = start(() => ({ error: outage() }));
+      w.shared.view('seed').setItem(SESSION_KEY, 'invalid');
+      vi.spyOn(AuthAPI.prototype, 'validateSession').mockResolvedValue({ valid: false } as never);
+      const a = w.open('a', {}, COOKIES);
+      await w.ready();
+      const idBefore = w.shared.items.get(ID_KEY);
+
+      const call = w.track(a.passflow.getTokens(true));
+      await w.run();
+      expect(w.requests).toHaveLength(1);
+      expect(call.status).toBe('resolved');
+      expect(call.value).toMatchObject({ id_token: idBefore });
+      expect(endsOf(a)).toEqual([]);
+      expect(w.shared.items.get(ID_KEY)).toBe(idBefore);
+    });
+  });
+
+  describe('BFF mode', () => {
+    const REFRESH_URL = 'https://app.example.com/api/auth/refresh';
+    const config = {
+      tokenExchange: { enabled: true, callbackUrl: 'https://app.example.com/api/auth/callback', refreshUrl: REFRESH_URL },
+    };
+    type Reply = { status: number; body?: unknown };
+    let fetches: { url: string; at: number; init?: RequestInit }[];
+
+    const start = (reply: (at: number) => Reply) => {
+      const w = createSdkWorld();
+      world = w;
+      seedSession(w, 'bff');
+      fetches = [];
+      global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+        const at = w.clock.now();
+        fetches.push({ url: String(url), at, ...(init ? { init } : {}) });
+        const { status, body } = reply(at);
+        return { ok: status >= 200 && status < 300, status, json: async () => body ?? {} };
+      }) as unknown as typeof fetch;
+      return w;
+    };
+
+    test('a 503 keeps the session valid and the id token; POSTs to the refresh URL follow the schedule; no SessionExpired', async () => {
+      const w = start(() => ({ status: 503 }));
+      const a = w.open('a', config);
+      await w.ready();
+      const idBefore = w.shared.items.get(ID_KEY);
+
+      w.track(refresh(a));
+      await w.run(4_000);
+
+      const refreshes = fetches.filter((f) => f.url === REFRESH_URL);
+      expect(refreshes.map((f) => f.at)).toEqual([0, 1_000, 4_000]);
+      expect(refreshes[0]?.init).toMatchObject({ method: 'POST', credentials: 'include' });
+      expect(w.requests).toEqual([]);
+      expect(errorsOf(a)[0]).toMatchObject({
+        operation: 'refresh',
+        code: 'error.http.503',
+        refresh: { classification: 'transient', willRetry: true },
+      });
+      expect(w.shared.items.get(SESSION_KEY)).toBe('valid');
+      expect(w.shared.items.get(ID_KEY)).toBe(idBefore);
+      expect(a.of(PassflowEvent.RefreshFailing)).toHaveLength(1);
+      expect(endsOf(a)).toEqual([]);
+    });
+
+    test('a success stores the new id token: Refresh{refresh}', async () => {
+      const next = idToken();
+      const w = start(() => ({ status: 200, body: { id_token: next } }));
+      const a = w.open('a', config);
+      await w.ready();
+      const call = w.track(refresh(a));
+      await w.run();
+      expect(call.status).toBe('resolved');
+      expect(w.shared.items.get(ID_KEY)).toBe(next);
+      expect(w.shared.items.get(SESSION_KEY)).toBe('valid');
+      expect(a.of(PassflowEvent.Refresh).map((r) => r.source)).toEqual(['refresh']);
+    });
+
+    test('401 answers end the session only at the third strike', async () => {
+      const w = start(() => ({ status: 401, body: { error: { id: 'error.token.invalid.error', message: 'invalid' } } }));
+      const a = w.open('a', config);
+      await w.ready();
+      w.track(refresh(a));
+      await w.run(1_500);
+      expect(w.shared.items.get(SESSION_KEY)).toBe('valid');
+      expect(endsOf(a)).toEqual([]);
+      await w.run(3_000);
+      expect(fetches.filter((f) => f.url === REFRESH_URL).map((f) => f.at)).toEqual([0, 1_000, 4_000]);
+      expect(errorsOf(a).map((e) => [e.code, e.refresh?.strikes])).toEqual([
+        ['error.token.invalid.error', 1],
+        ['error.token.invalid.error', 2],
+        ['error.token.invalid.error', 3],
+      ]);
+      expect(a.of(PassflowEvent.SessionExpired)).toEqual([{ reason: 'refresh_failed', origin: 'this-tab' }]);
+      expect(w.shared.items.get(SESSION_KEY)).toBe('invalid');
+      expect(w.shared.items.has(ID_KEY)).toBe(false);
     });
   });
 });

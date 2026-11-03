@@ -4,16 +4,46 @@
  * Tests for the TokenCacheService which handles:
  * - Token caching and parsing
  * - Token expiration checking
- * - Automatic token refresh
+ * - Automatic token refresh (through the attached refresh controller, PFL-792)
  * - Visibility/page lifecycle management
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { AuthAPI } from '../../lib/api/auth';
+import { PassflowError } from '../../lib/api/model';
+import type { DeviceService } from '../../lib/device';
+import type { PlatformAdapter } from '../../lib/platform';
+import { localCoordination } from '../../lib/refresh/resolve';
+import { AuthService } from '../../lib/services/auth-service';
 import { TokenCacheService } from '../../lib/services/token-cache-service';
 import type { StorageManager } from '../../lib/storage';
 import { PassflowEvent, type PassflowStore } from '../../lib/store';
-import { AUTH_RESPONSE, COOKIE_MODE_TOKENS, EXPIRED_TOKENS, FULLY_EXPIRED_TOKENS, VALID_TOKENS } from '../helpers/fixtures';
+import type { Tokens } from '../../lib/types';
+import { COOKIE_MODE_TOKENS, EXPIRED_TOKENS, VALID_ACCESS_TOKEN, VALID_ID_TOKEN, VALID_TOKENS } from '../helpers/fixtures';
+import { createMockPlatform } from '../helpers/mock-platform';
 import { createMockAuthApi, createMockPassflowStore, createMockStorageManager } from '../helpers/mocks';
+import { jwt } from '../refresh/jwt';
+
+/** The next refresh token of EXPIRED_TOKENS' session: same user, a later `iat`. */
+const ROTATED: Tokens = {
+  access_token: VALID_ACCESS_TOKEN,
+  refresh_token: jwt({ sub: 'user-123', iat: 4_000_000_000, jti: 'refresh-rotated', type: 'refresh' }),
+  id_token: VALID_ID_TOKEN,
+  scopes: EXPIRED_TOKENS.scopes,
+};
+
+/** An authentication failure of /auth/refresh (architecture §2.6 row 2): a strike. */
+const AUTH_FAILURE = () =>
+  new PassflowError({
+    id: 'error.token.invalid.error',
+    message: 'token is invalid',
+    status: 400,
+    location: '/auth/refresh',
+    time: '2026-11-03T00:00:00Z',
+  });
+
+/** The first and second retry delays (1 s and 3 s) plus their maximum jitter (20 %). */
+const RETRY_1_MAX_MS = 1_200;
+const RETRY_2_MAX_MS = 3_600;
 
 describe('TokenCacheService', () => {
   let tokenCacheService: TokenCacheService;
@@ -36,10 +66,53 @@ describe('TokenCacheService', () => {
     );
   });
 
+  let authService: AuthService | undefined;
+
   afterEach(() => {
+    authService?.refresh.dispose();
+    authService = undefined;
     tokenCacheService.destroy();
     vi.useRealTimers();
   });
+
+  /** Payloads of one event, in order. */
+  const notified = (event: PassflowEvent) =>
+    mockStore.notify.mock.calls.filter((call) => call[0] === event).map((call) => call[1]);
+
+  /**
+   * Wires a refresh controller the way Passflow does: a real AuthService over the same storage,
+   * store and AuthAPI double, attached to the service under test. Storage holds `tokens` (an
+   * in-memory backing behind the storage mock) and the cache is set to them.
+   */
+  const attachController = (tokens: Tokens) => {
+    let stored: Tokens | undefined = { ...tokens };
+    mockStorageManager.getTokens.mockImplementation(() => stored && { ...stored });
+    mockStorageManager.saveTokens.mockImplementation((next: Tokens) => {
+      stored = { ...next };
+    });
+    mockStorageManager.deleteTokens.mockImplementation(() => {
+      stored = undefined;
+    });
+    authService = new AuthService(
+      mockAuthApi as unknown as AuthAPI,
+      { getDeviceId: () => 'mock-device-id' } as unknown as DeviceService,
+      mockStorageManager as unknown as StorageManager,
+      mockStore as unknown as PassflowStore,
+      tokenCacheService,
+      ['id', 'offline'],
+      false,
+      'https://auth.example.com',
+      {},
+      'app-1',
+      undefined,
+      createMockPlatform() as unknown as PlatformAdapter,
+      undefined,
+      { coordination: localCoordination() },
+    );
+    tokenCacheService.attachRefreshController(authService.refresh);
+    tokenCacheService.setTokensCache({ ...tokens });
+    return { stored: () => stored };
+  };
 
   describe('Constructor', () => {
     test('creates service with dependencies', () => {
@@ -190,38 +263,58 @@ describe('TokenCacheService', () => {
       expect(mockAuthApi.refreshToken).not.toHaveBeenCalled();
     });
 
-    test('refreshes expired tokens', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
-      mockAuthApi.refreshToken.mockResolvedValue(AUTH_RESPONSE);
+    // PFL-792 §9.4: was "the cached tokens are sent directly to authApi"; the attached
+    // controller sends the STORED tokens and saves the answer.
+    test('refreshes expired tokens through the attached controller, sending the stored tokens', async () => {
+      const { stored } = attachController(EXPIRED_TOKENS);
+      mockAuthApi.refreshToken.mockResolvedValue(ROTATED);
 
-      await tokenCacheService.getTokensWithRefresh();
+      const result = await tokenCacheService.getTokensWithRefresh();
 
+      expect(mockAuthApi.refreshToken).toHaveBeenCalledTimes(1);
       expect(mockAuthApi.refreshToken).toHaveBeenCalledWith(
         EXPIRED_TOKENS.refresh_token,
         EXPIRED_TOKENS.scopes,
         EXPIRED_TOKENS.access_token,
       );
+      expect(result?.refresh_token).toBe(ROTATED.refresh_token);
+      expect(stored()?.refresh_token).toBe(ROTATED.refresh_token);
     });
 
-    test('does not refresh when tokenExpiredFlag is set', async () => {
+    // PFL-792 §2.1 item 6: no attached controller, no refresh.
+    test('without an attached refresh controller returns the cache and sends nothing', async () => {
       tokenCacheService.setTokensCache(EXPIRED_TOKENS);
-      tokenCacheService.tokenExpiredFlag = true;
 
-      await tokenCacheService.getTokensWithRefresh();
+      const result = await tokenCacheService.getTokensWithRefresh();
 
+      expect(result).toEqual(EXPIRED_TOKENS);
       expect(mockAuthApi.refreshToken).not.toHaveBeenCalled();
     });
 
-    test('notifies error on refresh failure', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
-      mockAuthApi.refreshToken.mockRejectedValue(new Error('Refresh failed'));
+    // PFL-792 §2.8: was "does not refresh when tokenExpiredFlag is set"; the flag is output only.
+    test('refreshes even when tokenExpiredFlag is set: the flag never gates a refresh', async () => {
+      attachController(EXPIRED_TOKENS);
+      tokenCacheService.tokenExpiredFlag = true;
+      mockAuthApi.refreshToken.mockResolvedValue(ROTATED);
 
       await tokenCacheService.getTokensWithRefresh();
 
+      expect(mockAuthApi.refreshToken).toHaveBeenCalledTimes(1);
+      expect(tokenCacheService.tokenExpiredFlag).toBe(false);
+    });
+
+    test('notifies error on refresh failure, once, labelled as a token-check refresh', async () => {
+      attachController(EXPIRED_TOKENS);
+      mockAuthApi.refreshToken.mockRejectedValue(new Error('Refresh failed'));
+
+      const result = await tokenCacheService.getTokensWithRefresh();
+
+      expect(result).toEqual(EXPIRED_TOKENS);
       expect(mockStore.notify).toHaveBeenCalledWith(
         PassflowEvent.Error,
-        expect.objectContaining({ message: 'Refresh failed' }),
+        expect.objectContaining({ message: 'Refresh failed', operation: 'refresh', source: 'token-check' }),
       );
+      expect(notified(PassflowEvent.Error)).toHaveLength(1);
     });
   });
 
@@ -281,17 +374,23 @@ describe('TokenCacheService', () => {
 
   describe('Refresh Flow', () => {
     test('notifies RefreshStart and Refresh on successful refresh', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
-      mockAuthApi.refreshToken.mockResolvedValue(AUTH_RESPONSE);
+      attachController(EXPIRED_TOKENS);
+      mockAuthApi.refreshToken.mockResolvedValue(ROTATED);
 
       await tokenCacheService.getTokensWithRefresh();
 
       expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.RefreshStart, {});
-      expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.Refresh, expect.objectContaining({ tokens: AUTH_RESPONSE }));
+      expect(mockStore.notify).toHaveBeenCalledWith(
+        PassflowEvent.Refresh,
+        expect.objectContaining({
+          tokens: expect.objectContaining({ refresh_token: ROTATED.refresh_token }),
+          source: 'refresh',
+        }),
+      );
     });
 
     test('prevents concurrent refresh calls', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
+      attachController(EXPIRED_TOKENS);
 
       // Create a slow refresh
       let resolveRefresh: (value: unknown) => void;
@@ -306,19 +405,22 @@ describe('TokenCacheService', () => {
       // Immediately try second refresh
       const refresh2 = tokenCacheService.getTokensWithRefresh();
 
-      // Resolve the refresh
-      resolveRefresh?.(AUTH_RESPONSE);
+      // Let the first one send, then answer it
+      await vi.waitFor(() => expect(mockAuthApi.refreshToken).toHaveBeenCalled());
+      resolveRefresh?.(ROTATED);
 
-      await Promise.all([refresh1, refresh2]);
+      const [first, second] = await Promise.all([refresh1, refresh2]);
 
-      // Should only call refreshToken once
+      // Should only call refreshToken once; both callers get the new tokens
       expect(mockAuthApi.refreshToken).toHaveBeenCalledTimes(1);
+      expect(first?.refresh_token).toBe(ROTATED.refresh_token);
+      expect(second?.refresh_token).toBe(ROTATED.refresh_token);
     });
 
     test('resets tokenExpiredFlag on successful refresh', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
-      tokenCacheService.tokenExpiredFlag = false; // Ensure not set before
-      mockAuthApi.refreshToken.mockResolvedValue(AUTH_RESPONSE);
+      attachController(EXPIRED_TOKENS);
+      tokenCacheService.tokenExpiredFlag = true; // set by the expiry check
+      mockAuthApi.refreshToken.mockResolvedValue(ROTATED);
 
       await tokenCacheService.getTokensWithRefresh();
 
@@ -326,80 +428,121 @@ describe('TokenCacheService', () => {
       expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.TokenCacheExpired, { isExpired: false });
     });
 
-    test('clears cache on refresh error', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
+    // PFL-792 §9.4, pinned defect 3 (R5): was "clears cache on refresh error".
+    test('keeps the cache on a transient refresh error', async () => {
+      attachController(EXPIRED_TOKENS);
       mockAuthApi.refreshToken.mockRejectedValue(new Error('Network error'));
 
-      await tokenCacheService.getTokensWithRefresh();
+      const result = await tokenCacheService.getTokensWithRefresh();
 
-      expect(tokenCacheService.tokensCache).toBeUndefined();
+      expect(result).toEqual(EXPIRED_TOKENS);
+      expect(tokenCacheService.tokensCache).toEqual(EXPIRED_TOKENS);
     });
 
-    test('resets isRefreshing flag even on error', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
-      mockAuthApi.refreshToken.mockRejectedValue(new Error('Network error'));
+    // PFL-792 §9.4: was "resets isRefreshing flag even on error"; isRefreshing now mirrors
+    // "this instance has a cycle", so it stays set while the retry is pending.
+    test('isRefreshing stays set while a retry is pending and clears once it settles', async () => {
+      attachController(EXPIRED_TOKENS);
+      mockAuthApi.refreshToken.mockRejectedValueOnce(new Error('Network error')).mockResolvedValueOnce(ROTATED);
 
       await tokenCacheService.getTokensWithRefresh();
+      expect(tokenCacheService.isRefreshing).toBe(true);
 
+      await vi.advanceTimersByTimeAsync(RETRY_1_MAX_MS);
+
+      expect(mockAuthApi.refreshToken).toHaveBeenCalledTimes(2);
       expect(tokenCacheService.isRefreshing).toBe(false);
+      expect(tokenCacheService.tokensCache?.refresh_token).toBe(ROTATED.refresh_token);
     });
   });
 
   describe('Session Expired Handling', () => {
-    test('emits SessionExpired event when refresh fails', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
+    // PFL-792 §9.4, pinned defect 3 (R5): was "emits SessionExpired event when refresh fails"
+    // with a plain Error, which is a transient failure.
+    test('a transient refresh failure emits no SessionExpired', async () => {
+      attachController(EXPIRED_TOKENS);
       mockAuthApi.refreshToken.mockRejectedValue(new Error('Refresh token expired'));
 
       await tokenCacheService.getTokensWithRefresh();
 
-      expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.SessionExpired, { reason: 'refresh_failed' });
+      expect(notified(PassflowEvent.SessionExpired)).toEqual([]);
+      expect(notified(PassflowEvent.RefreshFailing)).toHaveLength(1);
     });
 
-    test('sets tokenExpiredFlag to prevent infinite refresh loops', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
-      mockAuthApi.refreshToken.mockRejectedValue(new Error('Refresh token expired'));
+    // PFL-792 §9.4 auth-strike variant (R4): the session does end after refreshStrikes auth failures.
+    test('auth failures end the session after refreshStrikes (3): SessionExpired{refresh_failed} once', async () => {
+      const { stored } = attachController(EXPIRED_TOKENS);
+      mockAuthApi.refreshToken.mockRejectedValue(AUTH_FAILURE());
 
       await tokenCacheService.getTokensWithRefresh();
+      await vi.advanceTimersByTimeAsync(RETRY_1_MAX_MS);
+      await vi.advanceTimersByTimeAsync(RETRY_2_MAX_MS);
 
-      expect(tokenCacheService.tokenExpiredFlag).toBe(true);
+      expect(mockAuthApi.refreshToken).toHaveBeenCalledTimes(3);
+      expect(notified(PassflowEvent.SessionExpired)).toEqual([{ reason: 'refresh_failed', origin: 'this-tab' }]);
+      expect(tokenCacheService.tokensCache).toBeUndefined();
+      // Storage still held the dead token, so it is deleted.
+      expect(stored()).toBeUndefined();
     });
 
-    test('deletes tokens from storage when refresh fails', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
-      mockAuthApi.refreshToken.mockRejectedValue(new Error('Refresh token expired'));
+    // PFL-792 §9.4: was "sets tokenExpiredFlag to prevent infinite refresh loops"; the loop is now
+    // prevented by one pending retry that every caller joins.
+    test('a transient failure leaves one pending retry: a second call joins it, one request', async () => {
+      attachController(EXPIRED_TOKENS);
+      mockAuthApi.refreshToken.mockRejectedValueOnce(new Error('Refresh token expired')).mockResolvedValueOnce(ROTATED);
 
       await tokenCacheService.getTokensWithRefresh();
-
-      expect(mockStorageManager.deleteTokens).toHaveBeenCalled();
-    });
-
-    test('stops token check interval when refresh fails', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
-      tokenCacheService.startTokenCheck();
-      mockAuthApi.refreshToken.mockRejectedValue(new Error('Refresh token expired'));
-
-      await tokenCacheService.getTokensWithRefresh();
-
-      // Advance time - should not trigger more expiration events since interval is stopped
-      vi.advanceTimersByTime(120000);
-
-      // SessionExpired should only be called once (not repeatedly)
-      const sessionExpiredCalls = mockStore.notify.mock.calls.filter((call) => call[0] === PassflowEvent.SessionExpired);
-      expect(sessionExpiredCalls).toHaveLength(1);
-    });
-
-    test('does not retry refresh after SessionExpired', async () => {
-      tokenCacheService.setTokensCache(EXPIRED_TOKENS);
-      mockAuthApi.refreshToken.mockRejectedValue(new Error('Refresh token expired'));
-
-      // First refresh fails
-      await tokenCacheService.getTokensWithRefresh();
-
-      // Try to refresh again
-      await tokenCacheService.getTokensWithRefresh();
-
-      // Should only attempt refresh once since tokenExpiredFlag is set
       expect(mockAuthApi.refreshToken).toHaveBeenCalledTimes(1);
+
+      // The second caller sends nothing now; it settles with the scheduled retry.
+      const joined = tokenCacheService.getTokensWithRefresh();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockAuthApi.refreshToken).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(RETRY_1_MAX_MS);
+      expect((await joined)?.refresh_token).toBe(ROTATED.refresh_token);
+      expect(mockAuthApi.refreshToken).toHaveBeenCalledTimes(2);
+    });
+
+    // PFL-792 §9.4, pinned defect 3 (R5): was "deletes tokens from storage when refresh fails".
+    test('keeps stored tokens when a refresh fails transiently', async () => {
+      const { stored } = attachController(EXPIRED_TOKENS);
+      mockAuthApi.refreshToken.mockRejectedValue(new Error('Refresh token expired'));
+
+      await tokenCacheService.getTokensWithRefresh();
+
+      expect(mockStorageManager.deleteTokens).not.toHaveBeenCalled();
+      expect(stored()).toEqual(EXPIRED_TOKENS);
+    });
+
+    // PFL-792 §9.4: was "stops token check interval when refresh fails"; after the strikes end the
+    // session stays ended: no further request, no second SessionExpired.
+    test('after the strikes end, time passing brings no further request or SessionExpired', async () => {
+      attachController(EXPIRED_TOKENS);
+      tokenCacheService.startTokenCheck();
+      mockAuthApi.refreshToken.mockRejectedValue(AUTH_FAILURE());
+
+      await tokenCacheService.getTokensWithRefresh();
+      await vi.advanceTimersByTimeAsync(RETRY_1_MAX_MS);
+      await vi.advanceTimersByTimeAsync(RETRY_2_MAX_MS);
+      await vi.advanceTimersByTimeAsync(120000);
+
+      expect(mockAuthApi.refreshToken).toHaveBeenCalledTimes(3);
+      expect(notified(PassflowEvent.SessionExpired)).toHaveLength(1);
+    });
+
+    // PFL-792 §9.4: was "does not retry refresh after SessionExpired" (gated by the flag); now the
+    // session end itself stops it: the cache is cleared and nothing is sent.
+    test('does not retry refresh after the session ended', async () => {
+      attachController(EXPIRED_TOKENS);
+      mockAuthApi.refreshToken.mockRejectedValue(AUTH_FAILURE());
+
+      await tokenCacheService.getTokensWithRefresh();
+      await vi.advanceTimersByTimeAsync(RETRY_1_MAX_MS);
+      await vi.advanceTimersByTimeAsync(RETRY_2_MAX_MS);
+
+      expect(await tokenCacheService.getTokensWithRefresh()).toBeUndefined();
+      expect(mockAuthApi.refreshToken).toHaveBeenCalledTimes(3);
     });
   });
 

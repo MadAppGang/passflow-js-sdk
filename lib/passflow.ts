@@ -46,12 +46,21 @@ import {
 import type { AxiosClient, AxiosUpgradeHandler } from './api/axios-client';
 import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL, SDK_VERSION } from './constants';
 import { DeviceService } from './device';
+import { notifyError } from './error-report';
 import type { CurrentUrlInfo, PlatformAdapter } from './platform';
 import { webAdapter } from './platform';
+import { resolveCoordination } from './refresh/resolve';
 import { AuthService, InvitationService, TenantService, TokenCacheService, TwoFactorService, UserService } from './services';
 import { StorageManager } from './storage';
-import { type ErrorPayload, PassflowEvent, PassflowStore, type PassflowSubscriber } from './store';
+import {
+  type OperationErrorPayload,
+  PassflowEvent,
+  type PassflowOperation,
+  PassflowStore,
+  type PassflowSubscriber,
+} from './store';
 import { parseToken, TokenType } from './token';
+import { TokenDeliveryMode } from './token/delivery-manager';
 import type { ParsedTokens, SessionParams, Tokens } from './types';
 import {
   type AssuranceBar,
@@ -171,6 +180,12 @@ export class Passflow {
     this.scopes = scopes ?? DEFAULT_SCOPES;
     this.createTenantForNewUser = config.createTenantForNewUser ?? false;
 
+    // How this instance coordinates token refresh with the other tabs (PFL-792). The refresh
+    // controller is created by AuthService, which owns the delivery mode its transport needs.
+    const coordination = resolveCoordination(config.refreshCoordination, this.platform, config.keyStoragePrefix, {
+      tokenKeys: () => this.storageManager.tokenKeys(),
+    });
+
     // Initialize domain services with dependencies
     this.authService = new AuthService(
       this.authApi,
@@ -189,7 +204,18 @@ export class Passflow {
       config.tokenExchange,
       this.platform,
       () => this.readPkceEnabled(),
+      {
+        coordination,
+        ...(config.refreshStrikes !== undefined ? { strikes: config.refreshStrikes } : {}),
+      },
     );
+
+    // getTokensWithRefresh() refreshes through the same controller.
+    this.tokenCacheService.attachRefreshController(this.authService.refresh);
+    // The pre-request refresh of every API client this instance owns asks the same controller.
+    for (const client of this.axiosClients()) {
+      client.setRefreshHandler((request) => this.authService.refresh.ensureFresh(request));
+    }
 
     this.userService = new UserService(this.userApi, this.deviceService, this.platform);
 
@@ -490,11 +516,12 @@ export class Passflow {
       tokens = await this.authService.getTokens(this.doRefreshTokens);
       parsedTokens = this.tokenCacheService.getParsedTokens();
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'session.check',
         message: error instanceof Error || error instanceof PassflowError ? error.message : 'Session check failed',
         originalError: error,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       tokens = undefined;
     }
 
@@ -616,33 +643,36 @@ export class Passflow {
     if (access_token) {
       // Validate JWT format for access_token
       if (!isValidJWTFormat(access_token)) {
-        const errorPayload: ErrorPayload = {
+        const errorPayload: OperationErrorPayload = {
+          operation: 'tokens.from-url',
           message: 'Invalid access token format received',
           code: 'INVALID_TOKEN_FORMAT',
         };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        notifyError(this.subscribeStore, errorPayload);
         this.cleanupUrlParams(fromHash, currentUrl);
         return undefined;
       }
 
       // Validate optional refresh_token if present
       if (refresh_token && !isValidJWTFormat(refresh_token)) {
-        const errorPayload: ErrorPayload = {
+        const errorPayload: OperationErrorPayload = {
+          operation: 'tokens.from-url',
           message: 'Invalid refresh token format received',
           code: 'INVALID_TOKEN_FORMAT',
         };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        notifyError(this.subscribeStore, errorPayload);
         this.cleanupUrlParams(fromHash, currentUrl);
         return undefined;
       }
 
       // Validate optional id_token if present
       if (id_token && !isValidJWTFormat(id_token)) {
-        const errorPayload: ErrorPayload = {
+        const errorPayload: OperationErrorPayload = {
+          operation: 'tokens.from-url',
           message: 'Invalid ID token format received',
           code: 'INVALID_TOKEN_FORMAT',
         };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        notifyError(this.subscribeStore, errorPayload);
         this.cleanupUrlParams(fromHash, currentUrl);
         return undefined;
       }
@@ -659,6 +689,7 @@ export class Passflow {
       this.storageManager.clearDeliveryMode();
       this.storageManager.saveTokens(tokens);
       this.tokenCacheService.setTokensCache(tokens);
+      this.authService.refresh.sessionStarted();
 
       this.subscribeStore.notify(PassflowEvent.SignIn, { tokens, parsedTokens: this.getParsedTokens() });
       this.submitSessionCheck();
@@ -689,11 +720,12 @@ export class Passflow {
     this.platform.replaceUrl(currentUrl.pathname + currentUrl.search + (rest ? `#${rest}` : ''));
 
     if (!isValidJWTFormat(tfaToken)) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'tokens.from-url',
         message: 'Invalid 2FA token format received',
         code: 'INVALID_TOKEN_FORMAT',
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       return true;
     }
 
@@ -856,6 +888,11 @@ export class Passflow {
    * ```
    */
   isAuthenticated(): boolean {
+    // Cookie/BFF: no access token is readable; the id token and the session state decide.
+    const mode = this.getDeliveryMode();
+    if (mode === TokenDeliveryMode.Cookie || mode === TokenDeliveryMode.BFF) {
+      return this.authService.isAuthenticated(this.tokenCacheService.getParsedTokens() ?? {});
+    }
     const tokens = this.storageManager.getTokens();
     if (!tokens || !tokens.access_token) return false;
 
@@ -983,17 +1020,22 @@ export class Passflow {
    * Creates proper ErrorPayload, distinguishes PassflowError from generic Error,
    * notifies error event, and re-throws the error.
    *
+   * Reports at most once per error object: when a service already reported it (a 2FA wrapper,
+   * a sign-in), the service's more specific report stands and nothing is added here.
+   *
    * @param error - The error to handle
-   * @param context - Context description for the error
+   * @param operation - The operation that failed (`ErrorPayload.operation`)
+   * @param context - Context description for the fallback message
    * @throws The original error after handling
    */
-  private handleError(error: unknown, context: string): never {
-    const errorPayload: ErrorPayload = {
+  private handleError(error: unknown, operation: PassflowOperation, context: string): never {
+    const errorPayload: OperationErrorPayload = {
+      operation,
       message: error instanceof Error ? error.message : `${context} failed`,
       originalError: error,
       code: error instanceof PassflowError ? error.id : undefined,
     };
-    this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+    notifyError(this.subscribeStore, errorPayload);
     throw error;
   }
 
@@ -1016,15 +1058,14 @@ export class Passflow {
    */
   async logOut(): Promise<void> {
     try {
-      // Only clear tokens after successful logout API call
-      await this.authService.logOut();
-      this.storageManager.deleteTokens();
-      this.tokenCacheService.setTokensCache(undefined);
+      // Under the refresh lock: logs out the newest token, deletes storage, clears the cache.
+      const userId = await this.authService.logOut();
       this.twoFactorService.clearPartialAuthState();
+      // Exactly one SignOut, after the cache is cleared; also when the session had already ended.
+      this.notifySignedOut(userId);
       await this.submitSessionCheck();
-      this.subscribeStore.notify(PassflowEvent.SignOut, {});
     } catch (error) {
-      this.handleError(error, 'Log out');
+      this.handleError(error, 'log-out', 'Log out');
     }
   }
 
@@ -1095,25 +1136,56 @@ export class Passflow {
    * ```
    */
   reset(error?: string) {
-    this.storageManager.deleteTokens();
-    this.tokenCacheService.setTokensCache(undefined);
-    this.subscribeStore.notify(PassflowEvent.SignOut, {});
+    // Synchronous: no API call, no lock. Stops this tab's refresh, tells the other tabs, deletes
+    // storage and clears the cache before the one SignOut.
+    this.notifySignedOut(this.authService.resetSession());
     if (error) {
       this.error = new Error(error);
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'reset',
         message: error,
         code: 'RESET_ERROR',
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw this.error;
     }
+  }
+
+  /** The one `SignOut` of `logOut()`/`reset()` in this tab (PFL-792 §2.4). */
+  private notifySignedOut(userId: string | undefined): void {
+    this.subscribeStore.notify(
+      PassflowEvent.SignOut,
+      userId === undefined ? { origin: 'this-tab' } : { origin: 'this-tab', userId },
+    );
+  }
+
+  /**
+   * Releases what this instance holds for token refresh: leaves the refresh lock queue, cancels
+   * every refresh timer and the token check, removes its storage and foreground listeners, closes
+   * its BroadcastChannel, and rejects pending refresh callers with `PassflowRefreshError`
+   * (`error.refresh.disposed`). Afterwards the instance must not be used.
+   *
+   * The SDK never calls it by itself, not on `beforeunload` (it fires before a cancellable
+   * "Leave site?" prompt and before a page enters the back/forward cache) nor on `pagehide`:
+   * document teardown already releases the page's locks and channels. Call it when an SPA tears
+   * the instance down, and in tests.
+   *
+   * @example
+   * ```typescript
+   * passflow.dispose();
+   * ```
+   */
+  dispose(): void {
+    this.authService.refresh.dispose();
+    this.tokenCacheService.destroy();
   }
 
   /**
    * Refresh the access token using the refresh token.
    *
    * @returns Promise with new authorization response containing refreshed tokens
-   * @throws {Error} If no refresh token is found
+   * @throws {Error} JSON mode with no stored refresh token (`No tokens found` / `No refresh token found`)
+   * @throws {PassflowRefreshError} `error.refresh.session_ended` and the other ends, once the session ended
    * @throws {PassflowError} If refresh request fails
    *
    * @example
@@ -1128,25 +1200,11 @@ export class Passflow {
    * ```
    */
   async refreshToken(): Promise<PassflowAuthorizationResponse> {
-    if (!this.tokenCacheService.parsedTokensCache?.refresh_token) {
-      throw new Error('No refresh token found');
-    }
-
-    try {
-      const response = await this.authService.refreshToken();
-
-      return response;
-    } catch (error) {
-      if (error instanceof PassflowError) {
-        throw error;
-      } else {
-        this.subscribeStore.notify(PassflowEvent.Error, {
-          message: 'Failed to refresh token',
-          originalError: error,
-        });
-        throw error;
-      }
-    }
+    // The no-token rejections ('No tokens found' / 'No refresh token found') are JSON mode's and
+    // live in AuthService: cookie and BFF modes have no readable refresh token, and an ended
+    // session rejects with `error.refresh.session_ended`.
+    // The refresh path reports its own failure, once (Error{refresh}); nothing is added here.
+    return await this.authService.refreshToken();
   }
 
   /**
@@ -1216,7 +1274,7 @@ export class Passflow {
     try {
       return await this.appApi.getAppSettings();
     } catch (error) {
-      this.handleError(error, 'Get app settings');
+      this.handleError(error, 'settings.app', 'Get app settings');
     }
   }
 
@@ -1237,7 +1295,7 @@ export class Passflow {
     try {
       return await this.settingApi.getSettingsAll();
     } catch (error) {
-      this.handleError(error, 'Get all settings');
+      this.handleError(error, 'settings.all', 'Get all settings');
     }
   }
 
@@ -1258,7 +1316,7 @@ export class Passflow {
     try {
       return await this.settingApi.getPasswordPolicySettings();
     } catch (error) {
-      this.handleError(error, 'Get password policy settings');
+      this.handleError(error, 'settings.password-policy', 'Get password policy settings');
     }
   }
 
@@ -1279,7 +1337,7 @@ export class Passflow {
     try {
       return await this.settingApi.getPasskeySettings();
     } catch (error) {
-      this.handleError(error, 'Get passkey settings');
+      this.handleError(error, 'settings.passkey', 'Get passkey settings');
     }
   }
 
@@ -1362,8 +1420,14 @@ export class Passflow {
    * ```
    */
   setTokens(tokensData: Tokens): void {
-    this.storageManager.saveTokens(tokensData);
+    // Cookie and BFF modes keep only the id token locally, under the key the next load reads;
+    // saving the JSON keys there would be dropped as stale state on the next page load.
+    const mode = this.getDeliveryMode();
+    const opaque = mode === TokenDeliveryMode.Cookie || mode === TokenDeliveryMode.BFF;
+    this.storageManager.saveTokens(tokensData, opaque ? mode : undefined);
     this.tokenCacheService.setTokensCache(tokensData);
+    // A new session: the refresh controller starts over on these tokens.
+    this.authService.refresh.sessionStarted();
     this.subscribeStore.notify(PassflowEvent.SignIn, {
       tokens: tokensData,
       parsedTokens: this.tokenCacheService.getParsedTokens(),
@@ -1429,7 +1493,7 @@ export class Passflow {
     try {
       return await this.userService.getUserPasskeys();
     } catch (error) {
-      this.handleError(error, 'Get user passkeys');
+      this.handleError(error, 'passkey.list', 'Get user passkeys');
     }
   }
 
@@ -1451,7 +1515,7 @@ export class Passflow {
     try {
       return await this.userService.renameUserPasskey(name, passkeyId);
     } catch (error) {
-      this.handleError(error, 'Rename user passkey');
+      this.handleError(error, 'passkey.rename', 'Rename user passkey');
     }
   }
 
@@ -1472,7 +1536,7 @@ export class Passflow {
     try {
       return await this.userService.deleteUserPasskey(passkeyId);
     } catch (error) {
-      this.handleError(error, 'Delete user passkey');
+      this.handleError(error, 'passkey.delete', 'Delete user passkey');
     }
   }
 
@@ -1505,7 +1569,7 @@ export class Passflow {
     try {
       return await this.userService.addUserPasskey(options);
     } catch (error) {
-      this.handleError(error, 'Add user passkey');
+      this.handleError(error, 'passkey.add', 'Add user passkey');
     }
   }
 
@@ -1523,7 +1587,7 @@ export class Passflow {
       await this.authService.applyTokens(response);
       return response;
     } catch (error) {
-      this.handleError(error, 'Join invitation');
+      this.handleError(error, 'invitation.join', 'Join invitation');
     }
   }
 
@@ -1541,7 +1605,7 @@ export class Passflow {
       }
       return response;
     } catch (error) {
-      this.handleError(error, 'Create tenant');
+      this.handleError(error, 'tenant.create', 'Create tenant');
     }
   }
 
@@ -1574,7 +1638,7 @@ export class Passflow {
       }
       return await this.invitationService.requestInviteLink(payload);
     } catch (error) {
-      this.handleError(error, 'Request invite link');
+      this.handleError(error, 'invitation.request-link', 'Request invite link');
     }
   }
 
@@ -1592,7 +1656,7 @@ export class Passflow {
     try {
       return await this.invitationService.getInvitations(options);
     } catch (error) {
-      this.handleError(error, 'Get invitations');
+      this.handleError(error, 'invitation.list', 'Get invitations');
     }
   }
 
@@ -1613,7 +1677,7 @@ export class Passflow {
     try {
       return await this.invitationService.deleteInvitation(token);
     } catch (error) {
-      this.handleError(error, 'Delete invitation');
+      this.handleError(error, 'invitation.delete', 'Delete invitation');
     }
   }
 
@@ -1634,7 +1698,7 @@ export class Passflow {
     try {
       return await this.invitationService.resendInvitation(token);
     } catch (error) {
-      this.handleError(error, 'Resend invitation');
+      this.handleError(error, 'invitation.resend', 'Resend invitation');
     }
   }
 
@@ -1655,7 +1719,7 @@ export class Passflow {
     try {
       return await this.invitationService.getInvitationLink(invitationID);
     } catch (error) {
-      this.handleError(error, 'Get invitation link');
+      this.handleError(error, 'invitation.get-link', 'Get invitation link');
     }
   }
 
@@ -1771,7 +1835,7 @@ export class Passflow {
     try {
       return await this.twoFactorService.getStatus();
     } catch (error) {
-      this.handleError(error, 'Get 2FA status');
+      this.handleError(error, '2fa.status', 'Get 2FA status');
     }
   }
 
@@ -1793,7 +1857,7 @@ export class Passflow {
     try {
       return await this.twoFactorService.beginSetup();
     } catch (error) {
-      this.handleError(error, 'Begin 2FA setup');
+      this.handleError(error, '2fa.setup.begin', 'Begin 2FA setup');
     }
   }
 
@@ -1816,7 +1880,7 @@ export class Passflow {
     try {
       return await this.twoFactorService.confirmSetup(code);
     } catch (error) {
-      this.handleError(error, 'Confirm 2FA setup');
+      this.handleError(error, '2fa.setup.confirm', 'Confirm 2FA setup');
     }
   }
 
@@ -1851,7 +1915,7 @@ export class Passflow {
       await this.submitSessionCheck();
       return response;
     } catch (error) {
-      this.handleError(error, 'Verify 2FA');
+      this.handleError(error, '2fa.verify', 'Verify 2FA');
     }
   }
 
@@ -1884,7 +1948,7 @@ export class Passflow {
       await this.submitSessionCheck();
       return response;
     } catch (error) {
-      this.handleError(error, 'Use 2FA recovery code');
+      this.handleError(error, '2fa.recovery.use', 'Use 2FA recovery code');
     }
   }
 
@@ -1906,7 +1970,7 @@ export class Passflow {
     try {
       return await this.twoFactorService.disable(code);
     } catch (error) {
-      this.handleError(error, 'Disable 2FA');
+      this.handleError(error, '2fa.disable', 'Disable 2FA');
     }
   }
 
@@ -1929,7 +1993,7 @@ export class Passflow {
     try {
       return await this.twoFactorService.regenerateRecoveryCodes(code);
     } catch (error) {
-      this.handleError(error, 'Regenerate 2FA recovery codes');
+      this.handleError(error, '2fa.recovery.regenerate', 'Regenerate 2FA recovery codes');
     }
   }
 
@@ -1950,7 +2014,7 @@ export class Passflow {
     try {
       return await this.twoFactorService.getTrustedDevices();
     } catch (error) {
-      this.handleError(error, 'Get trusted devices');
+      this.handleError(error, '2fa.trusted-devices.list', 'Get trusted devices');
     }
   }
 
@@ -1970,7 +2034,7 @@ export class Passflow {
     try {
       await this.twoFactorService.revokeTrustedDevice(id);
     } catch (error) {
-      this.handleError(error, 'Revoke trusted device');
+      this.handleError(error, '2fa.trusted-devices.revoke', 'Revoke trusted device');
     }
   }
 

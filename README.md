@@ -517,6 +517,52 @@ const handleRedirect = () => {
 };
 ```
 
+### Token refresh across tabs
+
+Every refresh in a `Passflow` instance (`refreshToken()`, `getTokens(true)`,
+`getTokensWithRefresh()`, the refresh before an SDK API call whose access token expires within
+30 s, and the step-up commit) goes through one refresh controller. In a browser it coordinates
+with the other tabs of the origin, so the engine's one-time refresh tokens are never replayed:
+
+- **One refresh per browser.** One tab refreshes under the Web Lock `passflow-refresh`; the others
+  adopt its tokens through the `BroadcastChannel` `passflow-auth` and send nothing.
+- **Compare-and-set save.** An answer is saved only if storage still holds the token that was
+  sent; a late answer never rolls a newer token back.
+- **Failures are classified.** Network errors, timeouts, 429 and 5xx keep the tokens and retry
+  on one shared schedule: 1, 3, 10, 30 s, then every 60 s, plus up to 20 % jitter, never sooner
+  than a `Retry-After`. Authentication failures end the session after `refreshStrikes` (default
+  3). `error.token.blocked` (the token was already used by another tab) never signs anyone out.
+- **Events.** `RefreshFailing` once when an outage starts, `RefreshRecovered` once when it ends,
+  `Refresh` with `source: 'refresh' | 'upgrade' | 'adopted'`, `SessionExpired` only for a real end,
+  and exactly one `SignOut` per sign-out in every tab of the user.
+
+```javascript
+const passflow = new Passflow({
+  appId: "your-app-id",
+  refreshCoordination: "web-locks", // default; 'none' or a custom coordinator
+  refreshStrikes: 3, // default
+});
+
+passflow.subscribe({
+  onAuthChange: (event, payload) => {
+    if (event === "refresh:failing") showNotice("Reconnecting…"); // tokens are kept
+    if (event === "refresh:recovered") hideNotice();
+    if (event === "session:expired" || event === "signout") goToSignIn();
+  },
+});
+
+// On SPA teardown (never called by the SDK itself):
+passflow.dispose();
+```
+
+Without `navigator.locks` or `BroadcastChannel` each tab refreshes on its own, still with the
+compare-and-set save, and the SDK writes one `[passflow]` warning at the first refresh. Cookie and
+BFF modes use the same lock, schedule and strikes.
+
+The full contract (options, exact event payloads and order, the classification table, the exact
+retry schedule and what resets it, the wire protocol, fallback, cookie/BFF, and migration from
+0.20.1) is in [docs/token-refresh.md](docs/token-refresh.md).
+
 ## Tenant Management
 
 ```javascript
@@ -762,6 +808,8 @@ type PassflowConfig = {
   createTenantForNewUser?: boolean;
   parseQueryParams?: boolean;
   keyStoragePrefix?: string;
+  refreshCoordination?: "web-locks" | "none" | RefreshCoordinator; // see docs/token-refresh.md
+  refreshStrikes?: number;
 };
 ```
 
@@ -836,6 +884,12 @@ enum PassflowEvent {
   SignOut = "signout",
   Error = "error",
   Refresh = "refresh",
+  RefreshStart = "refresh:start",
+  RefreshFailing = "refresh:failing",
+  RefreshRecovered = "refresh:recovered",
+  SessionExpired = "session:expired",
+  TokenCacheExpired = "token-cache-expired",
+  // ...and the sign-in, 2FA and session events; see lib/store.ts
 }
 ```
 

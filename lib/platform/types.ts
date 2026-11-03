@@ -139,6 +139,14 @@ export interface PlatformAdapter {
    */
   readonly storage: PlatformStorage;
 
+  /**
+   * True when `storage` is shared by every tab of the origin (the browser's localStorage, or a
+   * wrapper over it). Token refresh coordinates tabs only over shared storage
+   * (`refreshCoordination: 'web-locks'`); a per-tab storage (sessionStorage, memory) shares no
+   * session. Optional: an adapter that leaves it unset is treated as per-tab. WebAdapter sets it.
+   */
+  readonly storageSharedAcrossTabs?: boolean;
+
   // ------ Navigation ------
 
   /**

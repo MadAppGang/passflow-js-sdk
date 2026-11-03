@@ -288,6 +288,23 @@ export class StorageManager {
     }
   }
 
+  /**
+   * Every storage key the token session lives in (JSON tokens, scopes, the cookie-mode ID token,
+   * CSRF token and delivery mode). The refresh coordinator filters `storage` events by it, so
+   * writes to unrelated keys never wake the refresh path.
+   */
+  tokenKeys(): string[] {
+    return [
+      this.getKeyForTokenType(TokenType.id_token),
+      this.getKeyForTokenType(TokenType.access_token),
+      this.getKeyForTokenType(TokenType.refresh_token),
+      this.scopes,
+      this.ID_TOKEN_KEY,
+      this.CSRF_TOKEN_KEY,
+      this.DELIVERY_MODE_KEY,
+    ];
+  }
+
   private getKeyForTokenType(tokenType: TokenType): string {
     return `${this.keyStoragePrefix}${tokenType}`;
   }

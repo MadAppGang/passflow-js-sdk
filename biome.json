@@ -18,6 +18,7 @@
       "!**/examples/**",
       "!**/.claude/**",
       "!**/.mnemex/**",
+      "!**/ai-docs/**",
       "!**/tests/upgrade/testdata/corpus/**"
     ]
   },

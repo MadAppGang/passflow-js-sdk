@@ -30,6 +30,18 @@ export class WebAdapter implements PlatformAdapter {
     return localStorage;
   }
 
+  /**
+   * `storage` is the browser's localStorage, which every tab of the origin shares. False in
+   * SSR/Node (the no-op storage) and where reading localStorage throws (storage blocked).
+   */
+  get storageSharedAcrossTabs(): boolean {
+    try {
+      return typeof localStorage !== 'undefined' && localStorage !== null;
+    } catch {
+      return false;
+    }
+  }
+
   // ----------------------------------------------------------------
   // Navigation
   // ----------------------------------------------------------------

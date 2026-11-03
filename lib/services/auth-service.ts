@@ -1,4 +1,3 @@
-import axios from 'axios';
 import {
   AuthAPI,
   getOSFromDeviceType,
@@ -20,10 +19,19 @@ import {
   type UpgradeRefreshField,
 } from '../api';
 import { DeviceService } from '../device';
+import { notifyError } from '../error-report';
 import { createPkcePair, type PkcePair } from '../pkce';
 import { type PlatformAdapter, PopupClosedError, webAdapter } from '../platform';
+import {
+  createRefreshController,
+  type RefreshController,
+  type RefreshEmit,
+  type RefreshEventMap,
+  type RefreshTransport,
+} from '../refresh/controller';
+import { localCoordination, type ResolvedCoordination } from '../refresh/resolve';
 import { StorageManager } from '../storage';
-import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
+import { OperationErrorPayload, PassflowEvent, PassflowStore } from '../store';
 import { isTokenExpired, parseToken, TokenType } from '../token';
 import { TokenDeliveryManager, TokenDeliveryMode } from '../token/delivery-manager';
 import { ParsedTokens, Tokens } from '../types';
@@ -40,6 +48,13 @@ type PendingPkceSignIn = {
   expiresAt: number;
 };
 
+/** How this instance's refresh controller coordinates (architecture §3.3, §3.4). */
+export type AuthServiceRefreshOptions = {
+  coordination: ResolvedCoordination;
+  /** `PassflowConfig.refreshStrikes`; the controller resolves the default. */
+  strikes?: number;
+};
+
 const PENDING_PKCE_STORAGE_KEY = 'passflow_2fa_pkce';
 /** As long as the pending second factor it belongs to. */
 const PENDING_PKCE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -51,6 +66,13 @@ export class AuthService {
   private tokenDeliveryManager: TokenDeliveryManager;
   private tokenExchangeConfig?: TokenExchangeConfig;
   private pendingPkce?: PendingPkceSignIn;
+
+  /**
+   * The one place this instance sends `/auth/refresh` (PFL-792). Every refresh path asks it: the
+   * explicit `refreshToken()`, the upgrade commit, `getTokens(true)`/`session()` and, once
+   * `Passflow` attaches it, `TokenCacheService.getTokensWithRefresh()`.
+   */
+  readonly refresh: RefreshController;
 
   constructor(
     private authApi: AuthAPI,
@@ -69,6 +91,7 @@ export class AuthService {
     tokenExchangeConfig?: TokenExchangeConfig,
     private platform: PlatformAdapter = webAdapter,
     private readPkceEnabled?: () => Promise<boolean>,
+    refreshOptions: AuthServiceRefreshOptions = { coordination: localCoordination() },
   ) {
     this.tokenExchangeConfig = tokenExchangeConfig;
     this.tokenDeliveryManager = new TokenDeliveryManager(storageManager);
@@ -77,6 +100,19 @@ export class AuthService {
     if (tokenExchangeConfig?.enabled) {
       this.tokenDeliveryManager.setMode(TokenDeliveryMode.BFF);
     }
+
+    // The controller reads the identity from the cache or storage now. It subscribes to nothing
+    // in the store: every new session calls `sessionStarted()` directly (amendment A1).
+    this.refresh = createRefreshController({
+      emit: this.createRefreshEmit(),
+      storage: storageManager,
+      cache: tokenCacheService,
+      transport: this.createRefreshTransport(),
+      coordination: refreshOptions.coordination,
+      platform,
+      ...(refreshOptions.strikes !== undefined ? { strikes: refreshOptions.strikes } : {}),
+      logger: getDefaultLogger(),
+    });
 
     // Initialize session state on page load (cookie/BFF mode only)
     this.initializeSession();
@@ -152,11 +188,24 @@ export class AuthService {
   }
 
   /**
-   * Process successful authentication response
-   * Handles token storage, session state, CSRF tokens
-   * In BFF mode, forwards tokens to BFF server
+   * Applies a sign-in's tokens and starts a new session in the refresh controller.
+   *
+   * Every sign-in reaches the tokens through here: password, passwordless, passkey, federated,
+   * the 2FA code and recovery-code completion, PKCE completion, `joinInvitation` and tokens from a
+   * redirect (`applyTokens`). So this is where the controller learns of a new session (amendment
+   * A1): a tab that signed out, or whose session ended, refreshes again on the new one.
    */
   private async processAuthResponse(response: PassflowAuthorizationResponse, scopes: string[]): Promise<void> {
+    await this.applyAuthResponse(response, scopes);
+    this.refresh.sessionStarted();
+  }
+
+  /**
+   * Stores an authentication response: token storage, session state, CSRF token. In BFF mode it
+   * forwards the tokens to the BFF server first. Starts no session: a cookie-mode refresh applies
+   * its answer through here too.
+   */
+  private async applyAuthResponse(response: PassflowAuthorizationResponse, scopes: string[]): Promise<void> {
     if (response.code && !response.access_token) {
       throw new Error('A PKCE authorization code was not exchanged, so there are no tokens to apply');
     }
@@ -369,12 +418,13 @@ export class AuthService {
     if ('email' in payload && payload.email) {
       if (!isValidEmail(payload.email)) {
         const error = new Error('Invalid email format');
-        const errorPayload: ErrorPayload = {
+        const errorPayload: OperationErrorPayload = {
+          operation: 'sign-in',
           message: 'Invalid email format',
           originalError: error,
           code: 'VALIDATION_ERROR',
         };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        notifyError(this.subscribeStore, errorPayload);
         throw error;
       }
     }
@@ -384,13 +434,14 @@ export class AuthService {
         const error = new Error(
           'Invalid username format. Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens',
         );
-        const errorPayload: ErrorPayload = {
+        const errorPayload: OperationErrorPayload = {
+          operation: 'sign-in',
           message:
             'Invalid username format. Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens',
           originalError: error,
           code: 'VALIDATION_ERROR',
         };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        notifyError(this.subscribeStore, errorPayload);
         throw error;
       }
     }
@@ -398,12 +449,13 @@ export class AuthService {
     if ('phone' in payload && payload.phone) {
       if (!isValidPhoneNumber(payload.phone)) {
         const error = new Error('Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)');
-        const errorPayload: ErrorPayload = {
+        const errorPayload: OperationErrorPayload = {
+          operation: 'sign-in',
           message: 'Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)',
           originalError: error,
           code: 'VALIDATION_ERROR',
         };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+        notifyError(this.subscribeStore, errorPayload);
         throw error;
       }
     }
@@ -433,12 +485,13 @@ export class AuthService {
       await this.submitSessionCheck();
       return response;
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'sign-in',
         message: error instanceof Error ? error.message : 'Sign in failed',
         originalError: error,
         code: error instanceof PassflowError ? error.id : undefined,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
   }
@@ -447,23 +500,25 @@ export class AuthService {
     // Validate user input before API call
     if (payload.user.email && !isValidEmail(payload.user.email)) {
       const error = new Error('Invalid email format');
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'sign-up',
         message: 'Invalid email format',
         originalError: error,
         code: 'VALIDATION_ERROR',
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
 
     if (payload.user.phone_number && !isValidPhoneNumber(payload.user.phone_number)) {
       const error = new Error('Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)');
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'sign-up',
         message: 'Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)',
         originalError: error,
         code: 'VALIDATION_ERROR',
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
 
@@ -491,12 +546,13 @@ export class AuthService {
       await this.submitSessionCheck();
       return response;
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'sign-up',
         message: error instanceof Error ? error.message : 'Sign up failed',
         originalError: error,
         code: error instanceof PassflowError ? error.id : undefined,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
   }
@@ -505,23 +561,25 @@ export class AuthService {
     // Validate input before API call
     if (payload.email && !isValidEmail(payload.email)) {
       const error = new Error('Invalid email format');
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'passwordless.start',
         message: 'Invalid email format',
         originalError: error,
         code: 'VALIDATION_ERROR',
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
 
     if (payload.phone && !isValidPhoneNumber(payload.phone)) {
       const error = new Error('Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)');
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'passwordless.start',
         message: 'Invalid phone number format. Phone must be in E.164 format (e.g., +12345678901)',
         originalError: error,
         code: 'VALIDATION_ERROR',
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
 
@@ -536,12 +594,13 @@ export class AuthService {
       // We'll emit SignIn when passwordlessSignInComplete is called
       return response;
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'passwordless.start',
         message: error instanceof Error ? error.message : 'Failed to send passwordless sign-in link',
         originalError: error,
         code: error instanceof PassflowError ? error.id : undefined,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
   }
@@ -565,59 +624,85 @@ export class AuthService {
       await this.submitSessionCheck();
       return response;
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'passwordless.complete',
         message: error instanceof Error ? error.message : 'Passwordless sign in failed',
         originalError: error,
         code: error instanceof PassflowError ? error.id : undefined,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
   }
 
-  async logOut() {
+  /**
+   * Signs this tab out under the refresh lock (PFL-792 §2.8): stops this tab's refresh callers and
+   * retry timer, waits at most 5 s for the lock (a request already in flight lands first), posts
+   * `signed-out` to the other tabs, calls the logout API with the NEWEST stored refresh token (best
+   * effort), then deletes the stored tokens, id token and CSRF token and clears the token cache.
+   *
+   * Emits no `SignOut`: `Passflow.logOut()` emits exactly one, after this resolves.
+   *
+   * @returns the `sub` of the session that ended, when known
+   */
+  async logOut(): Promise<string | undefined> {
+    const userId = this.refresh.identity();
+    await this.refresh.signOut(async (newest) => {
+      await this.callLogoutApi(newest);
+      this.forgetPkceSignIn();
+      this.clearLocalSession();
+    });
+    return userId;
+  }
+
+  /**
+   * `Passflow.reset()` (PFL-792 amendment A2): the same local sign-out, synchronously, with no
+   * API call and no lock. Emits no `SignOut`; the caller emits one.
+   *
+   * @returns the `sub` of the session that ended, when known
+   */
+  resetSession(): string | undefined {
+    const userId = this.refresh.identity();
+    this.refresh.signOutNow(() => this.clearLocalSession());
+    return userId;
+  }
+
+  /** The logout API call. Server-side cleanup is best effort: every failure is ignored. */
+  private async callLogoutApi(newestRefreshToken: string | undefined): Promise<void> {
     // BFF mode: call BFF logout endpoint to clear httpOnly cookies
     if (this.tokenDeliveryManager.isBFFMode() && this.tokenExchangeConfig?.logoutUrl) {
       try {
-        const response = await fetch(this.tokenExchangeConfig.logoutUrl, {
+        await fetch(this.tokenExchangeConfig.logoutUrl, {
           method: 'POST',
           credentials: 'include', // Include httpOnly cookies
         });
-
-        if (!response.ok) {
-          // Logout endpoint returned error - ignore and continue with local cleanup
-          // Server-side session cleanup is best-effort, local cleanup is critical
-        }
       } catch (_error) {
         // Network error during logout - ignore and continue with local cleanup
-        // User experience is better if we silently handle logout failures
       }
-    } else {
-      // Regular mode: call passflow logout API
-      const refreshToken = this.storageManager.getToken(TokenType.refresh_token);
-      const deviceId = this.storageManager.getDeviceId();
-
-      try {
-        // Call logout API (works in both cookie and JSON modes)
-        // Cookie mode: server reads refresh token from HttpOnly cookie
-        // JSON mode: uses refresh_token from storage
-        const response = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
-        if (response.status !== 'ok') {
-          throw new Error('Logout failed');
-        }
-      } catch (_error) {
-        // Logout API call failed - ignore and continue with local cleanup
-        // User experience is better if we silently handle logout failures
-      }
+      return;
     }
+    // Regular mode: cookie mode sends no token (the server reads the HttpOnly cookie); JSON mode
+    // sends the newest stored refresh token, read under the lock.
+    const refreshToken = newestRefreshToken ?? this.storageManager.getToken(TokenType.refresh_token);
+    const deviceId = this.storageManager.getDeviceId();
+    try {
+      const response = await this.authApi.logOut(deviceId, refreshToken, !this.appId);
+      if (response.status !== 'ok') {
+        throw new Error('Logout failed');
+      }
+    } catch (_error) {
+      // Logout API call failed - ignore and continue with local cleanup
+    }
+  }
 
-    // Clear all local state (both modes)
-    this.forgetPkceSignIn();
+  /** Deletes every local trace of the session (both delivery modes) and clears the token cache. */
+  private clearLocalSession(): void {
     this.storageManager.deleteTokens();
     this.storageManager.clearIdToken();
     this.storageManager.clearCsrfToken();
     this.tokenDeliveryManager.reset();
-    this.subscribeStore.notify(PassflowEvent.SignOut, {});
+    this.tokenCacheService.setTokensCache(undefined);
+    this.tokenCacheService.stopTokenCheck?.();
   }
 
   /**
@@ -680,30 +765,160 @@ export class AuthService {
     throw new UpgradeSessionChangedError('The session changed during verification, so the elevated tokens were discarded');
   }
 
+  /** The delivery mode the refresh transport sends in. BFF without a refresh URL has no endpoint: JSON, as before. */
+  private refreshMode(): 'json' | 'cookie' | 'bff' {
+    if (this.tokenDeliveryManager.isBFFMode() && this.tokenExchangeConfig?.refreshUrl) return 'bff';
+    if (this.tokenDeliveryManager.isCookieMode()) return 'cookie';
+    return 'json';
+  }
+
+  /**
+   * The controller's events, onto the store. Only `notify` is used (plus the error dedupe), so a
+   * store double with `notify` alone works.
+   */
+  private createRefreshEmit(): RefreshEmit {
+    return <E extends keyof RefreshEventMap>(event: E, payload: RefreshEventMap[E]): void => {
+      const store = this.subscribeStore;
+      switch (event) {
+        case 'refresh': {
+          const { tokens, source } = payload as RefreshEventMap['refresh'];
+          store.notify(PassflowEvent.Refresh, { tokens, parsedTokens: this.tokenCacheService.getParsedTokens(), source });
+          return;
+        }
+        case 'signin': {
+          const { tokens, origin } = payload as RefreshEventMap['signin'];
+          store.notify(PassflowEvent.SignIn, { tokens, parsedTokens: this.tokenCacheService.getParsedTokens(), origin });
+          return;
+        }
+        case 'error':
+          notifyError(store, payload as RefreshEventMap['error']);
+          return;
+        case 'refresh:start':
+          store.notify(PassflowEvent.RefreshStart, {});
+          return;
+        case 'token-cache-expired':
+          store.notify(PassflowEvent.TokenCacheExpired, payload as RefreshEventMap['token-cache-expired']);
+          return;
+        case 'refresh:failing':
+          store.notify(PassflowEvent.RefreshFailing, payload as RefreshEventMap['refresh:failing']);
+          return;
+        case 'refresh:recovered':
+          store.notify(PassflowEvent.RefreshRecovered, payload as RefreshEventMap['refresh:recovered']);
+          return;
+        case 'session:expired':
+          store.notify(PassflowEvent.SessionExpired, payload as RefreshEventMap['session:expired']);
+          return;
+        case 'signout':
+          store.notify(PassflowEvent.SignOut, payload as RefreshEventMap['signout']);
+          return;
+        default:
+          getDefaultLogger().warn(`[passflow] Unknown refresh event: ${String(event)}`);
+      }
+    };
+  }
+
+  /**
+   * One refresh request in the current delivery mode, with no events and no saving (architecture
+   * §3.2): the controller decides what an answer or a failure means.
+   *
+   * - JSON: `AuthAPI.refreshToken(stored refresh token, stored scopes, stored access token[, upgrade])`.
+   * - Cookie: `AuthAPI.refreshToken('', scopes[, undefined, upgrade])`; the server reads the HttpOnly cookie.
+   * - BFF: `POST tokenExchange.refreshUrl`. A non-OK answer becomes a `PassflowError` (status, and
+   *   the body's `error.id` or `error.http.<status>`), so it is classified like any other answer.
+   */
+  private createRefreshTransport(): RefreshTransport {
+    return {
+      mode: () => this.refreshMode(),
+      send: async ({ tokens, upgrade }) => {
+        const mode = this.refreshMode();
+        if (mode === 'bff') return await this.sendBffRefresh();
+        if (mode === 'cookie') {
+          return upgrade
+            ? await this.authApi.refreshToken('', this.scopes, undefined, upgrade)
+            : await this.authApi.refreshToken('', this.scopes);
+        }
+        // The `upgrade` argument is passed only when there is one, rather than as an explicit
+        // `undefined`: the ordinary refresh call stays byte-identical to what it was before step-up.
+        const refresh = tokens?.refresh_token ?? '';
+        const scopes = tokens?.scopes ?? this.scopes;
+        const access = tokens?.access_token;
+        return upgrade
+          ? await this.authApi.refreshToken(refresh, scopes, access, upgrade)
+          : await this.authApi.refreshToken(refresh, scopes, access);
+      },
+      applyOpaque: async (response) => {
+        this.tokenDeliveryManager.setSessionValid();
+        if (this.tokenDeliveryManager.isBFFMode()) {
+          // The BFF keeps the access and refresh tokens; only the id token is local.
+          if (response.id_token) this.storageManager.setIdToken(response.id_token);
+          if (response.csrf_token) this.storageManager.setCsrfToken(response.csrf_token);
+          return;
+        }
+        // Cookie mode: the id token and CSRF token, in the delivery mode the answer names.
+        await this.applyAuthResponse(response, this.scopes);
+      },
+      invalidate: () => {
+        // The end of a cookie/BFF session (last strike, successor timeout): §2.11.
+        this.tokenDeliveryManager.setSessionInvalid();
+        this.storageManager.clearIdToken();
+        this.storageManager.clearCsrfToken();
+      },
+      assertPin: (pin) => this.assertSessionPin(pin),
+      opaqueMarker: () => {
+        const id = this.storageManager.getIdToken();
+        const csrf = this.storageManager.getCsrfToken();
+        return id === undefined && csrf === undefined ? undefined : `${id ?? ''}\n${csrf ?? ''}`;
+      },
+    };
+  }
+
+  /** The BFF refresh endpoint. A non-OK answer becomes a `PassflowError`; a network failure rejects as is. */
+  private async sendBffRefresh(): Promise<PassflowAuthorizationResponse> {
+    const url = this.tokenExchangeConfig?.refreshUrl ?? '';
+    const response = await fetch(url, {
+      method: 'POST',
+      credentials: 'include', // Include httpOnly cookies
+    });
+    if (!response.ok) {
+      let id: string | undefined;
+      let message: string | undefined;
+      try {
+        const body = (await response.json()) as { error?: { id?: unknown; message?: unknown } } | undefined;
+        if (typeof body?.error?.id === 'string') id = body.error.id;
+        if (typeof body?.error?.message === 'string') message = body.error.message;
+      } catch {
+        // No JSON body: the status decides.
+      }
+      throw new PassflowError({
+        id: id ?? `error.http.${response.status}`,
+        message: message ?? 'BFF token refresh failed',
+        status: response.status,
+        location: url,
+        time: new Date().toISOString(),
+      });
+    }
+    return (await response.json()) as PassflowAuthorizationResponse;
+  }
+
   /**
    * Refreshes the session, optionally committing an assurance upgrade.
    *
-   * This is the ONLY token-storing path for all four delivery modes, which is
-   * why the upgrade commit goes through here rather than posting to
-   * `/auth/refresh` directly: it saves the rotated tokens, updates the cache and
-   * emits `Refresh`. Bypassing it would elevate the session on the server and
-   * leave the client holding stale tokens — everything looks fine until the next
-   * request 401s.
+   * Both go through the refresh controller, the one place this instance sends `/auth/refresh`: it
+   * coordinates with other tabs, saves with a compare-and-set, classifies failures and emits the
+   * events (PFL-792). A plain refresh is "fresh": it is satisfied only by tokens from a request
+   * sent at or after the call. A failure keeps the tokens unless it really ends the session.
    *
-   * An upgrade commit changes the error handling in one specific way: a 4xx is
-   * NOT treated as a dead session. The server answers a wrong code with a 401,
-   * and tearing the session down there is the logout-at-step-up defect. The
-   * upgrade transport classifies those failures and invalidates the session
-   * itself when the 401 turns out to be a genuine expiry.
+   * The upgrade commit is the one path that is never classified: any failure rejects with the
+   * error unchanged and keeps the tokens, because a 4xx there is the server rejecting the PROOF,
+   * not the session (logging the user out for mistyping six digits is the defect this flow exists
+   * to fix). The upgrade transport classifies those failures itself. The session pin is checked
+   * when the answer arrives, before anything is applied: see `assertSessionPin`.
    */
   async refreshToken(upgrade?: UpgradeRefreshField, pin?: UpgradeSessionPin): Promise<PassflowAuthorizationResponse> {
-    this.subscribeStore.notify(PassflowEvent.RefreshStart, {});
-
-    // BFF mode cannot carry an upgrade, and the refusal has to come BEFORE the
-    // network call: the BFF refresh endpoint is the customer's own, posted to
-    // with an empty body, so there is nowhere to put `{upgrade:{...}}` without a
-    // customer-backend change. Refusing early is what lets the UI show
-    // "unavailable" instead of asking for a code that can never be submitted.
+    // BFF mode cannot carry an upgrade, and the refusal has to come BEFORE any event or network
+    // call: the BFF refresh endpoint is the customer's own, posted to with an empty body, so there
+    // is nowhere to put `{upgrade:{...}}` without a customer-backend change. Refusing early is what
+    // lets the UI show "unavailable" instead of asking for a code that can never be submitted.
     if (upgrade && this.tokenDeliveryManager.isBFFMode()) {
       throw new UpgradeTransportError({
         kind: 'unavailable',
@@ -711,191 +926,38 @@ export class AuthService {
       });
     }
 
-    // BFF mode: call BFF refresh endpoint
-    if (this.tokenDeliveryManager.isBFFMode() && this.tokenExchangeConfig?.refreshUrl) {
-      try {
-        const response = await fetch(this.tokenExchangeConfig.refreshUrl, {
-          method: 'POST',
-          credentials: 'include', // Include httpOnly cookies
-        });
+    if (upgrade) return await this.refresh.commitUpgrade(upgrade, pin);
 
-        if (!response.ok) {
-          this.tokenDeliveryManager.setSessionInvalid();
-          throw new Error('BFF token refresh failed');
-        }
-
-        const data = await response.json();
-
-        // Update session state
-        this.tokenDeliveryManager.setSessionValid();
-
-        // If BFF returns id_token, update local storage
-        if (data.id_token) {
-          this.storageManager.setIdToken(data.id_token);
-        }
-
-        this.subscribeStore.notify(PassflowEvent.Refresh, {
-          tokens: data,
-          parsedTokens: this.tokenCacheService.getParsedTokens(),
-        });
-        this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
-        this.tokenCacheService.isRefreshing = false;
-        this.tokenCacheService.tokenExpiredFlag = false;
-        return data;
-      } catch (error) {
-        this.tokenDeliveryManager.setSessionInvalid();
-        const errorPayload: ErrorPayload = {
-          message: error instanceof Error ? error.message : 'Token refresh failed',
+    // JSON mode with nothing stored: nothing to send (one Error, as before). An ended session is
+    // the controller's to answer (`error.refresh.session_ended`), and cookie/BFF modes have no
+    // readable refresh token at all: both go straight to the controller.
+    if (this.refreshMode() === 'json' && !this.refresh.ended) {
+      const stored = this.storageManager.getTokens();
+      if (!stored?.refresh_token) {
+        const error = new Error(stored ? 'No refresh token found' : 'No tokens found');
+        notifyError(this.subscribeStore, {
+          operation: 'refresh',
+          source: 'refresh-token',
+          message: error.message,
           originalError: error,
-        };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-        throw error;
-      }
-    }
-
-    // Cookie mode: Server reads refresh token from HttpOnly cookie
-    if (this.tokenDeliveryManager.isCookieMode()) {
-      try {
-        // Call refresh endpoint - browser sends HttpOnly cookies automatically
-        const response = upgrade
-          ? await this.authApi.refreshToken('', this.scopes, undefined, upgrade)
-          : await this.authApi.refreshToken('', this.scopes);
-
-        // The pin is verified BEFORE anything is applied — see `assertSessionPin`.
-        this.assertSessionPin(pin);
-
-        // Update session state
-        this.tokenDeliveryManager.setSessionValid();
-
-        // Process response (stores ID token, CSRF token)
-        await this.processAuthResponse(response, this.scopes);
-
-        this.subscribeStore.notify(PassflowEvent.Refresh, {
-          tokens: response,
-          parsedTokens: this.tokenCacheService.getParsedTokens(),
         });
-        this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
-        this.tokenCacheService.isRefreshing = false;
-        this.tokenCacheService.tokenExpiredFlag = false;
-        return response;
-      } catch (error) {
-        // A failed upgrade commit is not a failed session: the four recoverable
-        // upgrade errors all arrive as a bare 401. Classification — and the
-        // invalidation a genuine expiry still deserves — belongs to the upgrade
-        // transport, which knows it issued the request.
-        if (!upgrade) {
-          this.tokenDeliveryManager.setSessionInvalid();
-        }
-        const errorPayload: ErrorPayload = {
-          message: error instanceof Error ? error.message : 'Token refresh failed',
-          originalError: error,
-          code: error instanceof PassflowError ? error.id : undefined,
-        };
-        this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
         throw error;
       }
     }
-
-    // JSON mode: Existing behavior
-    const tokens = this.storageManager.getTokens();
-    if (!tokens) {
-      const error = new Error('No tokens found');
-      const errorPayload: ErrorPayload = {
-        message: 'No tokens found',
-        originalError: error,
-      };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-      throw error;
-    } else if (!tokens?.refresh_token) {
-      const error = new Error('No refresh token found');
-      const errorPayload: ErrorPayload = {
-        message: 'No refresh token found',
-        originalError: error,
-      };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-      throw error;
-    }
-
-    const oldScopes = tokens?.scopes ?? this.scopes;
-    try {
-      // The `upgrade` argument is passed only when there is one, rather than as
-      // an explicit `undefined`: the ordinary refresh call stays byte-identical
-      // to what it was before step-up existed.
-      const refresh = tokens?.refresh_token ?? '';
-      const access = tokens?.access_token;
-      const response = upgrade
-        ? await this.authApi.refreshToken(refresh, oldScopes, access, upgrade)
-        : await this.authApi.refreshToken(refresh, oldScopes, access);
-      // The pin is verified BEFORE the tokens are written — see
-      // `assertSessionPin`. This is the line H2 exists for: `saveTokens` is the
-      // moment user A's rotated tokens would land in user B's storage.
-      this.assertSessionPin(pin);
-
-      response.scopes = oldScopes;
-      this.storageManager.saveTokens(response);
-      this.tokenCacheService.setTokensCache(response);
-      this.subscribeStore.notify(PassflowEvent.Refresh, {
-        tokens: response,
-        parsedTokens: this.tokenCacheService.getParsedTokens(),
-      });
-      this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
-      this.tokenCacheService.isRefreshing = false;
-      this.tokenCacheService.tokenExpiredFlag = false;
-      this.tokenCacheService.startTokenCheck();
-      return response;
-    } catch (error) {
-      const errorPayload: ErrorPayload = {
-        message: error instanceof Error ? error.message : 'Token refresh failed',
-        originalError: error,
-        code: error instanceof PassflowError ? error.id : undefined,
-        details:
-          axios.isAxiosError(error) && error.response
-            ? {
-                status: error.response.status,
-                data: error.response.data,
-              }
-            : undefined,
-      };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-
-      // Check if this is an auth error (4xx) indicating session is invalid
-      const is4xxError =
-        axios.isAxiosError(error) && error.response?.status && error.response.status >= 400 && error.response.status < 500;
-
-      // On an upgrade commit a 4xx is the server rejecting the PROOF, not the
-      // session. Deleting the tokens here would log the user out for mistyping
-      // six digits — the defect this flow exists to fix.
-      if (is4xxError && !upgrade) {
-        // Session is invalid - mark as expired and clean up
-        this.tokenCacheService.tokenExpiredFlag = true;
-        this.tokenCacheService.setTokensCache(undefined);
-        this.storageManager.deleteTokens();
-        this.subscribeStore.notify(PassflowEvent.SessionExpired, { reason: 'refresh_failed' });
-      }
-
-      if (error instanceof PassflowError) {
-        throw error;
-      } else if (is4xxError && !upgrade) {
-        // Rethrown verbatim on the upgrade path instead: the status is the only
-        // thing left to classify by once the server sent no error envelope, and
-        // flattening it into a generic Error destroys that.
-        throw new Error(`Getting unknown error message from server with code:${error.response?.status}`);
-      } else {
-        throw error;
-      }
-    }
+    return await this.refresh.refresh({ trigger: 'refresh-token', fresh: true });
   }
 
   async sendPasswordResetEmail(payload: PassflowSendPasswordResetEmailPayload): Promise<PassflowSuccessResponse> {
     try {
       return await this.authApi.sendPasswordResetEmail(payload);
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'password-reset.send',
         message: error instanceof Error ? error.message : 'Failed to send password reset email',
         originalError: error,
         code: error instanceof PassflowError ? error.id : undefined,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
   }
@@ -930,12 +992,13 @@ export class AuthService {
       await this.submitSessionCheck();
       return response;
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'password-reset.complete',
         message: error instanceof Error ? error.message : 'Password reset failed',
         originalError: error,
         code: error instanceof PassflowError ? error.id : undefined,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
   }
@@ -979,12 +1042,13 @@ export class AuthService {
       await this.submitSessionCheck();
       return responseRegisterComplete;
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'passkey.register',
         message: error instanceof Error ? error.message : 'Passkey registration failed',
         originalError: error,
         code: error instanceof PassflowError ? error.id : undefined,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
   }
@@ -1028,12 +1092,13 @@ export class AuthService {
 
       return responseAuthenticateComplete;
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'passkey.authenticate',
         message: error instanceof Error ? error.message : 'Passkey authentication failed',
         originalError: error,
         code: error instanceof PassflowError ? error.id : undefined,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
   }
@@ -1099,12 +1164,13 @@ export class AuthService {
       });
       this.platform.navigateTo(this.platform.getCurrentUrl()?.origin ?? '');
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'federated.popup',
         message: error instanceof Error ? error.message : 'Authentication failed',
         code: error instanceof PopupClosedError ? 'POPUP_CLOSED' : 'AUTH_FAILED',
         originalError: error,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
     }
   }
 
@@ -1134,11 +1200,12 @@ export class AuthService {
       externalUrl.search = queryParams.toString();
       return externalUrl.toString();
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'auth-redirect.url',
         message: error instanceof Error ? error.message : 'Failed to create auth redirect URL',
         originalError: error,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
   }
@@ -1147,11 +1214,12 @@ export class AuthService {
     try {
       this.platform.navigateTo(this.authRedirectUrl(options));
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'auth-redirect',
         message: error instanceof Error ? error.message : 'Failed to redirect to auth page',
         originalError: error,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
   }
@@ -1183,11 +1251,12 @@ export class AuthService {
         (parsedTokens.refresh_token !== undefined && !isTokenExpired(parsedTokens.refresh_token))
       );
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'auth.is-authenticated',
         message: error instanceof Error ? error.message : 'Failed to check authentication status',
         originalError: error,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       return false;
     }
   }
@@ -1202,11 +1271,12 @@ export class AuthService {
       tokens = await this.getTokens(doRefresh);
       parsedTokens = this.tokenCacheService.getParsedTokens();
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'session.check',
         message: error instanceof Error || error instanceof PassflowError ? error.message : 'Session check failed',
         originalError: error,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       tokens = undefined;
     }
 
@@ -1219,6 +1289,21 @@ export class AuthService {
     }
 
     return tokens;
+  }
+
+  /**
+   * `getTokens(true)` / `session({ doRefresh: true })` (architecture §2.8): starts or joins a
+   * refresh, then resolves with the cached tokens whatever the outcome: the kept tokens after a
+   * transient, blocked or auth-with-strikes-left failure, `undefined` once the session ended. The
+   * failure itself was reported by the controller, so it is not reported again here.
+   */
+  private async refreshForSession(): Promise<Tokens | undefined> {
+    try {
+      await this.refresh.refresh({ trigger: 'session' });
+    } catch {
+      // Reported by the controller (Error{refresh}); the cache says what is left.
+    }
+    return this.tokenCacheService.getTokens();
   }
 
   /**
@@ -1236,7 +1321,7 @@ export class AuthService {
 
         // If session is invalid and refresh requested, try refresh
         if (this.tokenDeliveryManager.isSessionInvalid() && doRefresh) {
-          return await this.refreshToken();
+          return await this.refreshForSession();
         }
 
         // Return tokens (ID token only, access/refresh are in cookies)
@@ -1251,8 +1336,8 @@ export class AuthService {
       const access = parseToken(tokens.access_token);
 
       if (isTokenExpired(access)) {
-        // we have expired token and we need to refresh it or throw error if it's not possible
-        if (doRefresh) return await this.refreshToken();
+        // we have an expired token: refresh it when asked (kept tokens if that fails)
+        if (doRefresh) return await this.refreshForSession();
 
         // we need return undefined here, because we have expired token and we no need to refresh it
         return undefined;
@@ -1260,11 +1345,12 @@ export class AuthService {
         return tokens;
       }
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'tokens.get',
         message: error instanceof Error ? error.message : 'Failed to get tokens',
         originalError: error,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       return undefined;
     }
   }

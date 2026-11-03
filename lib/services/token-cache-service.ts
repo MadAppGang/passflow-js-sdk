@@ -1,8 +1,10 @@
 import { AuthAPI } from '../api';
+import { notifyError } from '../error-report';
 import type { PlatformAdapter } from '../platform';
 import { webAdapter } from '../platform';
+import type { RefreshController } from '../refresh/controller';
 import { StorageManager } from '../storage';
-import { ErrorPayload, PassflowEvent, PassflowStore } from '../store';
+import { OperationErrorPayload, PassflowEvent, PassflowStore } from '../store';
 import { isTokenExpired, parseToken } from '../token';
 import type { ParsedTokens, Tokens } from '../types';
 
@@ -14,18 +16,39 @@ export class TokenCacheService {
   private readonly CHECK_INTERVAL = 60000; // 1 minute (was 10ms)
   private unsubscribeForeground: (() => void) | null = null;
   private unsubscribeUnload: (() => void) | null = null;
-  isRefreshing = false;
+  private refreshController: Pick<RefreshController, 'refresh' | 'busy'> | undefined;
+  /**
+   * Set when the expiry check (`initialize()`, the 60 s check, foreground) finds the access token
+   * expired, with `TokenCacheExpired{isExpired:true}`. Output only: it never gates a refresh. The
+   * refresh controller clears it on every `Refresh`.
+   */
   tokenExpiredFlag = false;
 
+  /**
+   * `authApi` is no longer used here (the refresh controller sends every refresh); the parameter
+   * stays so the constructor's signature does not change.
+   */
   constructor(
     private storageManager: StorageManager,
-    private authApi: AuthAPI,
+    _authApi: AuthAPI,
     private subscribeStore: PassflowStore,
     private platform: PlatformAdapter = webAdapter,
   ) {
     this.storageManager = storageManager;
-    this.authApi = authApi;
     this.setupLifecycleListeners();
+  }
+
+  /** Whether this instance has a refresh cycle (waiting, in flight, a retry or a successor pending). */
+  get isRefreshing(): boolean {
+    return this.refreshController?.busy ?? false;
+  }
+
+  /**
+   * Connects `getTokensWithRefresh()` to the instance's refresh controller. `Passflow` calls it at
+   * construction. Without it, `getTokensWithRefresh()` returns the cache and sends nothing.
+   */
+  attachRefreshController(controller: Pick<RefreshController, 'refresh' | 'busy'> | undefined): void {
+    this.refreshController = controller;
   }
 
   initialize() {
@@ -57,48 +80,13 @@ export class TokenCacheService {
         this.startTokenCheck();
       }
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'tokens.load',
         message: error instanceof Error ? error.message : 'Failed to get tokens',
         originalError: error,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       this.setTokensCache(undefined);
-    }
-  }
-
-  private async refreshTokensCache(tokens: Tokens) {
-    if (this.isRefreshing) return;
-
-    try {
-      this.isRefreshing = true;
-      this.subscribeStore.notify(PassflowEvent.RefreshStart, {});
-
-      const response = await this.authApi.refreshToken(tokens?.refresh_token ?? '', tokens.scopes ?? [], tokens.access_token);
-      this.setTokensCache(response);
-
-      this.subscribeStore.notify(PassflowEvent.Refresh, { tokens: response, parsedTokens: this.getParsedTokens() });
-      this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: false });
-      this.tokenExpiredFlag = false;
-      this.startTokenCheck();
-    } catch (error) {
-      const errorPayload: ErrorPayload = {
-        message: error instanceof Error ? error.message : 'Failed to get tokens',
-        originalError: error,
-      };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
-
-      // Mark session as expired to prevent infinite refresh loops
-      this.tokenExpiredFlag = true;
-      this.setTokensCache(undefined);
-      this.stopTokenCheck();
-
-      // Clear stored tokens since refresh failed
-      this.storageManager.deleteTokens();
-
-      // Notify that session has expired - app should redirect to login
-      this.subscribeStore.notify(PassflowEvent.SessionExpired, { reason: 'refresh_failed' });
-    } finally {
-      this.isRefreshing = false;
     }
   }
 
@@ -150,7 +138,11 @@ export class TokenCacheService {
     }
   }
 
-  private stopTokenCheck() {
+  /**
+   * Stops the expiry check and its foreground listener. Public so the refresh controller can stop
+   * it when a session ends in this tab (it is called optionally: test fakes may lack it).
+   */
+  stopTokenCheck() {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
@@ -197,6 +189,13 @@ export class TokenCacheService {
     return this.tokensCache;
   }
 
+  /**
+   * The cached tokens, refreshed first when the access token has expired (trigger `token-check`).
+   *
+   * It asks the refresh controller, which starts a refresh or joins the one pending, and returns
+   * the cache whatever the outcome: the new tokens, the kept ones after a failure that did not end
+   * the session, `undefined` once it ended. It never rejects; the controller reports the failure.
+   */
   async getTokensWithRefresh() {
     try {
       if (!this.tokensCache) return this.tokensCache;
@@ -211,18 +210,21 @@ export class TokenCacheService {
       // JSON mode: check and refresh if needed
       const access = parseToken(this.tokensCache.access_token);
 
-      if (isTokenExpired(access) && !this.tokenExpiredFlag) {
-        await this.refreshTokensCache(this.tokensCache);
-        return this.tokensCache;
-      } else {
-        return this.tokensCache;
+      if (isTokenExpired(access) && this.refreshController) {
+        try {
+          await this.refreshController.refresh({ trigger: 'token-check' });
+        } catch {
+          // Reported by the controller; the tokens it kept (or none, at a session end) are returned.
+        }
       }
+      return this.tokensCache;
     } catch (error) {
-      const errorPayload: ErrorPayload = {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'tokens.get',
         message: error instanceof Error ? error.message : 'Failed to get tokens',
         originalError: error,
       };
-      this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+      notifyError(this.subscribeStore, errorPayload);
       return undefined;
     }
   }

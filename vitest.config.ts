@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 import path from 'path'
 import tsconfigPaths from 'vite-tsconfig-paths'
 
@@ -39,6 +39,8 @@ export default defineConfig({
     testTimeout: 10000,
     hookTimeout: 10000,
     include: ['**/tests/**/*.test.ts'],
+    // Session sandboxes under ai-docs/ hold copies of tests/; never collect them.
+    exclude: [...configDefaults.exclude, 'ai-docs/**'],
   },
   resolve: {
     alias: {

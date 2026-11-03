@@ -7,6 +7,7 @@ import type {
 import type { AxiosRequestConfig } from 'axios';
 
 import type { PlatformAdapter } from '../platform';
+import type { RefreshCoordination } from '../refresh/types';
 import type { Tokens } from '../types';
 import type { UpgradeAssertion, UpgradeFactor } from '../upgrade/factors';
 
@@ -151,6 +152,26 @@ export type PassflowConfig = {
    * resource that has to be torn down, which configuration cannot express.
    */
   upgrade?: PassflowUpgradeConfig;
+  /**
+   * How tabs of this origin coordinate token refresh.
+   * - `'web-locks'` (default): a Web Lock plus a BroadcastChannel, on a browser page whose
+   *   `platform.storage` is shared by every tab (the default web adapter's localStorage) and that
+   *   has `navigator.locks` and `BroadcastChannel`. Elsewhere it falls back to `'none'`; on a
+   *   browser page with shared storage the fallback writes one `[passflow]` warning, at the first
+   *   refresh.
+   * - `'none'`: no cross-tab coordination. Single flight within this instance, compare-and-set
+   *   save, per-instance retries.
+   * - a `RefreshCoordinator` object: the same protocol as `'web-locks'` over the transports
+   *   you supply (tests, Electron, custom hosts). Never falls back.
+   */
+  refreshCoordination?: RefreshCoordination;
+  /**
+   * Authentication failures of `/auth/refresh` counted since the last successful refresh or
+   * adoption, after which the session ends. Transient failures in between neither add a strike nor
+   * reset the count. Default 3. A non-integer is floored; a value below 1 or not a finite number
+   * uses the default.
+   */
+  refreshStrikes?: number;
 };
 
 export type PassflowUpgradeConfig = {
