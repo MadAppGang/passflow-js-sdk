@@ -188,7 +188,10 @@ Resolution values:
   `undefined` only after the session ended. `getTokensWithRefresh()` never rejects.
 - Rejections:
   - this tab's own request failed: the request's original error (a `PassflowError` for HTTP
-    answers, the axios error for a network failure);
+    answers, the axios error for a network failure). The exception is `error.token.blocked`:
+    the callers, including this tab's own `refreshToken()`, do not see the 400. They wait up to
+    20 s for the successor, then resolve with the adopted tokens or reject with
+    `error.refresh.successor_timeout`;
   - joined another tab's attempt that failed: `PassflowRefreshError` `error.refresh.unavailable`
     (status 503) for a transient failure, `error.refresh.auth_retry` (status 401) for an auth
     failure with strikes left, both with `nextRetryAt`;
