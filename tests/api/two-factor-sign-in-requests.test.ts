@@ -60,6 +60,8 @@ describe('sign-in calls go with credentials', () => {
     ['signIn /auth/login', (a) => a.signIn({ email: 'a@example.com', password: 'pw' }, 'd', 'web' as never)],
     ['signUp /auth/register', (a) => a.signUp({ user: { email: 'a@example.com', password: 'pw' } })],
     ['passwordlessSignInComplete', (a) => a.passwordlessSignInComplete({ challenge_id: 'c', otp: '1' })],
+    // TEST-25 / REQ-7
+    ['validateEmailCode /auth/validate', (a) => a.validateEmailCode({ challenge_id: 'c', otp: '1' })],
     ['passkeyAuthenticateComplete', (a) => a.passkeyAuthenticateComplete({} as never, 'd', 'c')],
     ['passkeyRegisterComplete', (a) => a.passkeyRegisterComplete({} as never, 'd', 'c')],
   ];
@@ -68,6 +70,22 @@ describe('sign-in calls go with credentials', () => {
     await call(api);
     expect(requests).toHaveLength(1);
     expect(requests[0].withCredentials).toBe(true);
+  });
+
+  test('TEST-26 REQ-7 posts only the email challenge and OTP, with a device header', async () => {
+    const payload = { challenge_id: 'c', otp: '000123', device: 'caller-device', extra: 'drop-me' };
+    await api.validateEmailCode(payload);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].method).toBe('post');
+    expect(requests[0].url).toBe('/auth/validate');
+    expect(body(requests[0])).toEqual({ challenge_id: 'c', otp: '000123' });
+    expect(requests[0].withCredentials).toBe(true);
+    const header = Object.entries(requests[0].headers).find(([name]) => name.toLowerCase() === 'x-passflow-deviceid')?.[1];
+    expect(header).toEqual(expect.any(String));
+    expect(String(header).length).toBeGreaterThan(0);
+    expect(header).not.toBe('caller-device');
+    expect(payload).toEqual({ challenge_id: 'c', otp: '000123', device: 'caller-device', extra: 'drop-me' });
   });
 
   test('a call that does not end a sign-in is left as it was', async () => {

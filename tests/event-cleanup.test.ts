@@ -47,6 +47,14 @@ describe('Error events carry an operation', () => {
 
   // [public call, internal owner field, internal method, expected operation]
   const wrapperCases: Array<[string, (p: Passflow) => Promise<unknown>, string, string, PassflowOperation]> = [
+    // TEST-17 / REQ-14: inject at the API boundary so the real completion path reports the failure.
+    [
+      'verifyEmailCode',
+      (p) => p.verifyEmailCode({ challenge_id: 'c', otp: '1' }),
+      'authApi',
+      'validateEmailCode',
+      'email-verification.complete',
+    ],
     ['logOut', (p) => p.logOut(), 'authService', 'logOut', 'log-out'],
     ['getAppSettings', (p) => p.getAppSettings(), 'appApi', 'getAppSettings', 'settings.app'],
     ['getSettingsAll', (p) => p.getSettingsAll(), 'settingApi', 'getSettingsAll', 'settings.all'],
