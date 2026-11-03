@@ -838,3 +838,36 @@ describe('classification table on a single tab (§2.13 #15)', () => {
     }
   });
 });
+
+describe('subscribe() after load (reported by the portal review)', () => {
+  test('a held tab keeps its newer cached pair through later subscribe() calls', async () => {
+    const w = start();
+    const older = pairOf('user-1', { fresh: true });
+    w.seed(older);
+    const a = w.open('A');
+    await w.ready();
+
+    const newer = rotationOf(older.refresh_token ?? '');
+    a.passflow.setTokens(newer);
+    // Storage moves back to the older pair of the same session: the tab is held.
+    w.seed(older);
+
+    a.passflow.subscribe(() => undefined);
+    a.passflow.subscribe(() => undefined, [PassflowEvent.Refresh]);
+
+    expect(a.passflow.getCachedTokens()).toEqual(newer);
+  });
+
+  test('repeated subscribe() with an expired access token reports the expiry once', async () => {
+    const w = start('hold');
+    w.seed(pairOf('user-1'));
+    const a = w.open('A');
+    await w.ready();
+
+    a.passflow.subscribe(() => undefined);
+    a.passflow.subscribe(() => undefined);
+    a.passflow.subscribe(() => undefined);
+
+    expect(a.of(PassflowEvent.TokenCacheExpired)).toEqual([]);
+  });
+});

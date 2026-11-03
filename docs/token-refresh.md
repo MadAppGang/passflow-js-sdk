@@ -428,6 +428,10 @@ check on the answer's id token `sub`.
     Locks. Call `dispose()` on SPA teardown.
 12. `SignIn` can arrive with `origin: 'other-tab'` (an ended tab reviving on a sign-in made in
     another tab).
+13. (0.21.1) `subscribe()` may be called at any time. Each call still starts the expiry check.
+    It no longer reloads the cache from storage when the cache already holds tokens, so a held
+    tab keeps its newer pair. `TokenCacheExpired{isExpired:true}` fires once per expiry, not once
+    per `subscribe()`.
 
 **New**: `refreshCoordination`, `refreshStrikes`, `Passflow.dispose()`, the `RefreshFailing` and
 `RefreshRecovered` events, `PassflowRefreshError`, `RefreshErrorId`, `REFRESH_AUTH_FAILURE_IDS`,

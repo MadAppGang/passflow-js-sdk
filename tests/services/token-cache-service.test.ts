@@ -235,6 +235,39 @@ describe('TokenCacheService', () => {
       expect(mockStore.notify).toHaveBeenCalledWith(PassflowEvent.TokenCacheExpired, { isExpired: true });
     });
 
+    test('keeps a filled cache: a later call never moves it back to an older stored pair', () => {
+      // A held tab: the cache has the newer pair, storage still the older one of the same session.
+      tokenCacheService.setTokensCache(ROTATED);
+      mockStorageManager.getTokens.mockReturnValue(VALID_TOKENS);
+
+      tokenCacheService.initialize();
+      tokenCacheService.initialize();
+
+      expect(tokenCacheService.tokensCache).toEqual(ROTATED);
+    });
+
+    test('judges expiry on the cached pair, not the stored one', () => {
+      tokenCacheService.setTokensCache(ROTATED);
+      mockStorageManager.getTokens.mockReturnValue(EXPIRED_TOKENS);
+
+      tokenCacheService.initialize();
+
+      expect(tokenCacheService.tokenExpiredFlag).toBe(false);
+      expect(tokenCacheService.tokensCache).toEqual(ROTATED);
+      expect(mockStore.notify).not.toHaveBeenCalledWith(PassflowEvent.TokenCacheExpired, { isExpired: true });
+    });
+
+    test('emits TokenCacheExpired{true} once while the access token stays expired', () => {
+      mockStorageManager.getTokens.mockReturnValue(EXPIRED_TOKENS);
+
+      tokenCacheService.initialize();
+      tokenCacheService.initialize();
+      tokenCacheService.initialize();
+
+      const expired = mockStore.notify.mock.calls.filter(([event]) => event === PassflowEvent.TokenCacheExpired);
+      expect(expired).toEqual([[PassflowEvent.TokenCacheExpired, { isExpired: true }]]);
+    });
+
     test('notifies error on storage exception', () => {
       mockStorageManager.getTokens.mockImplementation(() => {
         throw new Error('Storage error');

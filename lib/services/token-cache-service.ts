@@ -51,9 +51,19 @@ export class TokenCacheService {
     this.refreshController = controller;
   }
 
+  /**
+   * Starts the expiry check. `Passflow.subscribe()` calls it on every subscribe, so it must be
+   * safe to repeat:
+   * - A filled cache wins over storage. The cache only moves forward (the refresh controller
+   *   and its fence own every later change), while storage can still hold an older pair of the
+   *   same session (a held tab). Reading storage here would move the cache back.
+   * - `TokenCacheExpired{isExpired:true}` fires only when the expired state changes, not on
+   *   every call.
+   */
   initialize() {
     try {
-      const tokens = this.storageManager.getTokens();
+      const cached = this.tokensCache;
+      const tokens = cached ?? this.storageManager.getTokens();
       if (!tokens) {
         // No tokens to watch. Polling would emit spurious TokenCacheExpired
         // events for logged-out users; wait for a sign-in to (re-)initialize.
@@ -63,7 +73,7 @@ export class TokenCacheService {
       // Cookie mode: access_token may not be in storage (only ID token)
       // In cookie mode, we cache whatever tokens we have (likely just ID token)
       if (!tokens.access_token) {
-        this.setTokensCache(tokens);
+        if (!cached) this.setTokensCache(tokens);
         this.startTokenCheck();
         return;
       }
@@ -72,11 +82,13 @@ export class TokenCacheService {
       const access = parseToken(tokens.access_token);
 
       if (isTokenExpired(access)) {
-        this.tokenExpiredFlag = true;
         this.stopTokenCheck();
-        this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: true });
+        if (!this.tokenExpiredFlag) {
+          this.tokenExpiredFlag = true;
+          this.subscribeStore.notify(PassflowEvent.TokenCacheExpired, { isExpired: true });
+        }
       } else {
-        this.setTokensCache(tokens);
+        if (!cached) this.setTokensCache(tokens);
         this.startTokenCheck();
       }
     } catch (error) {
