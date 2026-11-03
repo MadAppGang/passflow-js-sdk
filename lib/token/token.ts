@@ -7,6 +7,8 @@ export type Token = {
   iss: string;
   jti: string;
   sub: string;
+  /** Auth session the refresh lineage is anchored to; kept by every rotation of one sign-in. */
+  sid?: string;
   type: string;
   email?: string;
   phonenumber?: string;

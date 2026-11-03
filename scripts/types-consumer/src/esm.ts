@@ -2,17 +2,26 @@
 // It touches representative exports by value and by type, so the shipped declarations are
 // resolved and checked (skipLibCheck: false) under node16, nodenext and bundler.
 import {
+  type ErrorPayload,
   M2MClient,
   type M2MClientConfig,
   Passflow,
   type PassflowConfig,
   PassflowEvent,
+  type PassflowEventPayload,
+  type PassflowOperation,
+  PassflowRefreshError,
   type PassflowSubscriber,
   parseUpgradeChallenge,
+  REFRESH_AUTH_FAILURE_IDS,
+  type RefreshCoordinator,
+  RefreshErrorId,
   SDK_VERSION,
+  type SessionExpiredReason,
   type Token,
   TokenDeliveryMode,
   type UpgradeChallenge,
+  UpgradeCommitInterruptedError,
 } from '@passflow/core';
 
 const config: PassflowConfig = { appId: 'app', url: 'https://example.com' };
@@ -25,3 +34,23 @@ export const ev: PassflowEvent = PassflowEvent.SignIn;
 export const tok = null as Token | null;
 export const ch: UpgradeChallenge | undefined = parseUpgradeChallenge(401, () => null);
 export const v: string = SDK_VERSION;
+
+// Multi-tab-safe token refresh (PFL-792): config, coordinator transports, events, errors.
+declare const coordinator: RefreshCoordinator;
+export const refreshConfig: PassflowConfig = { appId: 'app', refreshCoordination: coordinator, refreshStrikes: 3 };
+export const localConfig: PassflowConfig = { refreshCoordination: 'none' };
+export const failing: PassflowEventPayload[PassflowEvent.RefreshFailing] = { since: 0, origin: 'other-tab' };
+export const reason: SessionExpiredReason = 'successor_timeout';
+export const op: PassflowOperation = 'refresh';
+export const errPayload: ErrorPayload = {
+  message: 'm',
+  operation: 'refresh',
+  source: 'pre-request',
+  refresh: { classification: 'transient', willRetry: true, strikes: 0, maxStrikes: 3 },
+};
+export const refreshError: PassflowRefreshError = new PassflowRefreshError(RefreshErrorId.unavailable, { nextRetryAt: 1 });
+export const refreshErrorId: RefreshErrorId = refreshError.id;
+export const interrupted: UpgradeCommitInterruptedError = new UpgradeCommitInterruptedError('lock-timeout');
+export const authIds: readonly string[] = REFRESH_AUTH_FAILURE_IDS;
+export const dispose: () => void = () => pf.dispose();
+export const signedOut: PassflowEventPayload[PassflowEvent.SignOut] = { origin: 'this-tab', userId: 'u' };

@@ -14,12 +14,12 @@ import { webAdapter } from '../platform';
 import { StorageManager } from '../storage';
 import { isTokenExpired, parseToken, TokenService } from '../token';
 import { TokenDeliveryManager } from '../token/delivery-manager';
+import type { Tokens } from '../types';
 import type { UpgradeChallenge } from '../upgrade/challenge';
 import { parseUpgradeChallenge } from '../upgrade/challenge';
 import { hasUpgradeTransactionMarker } from '../upgrade/markers';
 
 import {
-  PassflowAuthorizationResponse,
   PassflowConfig,
   PassflowEndpointPaths,
   PassflowError,
@@ -71,13 +71,28 @@ const isUpgradeChallengeResponse = (response: AxiosResponse): boolean => readUpg
  */
 export type AxiosUpgradeHandler = (error: AxiosError, challenge: UpgradeChallenge) => Promise<AxiosResponse>;
 
+/**
+ * The pre-request refresh (PFL-792). Installed by `Passflow` on every client it owns; it asks the
+ * instance's refresh controller, which coordinates with the other tabs and owns retries, strikes
+ * and the session end. Resolves with the tokens to send (`undefined` once the session ended).
+ *
+ * `allowStale` is true when the access token is inside the 30 s window but not yet expired: during
+ * a pending retry the controller then resolves at once and the call goes out with the current
+ * bearer instead of waiting for the retry.
+ */
+export type AxiosRefreshHandler = (request: { trigger: 'pre-request'; allowStale: boolean }) => Promise<Tokens | undefined>;
+
+/** `/auth/refresh` (also under a prefix such as `/admin`). */
+const isRefreshEndpoint = (url?: string): boolean => url?.includes(PassflowEndpointPaths.refresh) ?? false;
+
+/** Any logout endpoint: it revokes the session, so it never refreshes one first. */
+const isLogoutEndpoint = (url?: string): boolean => url?.includes('logout') ?? false;
+
 export class AxiosClient {
   private instance: AxiosInstance;
   protected storageManager: StorageManager;
   protected deviceService: DeviceService;
   protected tokenDeliveryManager: TokenDeliveryManager;
-  private refreshPromise: Promise<AxiosResponse<PassflowAuthorizationResponse>> | null = null;
-  private isRefreshing = false;
   private _platform: PlatformAdapter;
 
   tokenService: TokenService;
@@ -107,6 +122,9 @@ export class AxiosClient {
 
   /** Set when a consumer wires the upgrade feature. Absent by default. */
   private upgradeHandler?: AxiosUpgradeHandler;
+
+  /** Set by `Passflow` (its refresh controller). Absent on a client built standalone. */
+  private refreshHandler?: AxiosRefreshHandler;
 
   /**
    * Passflow's own API as an interception scope, resolved ONCE here from
@@ -178,65 +196,36 @@ export class AxiosClient {
         return axiosConfig;
       }
 
-      // JSON mode: existing token handling
-      // Request to refresh token endpoint
-      if (axiosConfig.url?.includes('refresh')) {
-        if (this.isRefreshing) {
-          // Abort duplicate refresh requests
-          const controller = new AbortController();
-          controller.abort();
-          axiosConfig.signal = controller.signal;
-          return axiosConfig;
-        }
+      // JSON mode. The refresh request itself carries its own credentials (AuthAPI.refreshToken).
+      if (isRefreshEndpoint(axiosConfig.url)) {
         return axiosConfig;
       }
 
-      // Request to access token endpoints
       const tokens = this.storageManager.getTokens();
+      if (!tokens?.access_token) {
+        return axiosConfig;
+      }
 
-      if (tokens?.access_token) {
+      let accessToken = tokens.access_token;
+      if (this.refreshHandler && tokens.refresh_token && !isLogoutEndpoint(axiosConfig.url)) {
         const access = parseToken(tokens.access_token);
-
-        // Check if token is expired with buffer
-        if (isTokenExpired(access, TOKEN_EXPIRY_BUFFER_SECONDS) && tokens.refresh_token) {
+        if (isTokenExpired(access, TOKEN_EXPIRY_BUFFER_SECONDS)) {
+          // Inside the window but not yet expired: the current bearer still works, so a pending
+          // retry need not be waited for, and a failed refresh does not stop the call.
+          const allowStale = !isTokenExpired(access, 0);
           try {
-            // Single-flight pattern: reuse in-flight refresh
-            if (this.refreshPromise) {
-              const response = await this.refreshPromise;
-              // After refresh completes, get new token
-              if (response?.data?.access_token) {
-                axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${response.data.access_token}`;
-              }
-              return axiosConfig;
-            }
-
-            // Start new refresh using single-flight pattern
-            this.refreshPromise = this.refreshTokens();
-
-            try {
-              const response = await this.refreshPromise;
-              // After refresh completes, get new token
-              if (response?.data?.access_token) {
-                axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${response.data.access_token}`;
-              }
-              return axiosConfig;
-            } finally {
-              this.refreshPromise = null;
-            }
+            const refreshed = await this.refreshHandler({ trigger: 'pre-request', allowStale });
+            accessToken = refreshed?.access_token ?? accessToken;
           } catch (error) {
-            // On failure, clear refresh state immediately so future requests can retry
-            this.refreshPromise = null;
-            this.isRefreshing = false;
-            // Clear tokens on auth failure
-            this.storageManager.deleteTokens();
-            return Promise.reject(error);
+            // The controller owns the failure (retry, strikes, session end). Nothing is deleted here.
+            if (!allowStale) {
+              throw error;
+            }
           }
         }
-
-        axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${tokens.access_token}`;
-
-        return axiosConfig;
       }
+
+      axiosConfig.headers[AUTHORIZATION_HEADER_KEY] = `Bearer ${accessToken}`;
       return axiosConfig;
     });
 
@@ -264,7 +253,14 @@ export class AxiosClient {
         // the same bug. Scoping to the one request that failed also keeps a
         // genuine expiry on an unrelated background request invalidating
         // normally while a prompt is open.
-        if (e.response?.status === HttpStatuses.unauthorized && !this.isUpgradeTransactionError(e)) {
+        //
+        // A 401 from `/auth/refresh` itself never invalidates here: the refresh controller
+        // classifies it and invalidates only at a real session end (PFL-792).
+        if (
+          e.response?.status === HttpStatuses.unauthorized &&
+          !isRefreshEndpoint(e.config?.url) &&
+          !this.isUpgradeTransactionError(e)
+        ) {
           this.tokenDeliveryManager.setSessionInvalid();
         }
 
@@ -322,6 +318,20 @@ export class AxiosClient {
   }
 
   /**
+   * Installs (or clears) the pre-request refresh. JSON mode only: before a request that needs an
+   * access token (not `/auth/refresh`, not logout) whose access token expires within 30 s while a
+   * refresh token is stored, the handler is awaited and its access token becomes the bearer. On
+   * rejection the call still goes out with the current bearer when that token has not expired yet;
+   * otherwise the call rejects with the handler's error. Nothing is ever deleted here.
+   *
+   * Without a handler (an API client built standalone, outside `Passflow`) no refresh runs: every
+   * call sends the stored bearer as it is, and an expired one gets the server's 401.
+   */
+  setRefreshHandler(handler: AxiosRefreshHandler | undefined): void {
+    this.refreshHandler = handler;
+  }
+
+  /**
    * Re-issues a request after an elevation. Exposed for the upgrade handler,
    * which owns the replay-once decision; the marker preventing a second
    * elevation travels on the config the caller passes in.
@@ -360,69 +370,11 @@ export class AxiosClient {
     }
   }
 
-  /**
-   * Refresh tokens using single-flight pattern to prevent race conditions
-   * Supports both cookie mode and JSON mode
-   */
-  private async refreshTokens(): Promise<AxiosResponse<PassflowAuthorizationResponse>> {
-    if (this.tokenDeliveryManager.isCookieMode()) {
-      // Cookie mode: call /auth/refresh with credentials:'include'
-      // Server reads refresh token from HttpOnly cookie
-      const response = await this.instance.post<PassflowAuthorizationResponse>(
-        PassflowEndpointPaths.refresh,
-        {}, // Empty body
-        { withCredentials: true },
-      );
-
-      // Mark session as valid after successful refresh
-      this.tokenDeliveryManager.setSessionValid();
-
-      // Extract CSRF token if present
-      if (response.data.csrf_token) {
-        this.storageManager.setCsrfToken(response.data.csrf_token);
-      }
-
-      // Save ID token if present (other tokens are in HttpOnly cookies)
-      if (response.data.id_token) {
-        this.storageManager.setIdToken(response.data.id_token);
-      }
-
-      return response;
-    } else {
-      // JSON mode: existing refresh logic
-      const tokens = this.storageManager.getTokens();
-      const scopes = this.storageManager.getScopes();
-
-      if (!tokens?.refresh_token) {
-        throw new Error('No refresh token available');
-      }
-
-      this.isRefreshing = true;
-      const payload = {
-        refresh_token: tokens.refresh_token,
-        scopes,
-      };
-
-      const response = await this.instance.post<PassflowAuthorizationResponse>(PassflowEndpointPaths.refresh, payload, {
-        headers: {
-          [AUTHORIZATION_HEADER_KEY]: `Bearer ${tokens.refresh_token}`,
-        },
-      });
-
-      if (response.data) {
-        // Update storage BEFORE processing queued requests
-        this.storageManager.saveTokens(response.data);
-      }
-
-      this.isRefreshing = false;
-
-      return response;
-    }
-  }
-
   private async handleRateLimitError(e: AxiosError): Promise<AxiosResponse> {
     const config = e.config;
-    if (!config) {
+    // `/auth/refresh` is never retried here: the refresh controller owns its retries and reads the
+    // raw 429 (Retry-After) itself.
+    if (!config || isRefreshEndpoint(config.url)) {
       return Promise.reject(e);
     }
 

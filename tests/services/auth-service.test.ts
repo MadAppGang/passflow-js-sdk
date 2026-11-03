@@ -275,13 +275,16 @@ describe('AuthService', () => {
       expect(mockAuthApi.logOut).toHaveBeenCalledWith(mockDeviceId, mockTokens.refresh_token, false);
     });
 
-    test('should delete tokens and emit SignOut event', async () => {
+    // PFL-792: AuthService.logOut clears everything (cache included) and emits no SignOut;
+    // Passflow.logOut emits the one SignOut{origin:'this-tab', userId} (tests/event-cleanup.test.ts).
+    test('should delete tokens, clear the cache and emit no SignOut itself', async () => {
       await authService.logOut();
 
       expect(mockStorageManager.deleteTokens).toHaveBeenCalled();
       expect(mockStorageManager.clearIdToken).toHaveBeenCalled();
       expect(mockStorageManager.clearCsrfToken).toHaveBeenCalled();
-      expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.SignOut, {});
+      expect(mockTokenCacheService.setTokensCache).toHaveBeenCalledWith(undefined);
+      expect(mockSubscribeStore.notify).not.toHaveBeenCalledWith(PassflowEvent.SignOut, expect.anything());
     });
   });
 
@@ -299,9 +302,11 @@ describe('AuthService', () => {
         ...mockAuthResponse,
         scopes: mockScopes,
       });
+      // PFL-792 §2.4: Refresh names its source ('refresh': this tab's own request).
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(PassflowEvent.Refresh, {
         tokens: expect.objectContaining(mockAuthResponse),
         parsedTokens: mockParsedTokens,
+        source: 'refresh',
       });
     });
 

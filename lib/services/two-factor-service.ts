@@ -19,7 +19,8 @@ import {
   TwoFactorVerifyResponseV2,
 } from '../api/model';
 import { TwoFactorApiClient } from '../api/two-factor';
-import { PassflowEvent, PassflowStore } from '../store';
+import { notifyError } from '../error-report';
+import { type OperationErrorPayload, PassflowEvent, type PassflowOperation, PassflowStore } from '../store';
 import type { Tokens } from '../types';
 import { isValidTOTPCode, normalizeRecoveryCode } from '../utils/validation';
 
@@ -107,14 +108,15 @@ export class TwoFactorService {
    * Emit error event and throw the error
    * Helper method to ensure errors are properly emitted to subscribers
    */
-  private emitErrorAndThrow(error: unknown, context: string): never {
+  private emitErrorAndThrow(error: unknown, operation: PassflowOperation, context: string): never {
     const errorWithId = error as ErrorWithId;
-    const errorPayload = {
+    const errorPayload: OperationErrorPayload = {
+      operation,
       message: error instanceof Error ? error.message : `${context} failed`,
       originalError: error,
       code: errorWithId?.id || undefined,
     };
-    this.subscribeStore.notify(PassflowEvent.Error, errorPayload);
+    notifyError(this.subscribeStore, errorPayload);
     throw error;
   }
 
@@ -130,7 +132,7 @@ export class TwoFactorService {
       }
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Get 2FA status');
+      this.emitErrorAndThrow(error, '2fa.status', 'Get 2FA status');
     }
   }
 
@@ -148,7 +150,7 @@ export class TwoFactorService {
       this.subscribeStore.notify(PassflowEvent.TwoFactorSetupStarted, { secret: response.secret });
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Begin 2FA setup');
+      this.emitErrorAndThrow(error, '2fa.setup.begin', 'Begin 2FA setup');
     }
   }
 
@@ -179,7 +181,7 @@ export class TwoFactorService {
       // Apps must handle secure storage/display of codes
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Confirm 2FA setup');
+      this.emitErrorAndThrow(error, '2fa.setup.confirm', 'Confirm 2FA setup');
     }
   }
 
@@ -220,7 +222,7 @@ export class TwoFactorService {
 
       return completed;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Verify 2FA code');
+      this.emitErrorAndThrow(error, '2fa.verify', 'Verify 2FA code');
     }
   }
 
@@ -277,7 +279,7 @@ export class TwoFactorService {
 
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Use recovery code');
+      this.emitErrorAndThrow(error, '2fa.recovery.use', 'Use recovery code');
     }
   }
 
@@ -295,7 +297,7 @@ export class TwoFactorService {
       this.subscribeStore.notify(PassflowEvent.TwoFactorDisabled, {});
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Disable 2FA');
+      this.emitErrorAndThrow(error, '2fa.disable', 'Disable 2FA');
     }
   }
 
@@ -325,7 +327,7 @@ export class TwoFactorService {
 
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Regenerate recovery codes');
+      this.emitErrorAndThrow(error, '2fa.recovery.regenerate', 'Regenerate recovery codes');
     }
   }
 
@@ -579,7 +581,7 @@ export class TwoFactorService {
     try {
       return await this.twoFactorApi.getAvailableMethods();
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Get available 2FA methods');
+      this.emitErrorAndThrow(error, '2fa.methods.available', 'Get available 2FA methods');
     }
   }
 
@@ -590,7 +592,7 @@ export class TwoFactorService {
     try {
       return await this.twoFactorApi.getRegisteredMethods();
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Get registered 2FA methods');
+      this.emitErrorAndThrow(error, '2fa.methods.registered', 'Get registered 2FA methods');
     }
   }
 
@@ -603,7 +605,7 @@ export class TwoFactorService {
       this.subscribeStore.notify(PassflowEvent.TwoFactorSetupStarted, { secret: '', method });
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Start 2FA method setup');
+      this.emitErrorAndThrow(error, '2fa.method.setup.start', 'Start 2FA method setup');
     }
   }
 
@@ -621,7 +623,7 @@ export class TwoFactorService {
       });
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Complete 2FA method setup');
+      this.emitErrorAndThrow(error, '2fa.method.setup.complete', 'Complete 2FA method setup');
     }
   }
 
@@ -632,7 +634,7 @@ export class TwoFactorService {
     try {
       await this.twoFactorApi.removeMethod(methodId);
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Remove 2FA method');
+      this.emitErrorAndThrow(error, '2fa.method.remove', 'Remove 2FA method');
     }
   }
 
@@ -649,7 +651,7 @@ export class TwoFactorService {
       });
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Request 2FA challenge');
+      this.emitErrorAndThrow(error, '2fa.challenge.request', 'Request 2FA challenge');
     }
   }
 
@@ -675,7 +677,7 @@ export class TwoFactorService {
       }
       return completed;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Verify 2FA challenge');
+      this.emitErrorAndThrow(error, '2fa.challenge.verify', 'Verify 2FA challenge');
     }
   }
 
@@ -692,7 +694,7 @@ export class TwoFactorService {
       });
       return response;
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Switch to alternative 2FA method');
+      this.emitErrorAndThrow(error, '2fa.method.switch', 'Switch to alternative 2FA method');
     }
   }
 
@@ -704,7 +706,7 @@ export class TwoFactorService {
     try {
       return await this.twoFactorApi.getTrustedDevices();
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Get trusted devices');
+      this.emitErrorAndThrow(error, '2fa.trusted-devices.list', 'Get trusted devices');
     }
   }
 
@@ -716,7 +718,7 @@ export class TwoFactorService {
     try {
       await this.twoFactorApi.revokeTrustedDevice(deviceId);
     } catch (error) {
-      this.emitErrorAndThrow(error, 'Revoke trusted device');
+      this.emitErrorAndThrow(error, '2fa.trusted-devices.revoke', 'Revoke trusted device');
     }
   }
 }

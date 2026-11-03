@@ -71,11 +71,39 @@ export type {
   PlatformStorage,
 } from './platform';
 export { PopupClosedError, WebAdapter, webAdapter } from './platform';
+// Multi-tab-safe token refresh (PFL-792): configuration, coordinator transports, event payload
+// vocabulary and the errors a refresh caller can receive. The controller itself is internal.
+export {
+  type EventOrigin,
+  PassflowRefreshError,
+  type PassflowRefreshErrorOptions,
+  REFRESH_AUTH_FAILURE_IDS,
+  type RefreshChannel,
+  type RefreshClock,
+  type RefreshCoordination,
+  type RefreshCoordinator,
+  RefreshErrorId,
+  type RefreshErrorInfo,
+  type RefreshFailureKind,
+  type RefreshLockManager,
+  type RefreshLockOptions,
+  type RefreshTrigger,
+  type SessionExpiredReason,
+  UpgradeCommitInterruptedError,
+  type UpgradeCommitInterruptedReason,
+} from './refresh';
 // Export service interfaces for extensibility
 export * from './services';
 export { TwoFactorService } from './services/two-factor-service';
 // Re-export events
-export { type ErrorPayload, PassflowEvent, type PassflowEventPayload, type PassflowSubscriber } from './store';
+export {
+  type ErrorPayload,
+  type OperationErrorPayload,
+  PassflowEvent,
+  type PassflowEventPayload,
+  type PassflowOperation,
+  type PassflowSubscriber,
+} from './store';
 // Re-export token utilities
 export {
   type Group,
