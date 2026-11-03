@@ -23,7 +23,7 @@ import {
 import { DeviceService } from '../device';
 import { notifyError } from '../error-report';
 import { createPkcePair, type PkcePair } from '../pkce';
-import { type PlatformAdapter, PopupClosedError, webAdapter } from '../platform';
+import { type CurrentUrlInfo, type PlatformAdapter, PopupClosedError, webAdapter } from '../platform';
 import {
   createRefreshController,
   type RefreshController,
@@ -74,6 +74,18 @@ const PENDING_PKCE_TIMEOUT_MS = 5 * 60 * 1000;
 /** At most this many code challenges are remembered; each resend adds one. The oldest goes first. */
 const MAX_EMAIL_CHALLENGES = 10;
 const VERIFIER_GONE_MESSAGE = 'The sign-in answered with a PKCE code, but its verifier is gone';
+
+/**
+ * The reset link's `?token=`: from the query, else from a hash route's query
+ * (`#/password/reset?token=…`), so a hash router finds it too.
+ */
+const readResetToken = (url: CurrentUrlInfo | null): string | undefined => {
+  if (!url) return undefined;
+  const fromSearch = new URLSearchParams(url.search).get('token');
+  if (fromSearch) return fromSearch;
+  const query = url.hash.indexOf('?');
+  return query < 0 ? undefined : (new URLSearchParams(url.hash.slice(query + 1)).get('token') ?? undefined);
+};
 
 /** The reset token's `email` claim, for display only. Never trusted, and never an error. */
 const emailFromResetToken = (resetToken?: string): string | undefined => {
@@ -1111,10 +1123,10 @@ export class AuthService {
     }
   }
 
-  async resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
+  async resetPassword(newPassword: string, scopes?: string[], token?: string): Promise<PassflowAuthorizationResponse> {
     this.subscribeStore.notify(PassflowEvent.SignInStart, {});
-    const urlParams = new URLSearchParams(this.platform.getCurrentUrl()?.search ?? '');
-    const resetToken = urlParams.get('token') ?? undefined;
+    // An explicit token wins; then the query, as before; then a hash route's query.
+    const resetToken = token ?? readResetToken(this.platform.getCurrentUrl());
     const sscopes = scopes ?? this.scopes;
 
     try {

@@ -1267,6 +1267,9 @@ export class Passflow {
    *
    * @param newPassword - The new password to set
    * @param scopes - Optional scopes to request after reset
+   * @param resetToken - The reset link's token. Without it the token is read from `?token=` in
+   *   `location.search`, then from a hash route's query (`#/reset?token=…`). Pass it when your
+   *   router keeps the link's query somewhere else (memory router).
    * @returns Promise with authorization response containing new tokens
    * May answer an email verification step instead of tokens: check it with
    * `isEmailVerificationStep(response)`. With a `challenge_id`, finish with `verifyEmailCode`.
@@ -1283,8 +1286,8 @@ export class Passflow {
    * }
    * ```
    */
-  async resetPassword(newPassword: string, scopes?: string[]): Promise<PassflowAuthorizationResponse> {
-    const response = await this.authService.resetPassword(newPassword, scopes);
+  async resetPassword(newPassword: string, scopes?: string[], resetToken?: string): Promise<PassflowAuthorizationResponse> {
+    const response = await this.authService.resetPassword(newPassword, scopes, resetToken);
 
     return response;
   }
