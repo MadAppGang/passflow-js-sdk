@@ -487,12 +487,75 @@ export type AppSettings = {
   create_tenant_on_registration: 'never' | 'always' | 'optional';
   fim_merge_by_email_allowed: boolean;
   debug_otp_code_allowed: boolean;
-  debug_otp_code_for_registration: string;
+  /**
+   * WRITE-ONLY. Every read and write answer returns it as an empty string; the stored code is
+   * never echoed. On write, a blank or absent value keeps the stored code and a non-blank value
+   * replaces it. The only way to clear it is
+   * `DELETE /admin/apps/{id}/secrets/debug_otp_code_for_registration` (see `AppSecretName`).
+   * Use `debug_otp_code_set` to tell whether a code is stored.
+   */
+  debug_otp_code_for_registration?: string;
+  /** READ-ONLY. `true` when a `debug_otp_code_for_registration` is stored. Ignored on write. */
+  debug_otp_code_set?: boolean;
   defaults: DefaultAppSettings;
   login_app_theme: LoginWebAppTheme;
   login_app_settings?: unknown;
   token_delivery_method?: TokenDeliveryMethod;
 };
+
+/**
+ * A write-only app secret that the admin API clears by name with
+ * `DELETE /admin/apps/{id}/secrets/{name}`. The SDK has no admin client, so this route is not
+ * wrapped; the names are exported for admin UIs that call it themselves.
+ *
+ * - `debug_otp_code_for_registration`: an `AppSettings` field. Answers return it as an empty
+ *   string; `AppSettings.debug_otp_code_set` tells whether one is stored.
+ * - `fcm_server_key`, `webpush_vapid_private_key`: push settings in the app's
+ *   `two_factor_settings`. Both are absent from every answer; `webpush_vapid_public_key` is
+ *   still returned.
+ *
+ * On write, a blank or absent value keeps the stored secret and a non-blank value replaces it.
+ * DELETE is the only way to clear one. See docs/admin-secrets.md.
+ */
+export type AppSecretName = 'debug_otp_code_for_registration' | 'fcm_server_key' | 'webpush_vapid_private_key';
+
+/** Every `AppSecretName`, in the order the type lists them. */
+export const APP_SECRET_NAMES: readonly AppSecretName[] = Object.freeze([
+  'debug_otp_code_for_registration',
+  'fcm_server_key',
+  'webpush_vapid_private_key',
+]);
+
+/**
+ * A secret in the server settings (`GET`/`PUT /admin/settings`) as the admin API returns it.
+ *
+ * - Secrets come back as `mask://********`.
+ * - Connection strings, dynamo/s3/ssm endpoints, plugin address/cmd, activity-logger endpoints
+ *   and management_keys come back as `mask://********` followed by `/` and 16 lowercase
+ *   hex characters (e.g. a `/0123456789abcdef` suffix); the suffix tells values apart without
+ *   revealing them. (Written in two parts because the full form would end this comment.)
+ *
+ * On `PUT`: echo the masked value unchanged to keep the stored one, send a plain value to
+ * replace it, send an empty string to clear it. A stale or edited masked value fails with
+ * HTTP 400 and id `SETTINGS_MASKED_VALUE_UNKNOWN_ERROR_ID`. See docs/admin-secrets.md.
+ */
+export type MaskedSecret = string;
+
+/** The prefix every `MaskedSecret` starts with. */
+export const MASKED_SECRET_PREFIX = 'mask://';
+
+/**
+ * Error id of the HTTP 400 that `PUT /admin/settings` returns for a masked value the server did
+ * not issue for the stored one (stale or edited).
+ */
+export const SETTINGS_MASKED_VALUE_UNKNOWN_ERROR_ID = 'error.server.update.settings.masked.value.unknown';
+
+/**
+ * Whether a server settings value is a masked secret rather than a plain value: any string that
+ * starts with `MASKED_SECRET_PREFIX`. It does not check that the server would accept it.
+ */
+export const isMaskedSecret = (value: unknown): value is MaskedSecret =>
+  typeof value === 'string' && value.startsWith(MASKED_SECRET_PREFIX);
 
 export type DefaultAppSettings = {
   app_id: string;
