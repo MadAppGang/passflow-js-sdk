@@ -1,7 +1,9 @@
 import {
   AuthAPI,
   getOSFromDeviceType,
+  isEmailVerificationStep,
   PassflowAuthorizationResponse,
+  PassflowEmailCodePayload,
   PassflowError,
   PassflowFederatedAuthExtendedPayload,
   PassflowFederatedAuthPayload,
@@ -31,7 +33,7 @@ import {
 } from '../refresh/controller';
 import { localCoordination, type ResolvedCoordination } from '../refresh/resolve';
 import { StorageManager } from '../storage';
-import { OperationErrorPayload, PassflowEvent, PassflowStore } from '../store';
+import { OperationErrorPayload, type PassflowEmailVerificationOperation, PassflowEvent, PassflowStore } from '../store';
 import { isTokenExpired, parseToken, TokenType } from '../token';
 import { TokenDeliveryManager, TokenDeliveryMode } from '../token/delivery-manager';
 import { ParsedTokens, Tokens } from '../types';
@@ -48,6 +50,17 @@ type PendingPkceSignIn = {
   expiresAt: number;
 };
 
+/**
+ * What the call that produced an emailed code challenge knew, so `verifyEmailCode` can finish it
+ * the same way: which event ends it, the scopes it asked for, and whether it left a PKCE verifier.
+ */
+type EmailChallenge = {
+  operation: PassflowEmailVerificationOperation;
+  email?: string;
+  scopes: string[];
+  pkce: boolean;
+};
+
 /** How this instance's refresh controller coordinates (architecture §3.3, §3.4). */
 export type AuthServiceRefreshOptions = {
   coordination: ResolvedCoordination;
@@ -58,6 +71,19 @@ export type AuthServiceRefreshOptions = {
 const PENDING_PKCE_STORAGE_KEY = 'passflow_2fa_pkce';
 /** As long as the pending second factor it belongs to. */
 const PENDING_PKCE_TIMEOUT_MS = 5 * 60 * 1000;
+/** At most this many code challenges are remembered; each resend adds one. The oldest goes first. */
+const MAX_EMAIL_CHALLENGES = 10;
+const VERIFIER_GONE_MESSAGE = 'The sign-in answered with a PKCE code, but its verifier is gone';
+
+/** The reset token's `email` claim, for display only. Never trusted, and never an error. */
+const emailFromResetToken = (resetToken?: string): string | undefined => {
+  if (!resetToken) return undefined;
+  try {
+    return parseToken(resetToken).email;
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * Service for handling authentication related functionality
@@ -66,6 +92,11 @@ export class AuthService {
   private tokenDeliveryManager: TokenDeliveryManager;
   private tokenExchangeConfig?: TokenExchangeConfig;
   private pendingPkce?: PendingPkceSignIn;
+  /**
+   * The emailed code challenges this instance produced, by `challenge_id`. Memory only: an id
+   * this instance does not know (reload, another tab, a recreated instance) finishes as a sign-in.
+   */
+  private emailChallenges = new Map<string, EmailChallenge>();
 
   /**
    * The one place this instance sends `/auth/refresh` (PFL-792). Every refresh path asks it: the
@@ -254,7 +285,7 @@ export class AuthService {
   private handlePendingSecondFactor(
     response: Pick<PassflowAuthorizationResponse, 'requires_2fa' | 'challenge_id' | 'tfa_token'>,
     email?: string,
-    pkce?: PkcePair,
+    pkce?: Pick<PkcePair, 'verifier'>,
     scopes?: string[],
   ): boolean {
     if (response.requires_2fa !== true && !response.tfa_token) {
@@ -271,6 +302,47 @@ export class AuthService {
       tfaToken: response.tfa_token || '',
     });
     return true;
+  }
+
+  /**
+   * Reports whether an answer is an email verification step, and when it is, prepares its completion.
+   *
+   * That answer is not a session: on `true` the caller returns it as it is, without
+   * `processAuthResponse`, a `SignIn`/`Register` event, a session check or an error event. With a
+   * code (`challenge_id`) on a PKCE app the verifier is kept for the code `/auth/validate` answers
+   * with. A link step drops any verifier: that sign-in finishes on another page.
+   */
+  private handleEmailVerificationStep(
+    response: PassflowAuthorizationResponse,
+    operation: PassflowEmailVerificationOperation,
+    email: string | undefined,
+    pkce: Pick<PkcePair, 'verifier'> | undefined,
+    scopes: string[],
+  ): boolean {
+    if (!isEmailVerificationStep(response)) {
+      return false;
+    }
+    const challengeId = response.challenge_id || undefined;
+    if (challengeId && pkce) {
+      this.rememberPkceSignIn(pkce.verifier, scopes);
+    } else {
+      this.forgetPkceSignIn();
+    }
+    if (challengeId) {
+      this.rememberEmailChallenge(challengeId, { operation, email, scopes, pkce: pkce !== undefined });
+    }
+    this.subscribeStore.notify(PassflowEvent.EmailVerificationRequired, { email, challengeId, operation });
+    return true;
+  }
+
+  /** Adds a challenge at the newest end, dropping the oldest past `MAX_EMAIL_CHALLENGES`. */
+  private rememberEmailChallenge(id: string, challenge: EmailChallenge): void {
+    this.emailChallenges.delete(id);
+    this.emailChallenges.set(id, challenge);
+    for (const oldest of this.emailChallenges.keys()) {
+      if (this.emailChallenges.size <= MAX_EMAIL_CHALLENGES) break;
+      this.emailChallenges.delete(oldest);
+    }
   }
 
   /**
@@ -366,7 +438,7 @@ export class AuthService {
   async completePkceSignIn(code: string): Promise<PassflowAuthorizationResponse> {
     const pending = this.readPendingPkce();
     if (!pending) {
-      throw new Error('The sign-in answered with a PKCE code, but its verifier is gone');
+      throw new Error(VERIFIER_GONE_MESSAGE);
     }
     const tokens = await this.authApi.pkceExchange(code, pending.verifier);
     await this.processAuthResponse(tokens, pending.scopes ?? this.scopes);
@@ -468,6 +540,9 @@ export class AuthService {
     try {
       const pkce = await this.startPkce();
       const answer = await this.authApi.signIn(pkce ? { ...payload, code_challenge: pkce.challenge } : payload, deviceId, os);
+      if (this.handleEmailVerificationStep(answer, 'sign-in', payload.email, pkce, payload.scopes)) {
+        return answer;
+      }
       if (this.handlePendingSecondFactor(answer, payload.email, pkce, payload.scopes)) {
         return answer;
       }
@@ -529,6 +604,9 @@ export class AuthService {
     try {
       const pkce = await this.startPkce();
       const answer = await this.authApi.signUp(pkce ? { ...payload, code_challenge: pkce.challenge } : payload);
+      if (this.handleEmailVerificationStep(answer, 'sign-up', payload.user.email, pkce, payload.scopes)) {
+        return answer;
+      }
       if (this.handlePendingSecondFactor(answer, payload.user.email, pkce, payload.scopes)) {
         return answer;
       }
@@ -636,6 +714,73 @@ export class AuthService {
   }
 
   /**
+   * Finishes a sign-up, sign-in or password change that answered with an emailed code
+   * (`email_verification_required` with a `challenge_id`): posts the code to `/auth/validate`, then
+   * continues like `signIn`. Emits `Register` for a sign-up's challenge and `SignIn` otherwise
+   * (an unknown id included), `TwoFactorRequired` when a second factor is owed, and one `Error`
+   * on failure. Emits no Start event: the code step's `EmailVerificationRequired` ended that one.
+   */
+  async verifyEmailCode(payload: PassflowEmailCodePayload): Promise<PassflowAuthorizationResponse> {
+    const challenge = this.emailChallenges.get(payload.challenge_id);
+    const email = challenge?.email;
+
+    try {
+      // A challenge that left no verifier ignores one from another sign-in. One that left a
+      // verifier needs it before the code is spent: without it a sign-up would create the
+      // account and get no session. An unknown id takes whatever is pending.
+      const pending = challenge?.pkce === false ? undefined : this.readPendingPkce();
+      if (challenge?.pkce && !pending) {
+        throw new Error(VERIFIER_GONE_MESSAGE);
+      }
+
+      const answer = await this.authApi.validateEmailCode(payload);
+      // A 200 spends the row, whatever comes next.
+      this.emailChallenges.delete(payload.challenge_id);
+      const scopes = pending?.scopes ?? challenge?.scopes ?? this.scopes;
+
+      // Not expected, but a second code step is handled like the first.
+      if (this.handleEmailVerificationStep(answer, challenge?.operation ?? 'sign-in', email, pending, scopes)) {
+        return answer;
+      }
+      // A second factor is owed: the verifier is remembered again, so it lasts as long as the factor.
+      if (this.handlePendingSecondFactor(answer, email, pending, scopes)) {
+        return answer;
+      }
+
+      let exchanged: PassflowAuthorizationResponse = answer;
+      if (answer.code) {
+        if (!pending) {
+          throw new Error(VERIFIER_GONE_MESSAGE);
+        }
+        exchanged = await this.authApi.pkceExchange(answer.code, pending.verifier);
+        if (this.handlePendingSecondFactor(exchanged, email)) {
+          return exchanged;
+        }
+      }
+
+      // A reset row's redirect is on the code's answer: the exchange returns only tokens.
+      const response = answer.redirect_url ? { ...exchanged, redirect_url: answer.redirect_url } : exchanged;
+      await this.processAuthResponse(response, scopes);
+      this.forgetPkceSignIn();
+      this.subscribeStore.notify(challenge?.operation === 'sign-up' ? PassflowEvent.Register : PassflowEvent.SignIn, {
+        tokens: response,
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
+      });
+      await this.submitSessionCheck();
+      return response;
+    } catch (error) {
+      const errorPayload: OperationErrorPayload = {
+        operation: 'email-verification.complete',
+        message: error instanceof Error ? error.message : 'Email verification failed',
+        originalError: error,
+        code: error instanceof PassflowError ? error.id : undefined,
+      };
+      notifyError(this.subscribeStore, errorPayload);
+      throw error;
+    }
+  }
+
+  /**
    * Signs this tab out under the refresh lock (PFL-792 §2.8): stops this tab's refresh callers and
    * retry timer, waits at most 5 s for the lock (a request already in flight lands first), posts
    * `signed-out` to the other tabs, calls the logout API with the NEWEST stored refresh token (best
@@ -650,6 +795,7 @@ export class AuthService {
     await this.refresh.signOut(async (newest) => {
       await this.callLogoutApi(newest);
       this.forgetPkceSignIn();
+      this.emailChallenges.clear();
       this.clearLocalSession();
     });
     return userId;
@@ -663,7 +809,10 @@ export class AuthService {
    */
   resetSession(): string | undefined {
     const userId = this.refresh.identity();
-    this.refresh.signOutNow(() => this.clearLocalSession());
+    this.refresh.signOutNow(() => {
+      this.emailChallenges.clear();
+      this.clearLocalSession();
+    });
     return userId;
   }
 
@@ -973,6 +1122,9 @@ export class AuthService {
       const answer = pkce
         ? await this.authApi.resetPassword(newPassword, sscopes, resetToken, pkce.challenge)
         : await this.authApi.resetPassword(newPassword, sscopes, resetToken);
+      if (this.handleEmailVerificationStep(answer, 'reset-password', emailFromResetToken(resetToken), pkce, sscopes)) {
+        return answer;
+      }
       if (this.handlePendingSecondFactor(answer, undefined, pkce, sscopes)) {
         return answer;
       }
