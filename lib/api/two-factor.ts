@@ -2,10 +2,11 @@ import type { AxiosRequestConfig } from 'axios';
 import { DeviceService } from '../device';
 import { StorageManager } from '../storage';
 
-import { AxiosClient } from './axios-client';
+import { AxiosClient, withOwnBearer } from './axios-client';
 import {
   PassflowConfig,
   PassflowEndpointPaths,
+  PassflowError,
   pathWithParams,
   RegisteredTwoFactorMethod,
   TwoFactorAlternativeRequest,
@@ -15,11 +16,14 @@ import {
   TwoFactorConfirmResponse,
   TwoFactorDisableRequest,
   TwoFactorDisableResponse,
+  TwoFactorEnrollment,
+  TwoFactorEnrollmentResponse,
   TwoFactorMethod,
   TwoFactorRecoveryRequest,
   TwoFactorRecoveryResponse,
   TwoFactorRegenerateRequest,
   TwoFactorRegenerateResponse,
+  TwoFactorSetupLinkResponse,
   TwoFactorSetupMagicLinkErrorCode,
   TwoFactorSetupMagicLinkValidationResponse,
   TwoFactorSetupResponse,
@@ -48,8 +52,29 @@ const credentialed = (tfaToken?: string): AxiosRequestConfig => ({
   ...bearer(tfaToken),
 });
 
+/** The setup answer as the server sends it; `qr_code` is what the SDK's callers read. */
+type TwoFactorSetupWireResponse = Omit<TwoFactorSetupResponse, 'qr_code'> & {
+  qr_code?: string;
+  qr_code_image?: string;
+};
+
+// The server's image is a whole `data:` URI; `qr_code` is documented as the bare base64.
+const toSetupResponse = ({ qr_code_image, qr_code, ...rest }: TwoFactorSetupWireResponse): TwoFactorSetupResponse => ({
+  ...rest,
+  qr_code: (qr_code ?? qr_code_image ?? '').replace(/^data:image\/png;base64,/, ''),
+});
+
+/** Setup link refusals the HTTP status alone cannot tell apart. */
+const SETUP_LINK_ERROR_CODES: Record<string, TwoFactorSetupMagicLinkErrorCode> = {
+  'error.2fa.setup.token.expired': 'EXPIRED_TOKEN',
+  'error.2fa.setup.token.revoked': 'REVOKED_TOKEN',
+  'error.2fa.setup.token.already_used': 'ALREADY_USED',
+  'error.2fa.setup.token.rate.limit.exceeded': 'RATE_LIMITED',
+};
+
 /** Backend response format (snake_case) for magic link validation */
 interface TwoFactorSetupMagicLinkBackendResponse {
+  valid?: boolean;
   session_token?: string;
   user_id?: string;
   expires_in?: number;
@@ -73,29 +98,95 @@ export class TwoFactorApiClient {
   /**
    * Get current 2FA enrollment status
    * GET /user/2fa/status
+   *
+   * `setupSessionToken` is a setup link's session; without it the stored session is used.
    */
-  getStatus(): Promise<TwoFactorStatusResponse> {
-    return this.axiosClient.get<TwoFactorStatusResponse>(PassflowEndpointPaths.twoFactorStatus);
+  getStatus(setupSessionToken?: string): Promise<TwoFactorStatusResponse> {
+    return this.axiosClient.get<TwoFactorStatusResponse>(
+      PassflowEndpointPaths.twoFactorStatus,
+      withOwnBearer(setupSessionToken),
+    );
   }
 
   /**
    * Begin 2FA setup process
    * POST /user/2fa/setup/begin
    * Returns secret and QR code for authenticator app
+   *
+   * `setupSessionToken` is a setup link's session; without it the stored session is used.
    */
-  beginSetup(): Promise<TwoFactorSetupResponse> {
-    return this.axiosClient.post<TwoFactorSetupResponse, {}>(PassflowEndpointPaths.twoFactorSetupBegin, {});
+  async beginSetup(setupSessionToken?: string): Promise<TwoFactorSetupResponse> {
+    return toSetupResponse(
+      await this.axiosClient.post<TwoFactorSetupWireResponse, {}>(
+        PassflowEndpointPaths.twoFactorSetupBegin,
+        {},
+        withOwnBearer(setupSessionToken),
+      ),
+    );
   }
 
   /**
    * Confirm 2FA setup with TOTP code
    * POST /user/2fa/setup/confirm
    * Returns recovery codes on success
+   *
+   * `setupSessionToken` is a setup link's session; without it the stored session is used.
    */
-  confirmSetup(payload: TwoFactorConfirmRequest): Promise<TwoFactorConfirmResponse> {
+  confirmSetup(payload: TwoFactorConfirmRequest, setupSessionToken?: string): Promise<TwoFactorConfirmResponse> {
     return this.axiosClient.post<TwoFactorConfirmResponse, TwoFactorConfirmRequest>(
       PassflowEndpointPaths.twoFactorSetupConfirm,
       payload,
+      withOwnBearer(setupSessionToken),
+    );
+  }
+
+  /**
+   * What a sign-in waiting on its second factor can do next
+   * GET /auth/2fa/enrollment
+   */
+  async getEnrollment(tfaToken: string): Promise<TwoFactorEnrollment> {
+    const response = await this.axiosClient.get<TwoFactorEnrollmentResponse>(
+      PassflowEndpointPaths.twoFactorEnrollment,
+      withOwnBearer(tfaToken),
+    );
+    return response.enrollment;
+  }
+
+  /**
+   * Email the user a link to set up 2FA
+   * POST /auth/2fa/enrollment/email-link
+   */
+  sendSetupLink(tfaToken: string): Promise<TwoFactorSetupLinkResponse> {
+    return this.axiosClient.post<TwoFactorSetupLinkResponse, undefined>(
+      PassflowEndpointPaths.twoFactorEnrollmentEmailLink,
+      undefined,
+      withOwnBearer(tfaToken),
+    );
+  }
+
+  /**
+   * Begin 2FA setup on the sign-in itself, for a user with no validated email
+   * POST /auth/2fa/setup/begin
+   */
+  async beginEnrollment(tfaToken: string): Promise<TwoFactorSetupResponse> {
+    return toSetupResponse(
+      await this.axiosClient.post<TwoFactorSetupWireResponse, undefined>(
+        PassflowEndpointPaths.twoFactorEnrollmentBegin,
+        undefined,
+        withOwnBearer(tfaToken),
+      ),
+    );
+  }
+
+  /**
+   * Confirm 2FA setup on the sign-in itself; `verify` with the same code then finishes it
+   * POST /auth/2fa/setup/confirm
+   */
+  confirmEnrollment(tfaToken: string, payload: TwoFactorConfirmRequest): Promise<TwoFactorConfirmResponse> {
+    return this.axiosClient.post<TwoFactorConfirmResponse, TwoFactorConfirmRequest>(
+      PassflowEndpointPaths.twoFactorEnrollmentConfirm,
+      payload,
+      withOwnBearer(tfaToken),
     );
   }
 
@@ -182,6 +273,12 @@ export class TwoFactorApiClient {
       .then((response) => {
         // Transform snake_case backend response to camelCase
         const backendResponse = response as unknown as TwoFactorSetupMagicLinkBackendResponse;
+        if (backendResponse.valid === false) {
+          return {
+            success: false,
+            error: { code: 'INVALID_TOKEN' as const, message: this.getDefaultErrorMessage(400) },
+          };
+        }
         return {
           success: true,
           sessionToken: backendResponse.session_token,
@@ -193,6 +290,18 @@ export class TwoFactorApiClient {
       .catch((error) => {
         // Map all errors to structured TwoFactorSetupMagicLinkValidationResponse
         // This ensures consumers always get consistent error format
+        // A server refusal arrives as a PassflowError from the client's error interceptor.
+        if (error instanceof PassflowError) {
+          return {
+            success: false,
+            error: {
+              code: SETUP_LINK_ERROR_CODES[error.id] ?? this.mapStatusToErrorCode(error.status),
+              message: error.message || this.getDefaultErrorMessage(error.status),
+            },
+          };
+        }
+
+        // A 429 keeps its raw axios shape after the client's retries.
         if (error.response) {
           const status = error.response.status;
           const data = error.response.data || {};

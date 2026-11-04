@@ -381,7 +381,7 @@ describe('TwoFactorService', () => {
       expect(result).toEqual(mockResponse);
       expect(result.success).toBe(true);
       expect(result.recovery_codes).toHaveLength(3);
-      expect(mockTwoFactorApi.confirmSetup).toHaveBeenCalledWith({ code: '123456' });
+      expect(mockTwoFactorApi.confirmSetup).toHaveBeenCalledWith({ code: '123456' }, undefined);
       expect(mockSubscribeStore.notify).toHaveBeenCalledWith(
         PassflowEvent.TwoFactorEnabled,
         expect.objectContaining({

@@ -88,6 +88,22 @@ const isRefreshEndpoint = (url?: string): boolean => url?.includes(PassflowEndpo
 /** Any logout endpoint: it revokes the session, so it never refreshes one first. */
 const isLogoutEndpoint = (url?: string): boolean => url?.includes('logout') ?? false;
 
+/** Config key marking a request that authenticates with the bearer it carries. Never sent on the wire. */
+const OWN_BEARER_MARKER = '__passflowOwnBearer';
+
+const hasOwnBearer = (config: unknown): boolean =>
+  typeof config === 'object' && config !== null && (config as Record<string, unknown>)[OWN_BEARER_MARKER] === true;
+
+/**
+ * Request config for a call made with a short-lived credential that is not the stored session: a
+ * `tfa_token` or a setup link's session token. Whatever session is stored stays out of it: its
+ * bearer is not sent, it is not refreshed first, and a 401 here does not mark it invalid.
+ */
+export const withOwnBearer = (token?: string): AxiosRequestConfig =>
+  token
+    ? ({ headers: { [AUTHORIZATION_HEADER_KEY]: `Bearer ${token}` }, [OWN_BEARER_MARKER]: true } as AxiosRequestConfig)
+    : {};
+
 export class AxiosClient {
   private instance: AxiosInstance;
   protected storageManager: StorageManager;
@@ -176,8 +192,8 @@ export class AxiosClient {
     });
 
     this.instance.interceptors.request.use(async (axiosConfig: InternalAxiosRequestConfig) => {
-      // Request to non-access token endpoints
-      if (this.isNonAuthEndpoint(axiosConfig.url)) {
+      // Request to non-access token endpoints, or one that brings its own credential
+      if (this.isNonAuthEndpoint(axiosConfig.url) || hasOwnBearer(axiosConfig)) {
         return axiosConfig;
       }
 
@@ -259,6 +275,7 @@ export class AxiosClient {
         if (
           e.response?.status === HttpStatuses.unauthorized &&
           !isRefreshEndpoint(e.config?.url) &&
+          !hasOwnBearer(e.config) &&
           !this.isUpgradeTransactionError(e)
         ) {
           this.tokenDeliveryManager.setSessionInvalid();

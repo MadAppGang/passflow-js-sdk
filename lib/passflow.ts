@@ -35,8 +35,10 @@ import {
   type TwoFactorCompletionOptions,
   type TwoFactorConfirmResponse,
   type TwoFactorDisableResponse,
+  type TwoFactorEnrollment,
   type TwoFactorRecoveryResponse,
   type TwoFactorRegenerateResponse,
+  type TwoFactorSetupLinkResponse,
   type TwoFactorSetupResponse,
   type TwoFactorStatusResponse,
   type TwoFactorTrustedDevice,
@@ -2027,6 +2029,67 @@ export class Passflow {
       return await this.twoFactorService.confirmSetup(code);
     } catch (error) {
       this.handleError(error, '2fa.setup.confirm', 'Confirm 2FA setup');
+    }
+  }
+
+  /**
+   * What the sign-in waiting on its second factor can do next. The server decides; read this
+   * before asking for a code, and call `requestChallenge` only on `verify`.
+   *
+   * @returns `verify`: ask for a code. `email_link`: `sendTwoFactorSetupLink`, then the user signs
+   * in again after enrolling. `direct`: `beginTwoFactorEnrollment`, `confirmTwoFactorEnrollment`,
+   * then `verifyTwoFactor`. `unavailable`: tell the user to contact the administrator.
+   * @throws {PassflowError} A 401 means the sign-in is over: sign in again.
+   */
+  async getTwoFactorEnrollment(): Promise<TwoFactorEnrollment> {
+    try {
+      return await this.twoFactorService.getEnrollment();
+    } catch (error) {
+      this.handleError(error, '2fa.enrollment.read', 'Read 2FA enrollment');
+    }
+  }
+
+  /**
+   * Email the user a link to set up 2FA, on a sign-in whose enrollment is `email_link`.
+   * The budget is 3 requests in 5 minutes, shared with `requestChallenge`, so limit resends.
+   *
+   * @throws {PassflowError} 503 `error.2fa.setup_link.send_failed` when the email could not be sent
+   */
+  async sendTwoFactorSetupLink(): Promise<TwoFactorSetupLinkResponse> {
+    try {
+      return await this.twoFactorService.sendSetupLink();
+    } catch (error) {
+      this.handleError(error, '2fa.enrollment.setup-link', 'Send 2FA setup link');
+    }
+  }
+
+  /**
+   * Begin 2FA setup on the pending sign-in, when its enrollment is `direct`.
+   * Returns a secret and QR code to scan with an authenticator app.
+   *
+   * @throws {PassflowError} 403 `error.2fa.enrollment.not_allowed` in any other state
+   */
+  async beginTwoFactorEnrollment(): Promise<TwoFactorSetupResponse> {
+    try {
+      return await this.twoFactorService.beginEnrollment();
+    } catch (error) {
+      this.handleError(error, '2fa.setup.begin', 'Begin 2FA enrollment');
+    }
+  }
+
+  /**
+   * Confirm 2FA setup on the pending sign-in. The sign-in stays pending: show the recovery codes,
+   * then `verifyTwoFactor` with the same code finishes it.
+   *
+   * @param code - TOTP code from the authenticator app
+   * @returns Promise with the recovery codes the user must save
+   * @throws {PassflowError} 401 `error.api.request.2fa_code.invalid` on a wrong code
+   */
+  async confirmTwoFactorEnrollment(code: string): Promise<TwoFactorConfirmResponse> {
+    try {
+      return await this.twoFactorService.confirmEnrollment(code);
+    } catch (error) {
+      this.handleError(error, '2fa.setup.confirm', 'Confirm 2FA enrollment');
     }
   }
 

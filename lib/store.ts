@@ -99,6 +99,8 @@ export type PassflowOperation =
   | '2fa.status'
   | '2fa.setup.begin'
   | '2fa.setup.confirm'
+  | '2fa.enrollment.read'
+  | '2fa.enrollment.setup-link'
   | '2fa.verify'
   | '2fa.recovery.use'
   | '2fa.disable'
@@ -202,7 +204,7 @@ export type PassflowEventPayload = {
   };
   [PassflowEvent.TwoFactorSetupMagicLinkFailed]: {
     error: {
-      code: 'INVALID_TOKEN' | 'EXPIRED_TOKEN' | 'REVOKED_TOKEN' | 'RATE_LIMITED' | 'SERVER_ERROR';
+      code: 'INVALID_TOKEN' | 'EXPIRED_TOKEN' | 'REVOKED_TOKEN' | 'ALREADY_USED' | 'RATE_LIMITED' | 'SERVER_ERROR';
       message: string;
       retryAfter?: number;
     };

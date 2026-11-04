@@ -6,9 +6,11 @@ import {
   TwoFactorCompletionOptions,
   TwoFactorConfirmResponse,
   TwoFactorDisableResponse,
+  TwoFactorEnrollment,
   TwoFactorMethod,
   TwoFactorRecoveryResponse,
   TwoFactorRegenerateResponse,
+  TwoFactorSetupLinkResponse,
   TwoFactorSetupMagicLinkSession,
   TwoFactorSetupMagicLinkValidationResponse,
   TwoFactorSetupResponse,
@@ -93,6 +95,7 @@ export class TwoFactorService {
         // must not send the signed-in user to the 2FA screen.
         if (event === PassflowEvent.SignIn || event === PassflowEvent.Register) {
           this.clearPartialAuthState();
+          this.clearMagicLinkSession();
         }
       },
     };
@@ -125,7 +128,7 @@ export class TwoFactorService {
    */
   async getStatus(): Promise<TwoFactorStatusResponse> {
     try {
-      const response = await this.twoFactorApi.getStatus();
+      const response = await this.twoFactorApi.getStatus(this.getMagicLinkSessionToken() ?? undefined);
       // Store totp_digits from backend response
       if (response.totp_digits) {
         this.totpDigits = response.totp_digits;
@@ -139,16 +142,12 @@ export class TwoFactorService {
   /**
    * Begin 2FA setup process
    * Returns secret and QR code for authenticator app
+   *
+   * With a setup link's session active the call runs on that session, whoever is signed in here.
    */
   async beginSetup(): Promise<TwoFactorSetupResponse> {
     try {
-      const response = await this.twoFactorApi.beginSetup();
-      // Store totp_digits from backend response
-      if (response.totp_digits) {
-        this.totpDigits = response.totp_digits;
-      }
-      this.subscribeStore.notify(PassflowEvent.TwoFactorSetupStarted, { secret: response.secret });
-      return response;
+      return this.setupStarted(await this.twoFactorApi.beginSetup(this.getMagicLinkSessionToken() ?? undefined));
     } catch (error) {
       this.emitErrorAndThrow(error, '2fa.setup.begin', 'Begin 2FA setup');
     }
@@ -157,32 +156,106 @@ export class TwoFactorService {
   /**
    * Confirm 2FA setup with TOTP code
    * Returns recovery codes that MUST be displayed to user
+   *
+   * With a setup link's session active the call runs on that session, which it then ends.
    */
   async confirmSetup(code: string): Promise<TwoFactorConfirmResponse> {
-    // Validate TOTP code format with configured digits
-    if (!isValidTOTPCode(code, this.totpDigits)) {
-      throw new Error(`Invalid TOTP code format. Code must be exactly ${this.totpDigits} digits.`);
-    }
+    this.assertTotpCode(code);
 
     try {
-      const response = await this.twoFactorApi.confirmSetup({ code });
-
-      // Emit event with recovery codes and cleanup callback
-      // The clearRecoveryCodes callback modifies the original response.recovery_codes array
-      this.subscribeStore.notify(PassflowEvent.TwoFactorEnabled, {
-        recoveryCodes: response.recovery_codes,
-        clearRecoveryCodes: () => {
-          // Clear the array in place to ensure all references are cleared
-          response.recovery_codes.length = 0;
-        },
-      });
-
-      // Return response with recovery codes intact
-      // Apps must handle secure storage/display of codes
-      return response;
+      const response = await this.twoFactorApi.confirmSetup({ code }, this.getMagicLinkSessionToken() ?? undefined);
+      this.clearMagicLinkSession();
+      return this.setupConfirmed(response);
     } catch (error) {
       this.emitErrorAndThrow(error, '2fa.setup.confirm', 'Confirm 2FA setup');
     }
+  }
+
+  /**
+   * What the sign-in waiting on its second factor can do next. Read this before asking for a code:
+   * the server decides, and only `verify` means the user has a factor to enter a code from.
+   */
+  async getEnrollment(): Promise<TwoFactorEnrollment> {
+    try {
+      return await this.twoFactorApi.getEnrollment(this.requirePendingTfaToken());
+    } catch (error) {
+      this.emitErrorAndThrow(error, '2fa.enrollment.read', 'Read 2FA enrollment');
+    }
+  }
+
+  /**
+   * Email the user a link to set up 2FA (`email_link`). They sign in again after enrolling.
+   */
+  async sendSetupLink(): Promise<TwoFactorSetupLinkResponse> {
+    try {
+      return await this.twoFactorApi.sendSetupLink(this.requirePendingTfaToken());
+    } catch (error) {
+      this.emitErrorAndThrow(error, '2fa.enrollment.setup-link', 'Send 2FA setup link');
+    }
+  }
+
+  /**
+   * Begin 2FA setup on the sign-in itself (`direct`).
+   */
+  async beginEnrollment(): Promise<TwoFactorSetupResponse> {
+    try {
+      return this.setupStarted(await this.twoFactorApi.beginEnrollment(this.requirePendingTfaToken()));
+    } catch (error) {
+      this.emitErrorAndThrow(error, '2fa.setup.begin', 'Begin 2FA enrollment');
+    }
+  }
+
+  /**
+   * Confirm 2FA setup on the sign-in itself (`direct`). The sign-in stays pending:
+   * show the recovery codes, then `verify` with the same code finishes it.
+   */
+  async confirmEnrollment(code: string): Promise<TwoFactorConfirmResponse> {
+    this.assertTotpCode(code);
+
+    try {
+      return this.setupConfirmed(await this.twoFactorApi.confirmEnrollment(this.requirePendingTfaToken(), { code }));
+    } catch (error) {
+      this.emitErrorAndThrow(error, '2fa.setup.confirm', 'Confirm 2FA enrollment');
+    }
+  }
+
+  private assertTotpCode(code: string): void {
+    if (!isValidTOTPCode(code, this.totpDigits)) {
+      throw new Error(`Invalid TOTP code format. Code must be exactly ${this.totpDigits} digits.`);
+    }
+  }
+
+  private requirePendingTfaToken(): string {
+    const tfaToken = this.pendingTfaToken();
+    if (!tfaToken) {
+      throw new Error('2FA verification expired or not required. User must sign in first.');
+    }
+    return tfaToken;
+  }
+
+  private setupStarted(response: TwoFactorSetupResponse): TwoFactorSetupResponse {
+    // Store totp_digits from backend response
+    if (response.totp_digits) {
+      this.totpDigits = response.totp_digits;
+    }
+    this.subscribeStore.notify(PassflowEvent.TwoFactorSetupStarted, { secret: response.secret });
+    return response;
+  }
+
+  private setupConfirmed(response: TwoFactorConfirmResponse): TwoFactorConfirmResponse {
+    // Emit event with recovery codes and cleanup callback
+    // The clearRecoveryCodes callback modifies the original response.recovery_codes array
+    this.subscribeStore.notify(PassflowEvent.TwoFactorEnabled, {
+      recoveryCodes: response.recovery_codes,
+      clearRecoveryCodes: () => {
+        // Clear the array in place to ensure all references are cleared
+        response.recovery_codes.length = 0;
+      },
+    });
+
+    // Return response with recovery codes intact
+    // Apps must handle secure storage/display of codes
+    return response;
   }
 
   /**
@@ -554,7 +627,7 @@ export class TwoFactorService {
 
   /**
    * Get the session token from magic link session (if active)
-   * Used by AxiosClient for injecting auth header on 2FA setup endpoints
+   * `getStatus`, `beginSetup` and `confirmSetup` send it as their bearer while it is active
    */
   getMagicLinkSessionToken(): string | null {
     const session = this.getMagicLinkSession();

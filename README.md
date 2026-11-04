@@ -34,6 +34,7 @@
     - [Passkey Authentication](#passkey-authentication)
     - [Password Reset](#password-reset)
     - [Email verification](#email-verification)
+    - [Two-factor sign-in and first-time enrolment](#two-factor-sign-in-and-first-time-enrolment)
   - [Token Management](#token-management)
   - [Tenant Management](#tenant-management)
   - [Invitation Management](#invitation-management)
@@ -568,6 +569,40 @@ new `challenge_id`.
 - **Password reset.** `resetPassword(newPassword, scopes?, resetToken?)` takes the reset token as
   an optional third argument. Without it, the SDK reads `token` from the URL query, then from the
   query of a hash route (`#/reset?token=...`).
+
+### Two-factor sign-in and first-time enrolment
+
+A `required` app answers every sign-in with a `tfa_token`, also for a user who has no factor yet.
+Ask the server what this sign-in can do next before asking for a code:
+
+```typescript
+switch (await passflow.getTwoFactorEnrollment()) {
+  case "verify": // the user has a factor
+    await passflow.verifyTwoFactor(code);
+    break;
+  case "email_link": // no factor, validated email: the user enrols from the email, then signs in again
+    await passflow.sendTwoFactorSetupLink();
+    break;
+  case "direct": { // no factor, no validated email: enrol on this sign-in
+    const setup = await passflow.beginTwoFactorEnrollment(); // setup.secret, setup.qr_code (base64 PNG)
+    const { recovery_codes } = await passflow.confirmTwoFactorEnrollment(code); // show these once
+    await passflow.verifyTwoFactor(code); // the same code finishes the sign-in
+    break;
+  }
+  case "unavailable": // no way to enrol here: tell the user to contact the administrator
+    break;
+}
+```
+
+- **The server decides.** Setup calls in the wrong state answer 403 `error.2fa.enrollment.not_allowed`.
+- **The sign-in is over** on a 401 `error.tfa.token.invalid` or `error.otp.already.used`: sign in again.
+- **Rate limits are per user.** `sendTwoFactorSetupLink`, `beginTwoFactorEnrollment`,
+  `requestChallenge` and `switchToAlternative` share 3 requests in 5 minutes, then a 10-minute
+  lockout. `confirmTwoFactorEnrollment` and `verifyTwoFactor` share 5 in 15 minutes. These 429s
+  reject with the raw axios error (`error.response.status`).
+- **The emailed link.** Call `validateTwoFactorSetupMagicLink(token)` on its page. While that session
+  is active, `getTwoFactorStatus`, `beginTwoFactorSetup` and `confirmTwoFactorSetup` run on it instead
+  of the stored session, and a correct confirm ends it. A used link reads as error code `ALREADY_USED`.
 
 ## Token Management
 
