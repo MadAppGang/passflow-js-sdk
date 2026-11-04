@@ -82,7 +82,7 @@ Two new events, and new fields on existing ones:
 | `RefreshRecovered` (`'refresh:recovered'`) | `{ since: number, origin: 'this-tab' \| 'other-tab' }` |
 | `SessionExpired` (`'session:expired'`) | `{ reason: 'refresh_failed' \| 'successor_timeout' \| 'identity_changed', origin }` |
 | `SignOut` (`'signout'`) | `{ origin: 'this-tab' \| 'other-tab', userId?: string }` |
-| `SignIn` (`'signin'`) | `{ tokens, parsedTokens, origin?: 'other-tab' }` |
+| `SignIn` (`'signin'`) | `{ tokens, parsedTokens, origin?: 'other-tab', source?: 'federated-landing' }` (`source`: see [pkce-sign-in.md](pkce-sign-in.md)) |
 | `Error` (`'error'`) | `ErrorPayload`, below |
 
 - `Refresh.source`: `'refresh'` is this tab's own request, `'upgrade'` this tab's step-up commit,

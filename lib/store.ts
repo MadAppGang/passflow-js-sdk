@@ -59,12 +59,15 @@ export type PassflowOperation =
   | 'sign-up'
   | 'passwordless.start'
   | 'passwordless.complete'
+  | 'passwordless.wait'
+  | 'passwordless.approval'
   | 'password-reset.send'
   | 'password-reset.complete'
   | 'email-verification.complete'
   | 'passkey.register'
   | 'passkey.authenticate'
   | 'federated.popup'
+  | 'federated.redirect'
   | 'auth-redirect.url'
   | 'auth-redirect'
   | 'auth.is-authenticated'
@@ -142,6 +145,8 @@ export type PassflowEventPayload = {
     parsedTokens?: ParsedTokens;
     /** `'other-tab'` only when an ended tab revives on a new session found in storage. Absent on this tab's own sign-in. */
     origin?: EventOrigin;
+    /** Set only when a federated redirect landed here and this instance exchanged its code. */
+    source?: 'federated-landing';
   };
   [PassflowEvent.SignInStart]: { email?: string; provider?: string };
   [PassflowEvent.Register]: { tokens?: Tokens; parsedTokens?: ParsedTokens };

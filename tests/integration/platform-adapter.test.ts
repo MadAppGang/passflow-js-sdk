@@ -434,13 +434,16 @@ describe('Group 5: Navigation Adapter', () => {
     );
   }
 
-  test('TC-5.1: navigateTo called for federated auth redirect', () => {
+  test('TC-5.1: REQ-17 navigateTo called for federated auth redirect', async () => {
     const adapter = createMockAdapter();
     const authService = buildAuthServiceWithAdapter(adapter);
 
     authService.federatedAuthWithRedirect({ provider: Providers.google, redirect_url: 'https://example.com' });
 
-    expect(adapter.navigateTo).toHaveBeenCalledWith(expect.stringContaining('google'));
+    // TEST-43: proof generation is asynchronous; navigation is the observable outcome.
+    await vi.waitFor(() => {
+      expect(adapter.navigateTo).toHaveBeenCalledWith(expect.stringContaining('google'));
+    });
   });
 
   test('TC-5.2: getCurrentUrl used for URL parsing in authRedirectUrl', () => {

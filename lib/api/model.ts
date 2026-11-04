@@ -31,6 +31,9 @@ export enum PassflowEndpointPaths {
   signInWithProvider = '/auth/federated/start/',
   passwordless = '/auth/passwordless/start',
   passwordlessComplete = '/auth/passwordless/complete',
+  passwordlessStatus = '/auth/passwordless/status',
+  passwordlessApprovalInfo = '/auth/passwordless/approval/info',
+  passwordlessApprovalDecide = '/auth/passwordless/approval/decide',
   logout = '/user/logout',
   refresh = '/auth/refresh',
   validateSession = '/user/me',
@@ -133,6 +136,12 @@ export type PassflowConfig = {
   scopes?: string[];
   createTenantForNewUser?: boolean;
   parseQueryParams?: boolean;
+  /**
+   * Leaves a federated `?code=` landing alone in the constructor and in `handleTokensRedirect`,
+   * so that only `completeFederatedLanding()` takes it. For hosts that build the instance during
+   * render and may discard it. Token and `#tfa_token` landings are not affected.
+   */
+  deferFederatedLanding?: boolean;
   keyStoragePrefix?: string;
   /**
    * Token exchange configuration for secure server-side token handling.
@@ -302,6 +311,8 @@ export type PassflowValidationResponse = Tokens & {
   requires_2fa?: boolean;
   challenge_id?: string;
   tfa_token?: string;
+  /** PKCE app: the code to redeem with the verifier, in place of tokens. */
+  code?: string;
 };
 
 export type PassflowSuccessResponse = {
@@ -410,11 +421,14 @@ export type PassflowPasswordlessSignInPayload = {
   scopes?: string[];
   create_tenant?: boolean;
   invite_token?: string;
+  code_challenge?: string;
 } & ({ email: string; phone?: never } | { phone: string; email?: never });
 
 export type PassflowPasswordlessResponse = {
   challenge_id: string;
   expires_at: Date | string;
+  /** The code the user types on the approving device. Only on a row that can be approved from another device. */
+  match_code?: string;
 };
 
 export type PassflowPasswordlessSignInExtendedPayload = PassflowPasswordlessSignInPayload & {
@@ -428,6 +442,45 @@ export type PassflowPasswordlessSignInCompletePayload = {
   device?: string;
   scopes?: string[];
   challenge_type?: InternalStrategyChallenge;
+};
+
+export type PassflowPasswordlessStatusPayload = {
+  challenge_id: string;
+  code_challenge: string;
+};
+
+export type PassflowPasswordlessStatusResponse =
+  | { status: 'pending' | 'denied' | 'expired' | 'completed' }
+  | { status: 'approved'; code: string };
+
+export type PassflowPasswordlessApprovalInfoPayload = {
+  challenge_id: string;
+};
+
+export type PassflowPasswordlessApprovalDecidePayload = {
+  challenge_id: string;
+  otp: string;
+  approve: boolean;
+  match_code?: string;
+};
+
+export type PassflowPasswordlessApprovalDecideResponse = {
+  state: 'approved' | 'denied';
+};
+
+export type PasswordlessWaitResult =
+  | { status: 'signed-in'; tokens: PassflowAuthorizationResponse }
+  | { status: 'second-factor-required' | 'denied' | 'expired' | 'completed' };
+
+export type PasswordlessApprovalInfo = {
+  state: 'pending' | 'approved' | 'denied' | 'expired' | 'completed';
+  app_name: string;
+  requested_at: string;
+  expires_at: string;
+  browser: string;
+  os: string;
+  location: { city: string; country: string } | null;
+  attempts_left: number;
 };
 
 export enum Providers {
@@ -637,6 +690,8 @@ export type PassflowFederatedAuthPayload = {
   scopes?: string[];
   invite_token?: string;
   create_tenant?: boolean;
+  code_challenge?: string;
+  code_challenge_method?: 'S256';
 };
 
 export type PassflowFederatedAuthExtendedPayload = PassflowFederatedAuthPayload & {
