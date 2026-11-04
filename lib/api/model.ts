@@ -66,6 +66,11 @@ export enum PassflowEndpointPaths {
   twoFactorRecovery = '/auth/2fa/recovery',
   twoFactorRegenerateCodes = '/user/2fa/recovery-codes/regenerate',
   twoFactorSetupMagicLink = '/auth/2fa-setup', // :token param appended in API call
+  // Enrolment while a sign-in waits on its second factor; all take the tfa_token as the bearer
+  twoFactorEnrollment = '/auth/2fa/enrollment',
+  twoFactorEnrollmentEmailLink = '/auth/2fa/enrollment/email-link',
+  twoFactorEnrollmentBegin = '/auth/2fa/setup/begin',
+  twoFactorEnrollmentConfirm = '/auth/2fa/setup/confirm',
   // v2 2FA endpoints
   TwoFactorMethodsAvailable = '/v2/user/2fa/methods/available',
   TwoFactorMethodsRegistered = '/v2/user/2fa/methods',
@@ -967,13 +972,36 @@ export type TwoFactorStatusResponse = {
 
 export type TwoFactorSetupResponse = {
   secret: string;
+  /** Base64-encoded PNG of the QR code. Empty when the server sent no image: use `qr_code_url`. */
   qr_code: string;
+  /** The `otpauth://` URL the QR code holds. */
+  qr_code_url?: string;
   totp_digits?: 6 | 8; // Optional for backward compatibility, defaults to 6 if not provided
 };
 
 export type TwoFactorConfirmResponse = {
   success: true;
+  enabled?: boolean;
   recovery_codes: string[];
+};
+
+/**
+ * What a sign-in waiting on its second factor can do next, decided by the server:
+ * - `verify`: ask for a code; the user has a factor the app accepts.
+ * - `email_link`: no factor yet and a validated email: send the setup link, then the user signs in again.
+ * - `direct`: no factor and no validated email: enrol here, then finish with the code.
+ * - `unavailable`: the app offers no way to enrol this user: contact the administrator.
+ */
+export type TwoFactorEnrollment = 'verify' | 'email_link' | 'direct' | 'unavailable';
+
+/** GET /auth/2fa/enrollment */
+export type TwoFactorEnrollmentResponse = {
+  enrollment: TwoFactorEnrollment;
+};
+
+/** POST /auth/2fa/enrollment/email-link */
+export type TwoFactorSetupLinkResponse = {
+  email_sent: boolean;
 };
 
 export type TwoFactorVerifyResponse = Tokens & {
@@ -1039,6 +1067,7 @@ export type TwoFactorSetupMagicLinkErrorCode =
   | 'INVALID_TOKEN'
   | 'EXPIRED_TOKEN'
   | 'REVOKED_TOKEN'
+  | 'ALREADY_USED'
   | 'RATE_LIMITED'
   | 'SERVER_ERROR';
 
