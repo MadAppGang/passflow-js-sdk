@@ -232,8 +232,10 @@ export function deferred<T>() {
   return { promise, resolve };
 }
 // Fake time waits are driven explicitly; do not run all background token-check intervals.
+// The deadline is real time: WebCrypto digests finish on a thread, whatever the fake clock says.
 export async function until(check: () => boolean) {
-  for (let i = 0; i < 100; i += 1) {
+  const deadline = performance.now() + 4000;
+  while (performance.now() < deadline) {
     if (check()) return;
     await vi.advanceTimersByTimeAsync(0);
   }
