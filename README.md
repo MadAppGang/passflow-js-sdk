@@ -364,6 +364,36 @@ const completePasswordless = async (challengeId, otp) => {
 };
 ```
 
+**PKCE apps: approving a magic link from any device.** On an app with PKCE on, a magic link's answer
+holds a `match_code`. The tab that started the sign-in shows that code and finishes the sign-in. The
+device that opens the link only approves or denies, by typing the code, and gets no tokens. A second
+tab in the same browser approves like any other device.
+
+```typescript
+// Tab A: the tab that called passwordlessSignIn
+const { challenge_id } = await passflow.passwordlessSignIn({
+  email: "user@example.com",
+  challenge_type: "magic_link",
+  redirect_url: "https://yourapp.com/auth/callback",
+});
+
+const pending = passflow.getPendingPasswordlessSignIn(challenge_id);
+if (pending) {
+  showCode(pending.matchCode);
+  const result = await passflow.waitForPasswordlessSignIn(challenge_id);
+  // result.status: "signed-in" | "second-factor-required" | "denied" | "expired" | "completed"
+}
+
+// Device B: the link carries challenge_id, otp and flow=approval
+const info = await passflow.getPasswordlessApproval(challengeId); // app, browser, OS, location, attempts_left
+await passflow.decidePasswordlessApproval(challengeId, otp, true, typedMatchCode); // or false to deny
+```
+
+If `getPendingPasswordlessSignIn` answers `undefined`, there is no approval step: show today's "check
+your email" screen. The record that finishes the sign-in lives in this tab only. If it is lost or
+replaced (a new start, Resend, sign-out), the wait rejects and the user starts again. Results, errors
+and the device B screen: [docs/pkce-sign-in.md](docs/pkce-sign-in.md).
+
 ### Federated Authentication
 
 ```javascript
@@ -381,6 +411,17 @@ passflow.federatedAuthWithRedirect(
   ["id", "offline", "tenant", "email"] // optional scopes
 );
 ```
+
+**PKCE apps.** `federatedAuthWithRedirect` still returns `void`, but it now navigates asynchronously:
+a missing `appId` still throws synchronously, and a later failure emits `Error` with operation
+`federated.redirect`. The landing (`?code=&user_state=`) is taken by the constructor under
+`parseQueryParams`, or by `handleTokensRedirect()`, which returns `undefined` for it. The exchange runs
+in the background, so `SignIn` with `source: "federated-landing"`, `TwoFactorRequired` or that `Error` is
+the signal. A `?code=` this tab did not ask for leaves the URL alone and emits no `SignIn`.
+
+A host that builds its instance during render, as React StrictMode may discard it, sets
+`deferFederatedLanding: true` and calls `completeFederatedLanding()` once the instance is kept. Details:
+[docs/pkce-sign-in.md](docs/pkce-sign-in.md).
 
 ### Passkey Authentication
 
@@ -700,7 +741,8 @@ const subscriber = {
     // Handle different event types
     switch (eventType) {
       case "signin":
-        // Handle sign in
+        // Handle sign in. source.source is "federated-landing" only when this tab
+        // took a federated redirect's landing and exchanged its code.
         break;
       case "signout":
         // Handle sign out
@@ -779,6 +821,7 @@ Configuration options:
 - `scopes`: Token scopes to request (default: ['id', 'offline', 'tenant', 'email', 'oidc', 'openid', 'access:tenant:all'])
 - `createTenantForNewUser`: Whether to create a tenant for new users (default: false)
 - `parseQueryParams`: Whether to parse tokens from URL query parameters (default: false)
+- `deferFederatedLanding`: Leave a federated `?code=` landing to `completeFederatedLanding()` (default: false)
 - `keyStoragePrefix`: Prefix for localStorage keys
 
 #### Methods
@@ -800,6 +843,11 @@ Configuration options:
 | `sendPasswordResetEmail(payload)`                          | Send password reset email              |
 | `resetPassword(newPassword, scopes?, resetToken?)`         | Reset password                         |
 | `verifyEmailCode({ challenge_id, otp })`                   | Finish an email verification step      |
+| `waitForPasswordlessSignIn(challengeId, { signal? })`      | Wait for approval on another device, then finish here |
+| `getPendingPasswordlessSignIn(challengeId)`                | The match code to show while waiting   |
+| `getPasswordlessApproval(challengeId)`                     | What the approving device shows        |
+| `decidePasswordlessApproval(challengeId, otp, approve, matchCode?)` | Approve or deny a waiting sign-in |
+| `completeFederatedLanding()`                               | Take a federated landing, with `deferFederatedLanding` |
 
 **Token Methods**
 
@@ -870,6 +918,7 @@ type PassflowConfig = {
   scopes?: string[];
   createTenantForNewUser?: boolean;
   parseQueryParams?: boolean;
+  deferFederatedLanding?: boolean; // see docs/pkce-sign-in.md
   keyStoragePrefix?: string;
   refreshCoordination?: "web-locks" | "none" | RefreshCoordinator; // see docs/token-refresh.md
   refreshStrikes?: number;

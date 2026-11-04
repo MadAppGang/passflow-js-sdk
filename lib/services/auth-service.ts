@@ -12,11 +12,14 @@ import {
   PassflowPasswordlessResponse,
   PassflowPasswordlessSignInCompletePayload,
   PassflowPasswordlessSignInPayload,
+  PassflowPasswordlessStatusResponse,
   PassflowSendPasswordResetEmailPayload,
   PassflowSignInPayload,
   PassflowSignUpPayload,
   PassflowSuccessResponse,
   PassflowValidationResponse,
+  PasswordlessApprovalInfo,
+  PasswordlessWaitResult,
   TokenExchangeConfig,
   type UpgradeRefreshField,
 } from '../api';
@@ -50,6 +53,24 @@ type PendingPkceSignIn = {
   expiresAt: number;
 };
 
+/** The proof key of a passwordless sign-in this tab started. One per tab: a new start replaces it. */
+type PendingPasswordlessSignIn = {
+  challengeId: string;
+  verifier: string;
+  codeChallenge: string;
+  matchCode?: string;
+  email?: string;
+  scopes: string[];
+  expiresAt: number;
+};
+
+/** The proof key of a federated sign-in, kept for the page its redirect lands on. A newer start overwrites it. */
+type FederatedPkceSlot = {
+  verifier: string;
+  scopes: string[];
+  expiresAt: number;
+};
+
 /**
  * What the call that produced an emailed code challenge knew, so `verifyEmailCode` can finish it
  * the same way: which event ends it, the scopes it asked for, and whether it left a PKCE verifier.
@@ -71,9 +92,32 @@ export type AuthServiceRefreshOptions = {
 const PENDING_PKCE_STORAGE_KEY = 'passflow_2fa_pkce';
 /** As long as the pending second factor it belongs to. */
 const PENDING_PKCE_TIMEOUT_MS = 5 * 60 * 1000;
+const PENDING_PASSWORDLESS_STORAGE_KEY = 'passflow_pwless_pending';
+const PASSWORDLESS_POLL_INTERVAL_MS = 3000;
+const FEDERATED_SLOT_STORAGE_KEY = 'passflow_federated_pkce';
+const FEDERATED_SLOT_TIMEOUT_MS = 10 * 60 * 1000;
+const FEDERATED_APP_ID_MESSAGE = 'AppId is required for federated auth';
 /** At most this many code challenges are remembered; each resend adds one. The oldest goes first. */
 const MAX_EMAIL_CHALLENGES = 10;
 const VERIFIER_GONE_MESSAGE = 'The sign-in answered with a PKCE code, but its verifier is gone';
+
+/** Waits, or rejects with `signal.reason` as soon as the signal aborts. */
+const sleepUntilAborted = (ms: number, signal?: AbortSignal): Promise<void> =>
+  new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 
 /**
  * The reset link's `?token=`: from the query, else from a hash route's query
@@ -104,6 +148,8 @@ export class AuthService {
   private tokenDeliveryManager: TokenDeliveryManager;
   private tokenExchangeConfig?: TokenExchangeConfig;
   private pendingPkce?: PendingPkceSignIn;
+  private pendingPasswordless?: PendingPasswordlessSignIn;
+  private federatedSlot?: FederatedPkceSlot;
   /**
    * The emailed code challenges this instance produced, by `challenge_id`. Memory only: an id
    * this instance does not know (reload, another tab, a recreated instance) finishes as a sign-in.
@@ -408,6 +454,88 @@ export class AuthService {
   }
 
   /**
+   * Keeps a passwordless sign-in's proof key in memory, read from first, and in sessionStorage, so
+   * a reload of this tab can still finish it. Never localStorage: only this tab finishes the sign-in.
+   */
+  private rememberPendingPasswordless(record: PendingPasswordlessSignIn): void {
+    this.pendingPasswordless = record;
+    if (typeof sessionStorage === 'undefined') {
+      return;
+    }
+    try {
+      sessionStorage.setItem(PENDING_PASSWORDLESS_STORAGE_KEY, JSON.stringify(record));
+    } catch {
+      // Disabled or full: the sign-in still completes unless the page goes away.
+    }
+  }
+
+  private readPendingPasswordless(): PendingPasswordlessSignIn | undefined {
+    if (!this.pendingPasswordless && typeof sessionStorage !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem(PENDING_PASSWORDLESS_STORAGE_KEY);
+        this.pendingPasswordless = stored ? (JSON.parse(stored) as PendingPasswordlessSignIn) : undefined;
+      } catch {
+        this.pendingPasswordless = undefined;
+      }
+    }
+    // Written as "not before" so an unreadable expiry counts as expired.
+    if (this.pendingPasswordless && !(Date.now() < this.pendingPasswordless.expiresAt)) {
+      this.forgetPendingPasswordless();
+    }
+    return this.pendingPasswordless;
+  }
+
+  private forgetPendingPasswordless(): void {
+    this.pendingPasswordless = undefined;
+    if (typeof sessionStorage === 'undefined') {
+      return;
+    }
+    try {
+      sessionStorage.removeItem(PENDING_PASSWORDLESS_STORAGE_KEY);
+    } catch {
+      // Nothing to do: it is dropped when read after its expiry.
+    }
+  }
+
+  /** Keeps the verifier in memory, and in sessionStorage for the page the redirect lands on. */
+  private rememberFederatedSlot(verifier: string, scopes: string[]): void {
+    this.federatedSlot = { verifier, scopes, expiresAt: Date.now() + FEDERATED_SLOT_TIMEOUT_MS };
+    if (typeof sessionStorage === 'undefined') {
+      return;
+    }
+    try {
+      sessionStorage.setItem(FEDERATED_SLOT_STORAGE_KEY, JSON.stringify(this.federatedSlot));
+    } catch {
+      // Disabled or full: a popup still completes; a redirect lands with no slot and starts again.
+    }
+  }
+
+  /** The slot, unless it has expired. An expired one stays until a newer start overwrites it. */
+  private readFederatedSlot(): FederatedPkceSlot | undefined {
+    if (!this.federatedSlot && typeof sessionStorage !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem(FEDERATED_SLOT_STORAGE_KEY);
+        this.federatedSlot = stored ? (JSON.parse(stored) as FederatedPkceSlot) : undefined;
+      } catch {
+        this.federatedSlot = undefined;
+      }
+    }
+    return this.federatedSlot && Date.now() < this.federatedSlot.expiresAt ? this.federatedSlot : undefined;
+  }
+
+  private forgetFederatedSlot(): void {
+    this.federatedSlot = undefined;
+    if (typeof sessionStorage === 'undefined') {
+      return;
+    }
+    try {
+      sessionStorage.removeItem(FEDERATED_SLOT_STORAGE_KEY);
+    } catch {
+      // Nothing to do: it expires on its own.
+    }
+  }
+
+  /**
    * The proof key for a sign-in on a PKCE app, undefined on any other app.
    *
    * It is sent whether or not the sign-in has a parent: the parent is added to
@@ -674,12 +802,33 @@ export class AuthService {
     }
 
     this.subscribeStore.notify(PassflowEvent.SignInStart, { email: payload.email });
-    payload.scopes = payload.scopes ?? this.scopes;
+    const scopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
     const os = getOSFromDeviceType(this.platform.getDeviceType());
 
     try {
-      const response = await this.authApi.passwordlessSignIn(payload, deviceId, os);
+      const pkce = await this.startPkce();
+      // A copy, never the caller's object: callers spread this payload into a URL, and the
+      // challenge is the secret that polls for this sign-in.
+      const response = await this.authApi.passwordlessSignIn(
+        { ...payload, scopes, ...(pkce ? { code_challenge: pkce.challenge } : {}) },
+        deviceId,
+        os,
+      );
+      // An unknown user is answered with an empty id, and there is nothing to finish.
+      if (pkce && response.challenge_id) {
+        this.rememberPendingPasswordless({
+          challengeId: response.challenge_id,
+          verifier: pkce.verifier,
+          codeChallenge: pkce.challenge,
+          matchCode: response.match_code,
+          email: payload.email,
+          scopes,
+          expiresAt: new Date(response.expires_at).getTime(),
+        });
+      } else {
+        this.forgetPendingPasswordless();
+      }
       // Don't emit SignIn event yet since this is just the first step (magic link sent)
       // We'll emit SignIn when passwordlessSignInComplete is called
       return response;
@@ -700,20 +849,47 @@ export class AuthService {
     payload.scopes = payload.scopes ?? this.scopes;
     payload.device = this.deviceService.getDeviceId();
 
+    // No record is not an error here: a parent magic link opens on another device without one.
+    const pending = this.readPendingPasswordless();
+    const record = pending?.challengeId === payload.challenge_id ? pending : undefined;
+    let answered = false;
+
     try {
-      const response = await this.authApi.passwordlessSignInComplete(payload);
-      if (this.handlePendingSecondFactor(response)) {
-        return response;
+      const answer = await this.authApi.passwordlessSignInComplete(payload);
+      answered = true;
+      if (this.handlePendingSecondFactor(answer, record?.email, record && { verifier: record.verifier }, record?.scopes)) {
+        this.forgetPendingPasswordless();
+        return answer;
       }
 
-      await this.processAuthResponse(response, payload.scopes);
+      let exchanged: PassflowAuthorizationResponse = answer;
+      if (answer.code) {
+        if (!record) {
+          throw new Error(VERIFIER_GONE_MESSAGE);
+        }
+        exchanged = await this.authApi.pkceExchange(answer.code, record.verifier);
+        if (this.handlePendingSecondFactor(exchanged)) {
+          this.forgetPendingPasswordless();
+          return { ...exchanged, redirect_url: answer.redirect_url ?? '' };
+        }
+      }
+
+      // The redirect is on the code's answer: the exchange returns only tokens.
+      const response = answer.redirect_url ? { ...exchanged, redirect_url: answer.redirect_url } : exchanged;
+      await this.processAuthResponse(response, record?.scopes ?? payload.scopes);
+      this.forgetPendingPasswordless();
       this.subscribeStore.notify(PassflowEvent.SignIn, {
         tokens: response,
         parsedTokens: this.tokenCacheService.getParsedTokens(),
       });
       await this.submitSessionCheck();
-      return response;
+      return { ...response, redirect_url: answer.redirect_url ?? '' };
     } catch (error) {
+      // A refused answer, such as a wrong OTP, keeps the record. Once the server has answered,
+      // the row is spent and the user starts again.
+      if (answered) {
+        this.forgetPendingPasswordless();
+      }
       const errorPayload: OperationErrorPayload = {
         operation: 'passwordless.complete',
         message: error instanceof Error ? error.message : 'Passwordless sign in failed',
@@ -723,6 +899,138 @@ export class AuthService {
       notifyError(this.subscribeStore, errorPayload);
       throw error;
     }
+  }
+
+  /**
+   * Waits for the magic-link sign-in this tab started to be approved on another device, polling
+   * every 3 s until its expiry. Network errors, 429, 5xx and unreadable answers keep polling.
+   *
+   * Aborting rejects with `signal.reason` and keeps the record, so a later call can wait again.
+   * Once the server has answered `approved` the row is spent, and the exchange finishes regardless
+   * of the signal.
+   *
+   * @throws The verifier-gone error when this tab's record does not name `challengeId`, or stops
+   * naming it (sign-out, new start). A `PassflowError` on a 4xx answer other than 429 or a failed exchange.
+   */
+  async waitForPasswordlessSignIn(challengeId: string, options?: { signal?: AbortSignal }): Promise<PasswordlessWaitResult> {
+    const signal = options?.signal;
+    try {
+      const record = this.readPendingPasswordless();
+      if (record?.challengeId !== challengeId) {
+        throw new Error(VERIFIER_GONE_MESSAGE);
+      }
+      for (;;) {
+        if (signal?.aborted) {
+          throw signal.reason;
+        }
+        if (Date.now() >= record.expiresAt) {
+          this.forgetPendingPasswordless();
+          return { status: 'expired' };
+        }
+        if (this.readPendingPasswordless()?.challengeId !== challengeId) {
+          throw new Error(VERIFIER_GONE_MESSAGE);
+        }
+
+        let answer: PassflowPasswordlessStatusResponse | undefined;
+        try {
+          answer = await this.authApi.passwordlessStatus(
+            { challenge_id: challengeId, code_challenge: record.codeChallenge },
+            { signal },
+          );
+        } catch (error) {
+          if (signal?.aborted) {
+            throw signal.reason;
+          }
+          if (error instanceof PassflowError && error.status >= 400 && error.status < 500 && error.status !== 429) {
+            this.forgetPendingPasswordless();
+            throw error;
+          }
+        }
+
+        if (answer?.status === 'denied' || answer?.status === 'expired' || answer?.status === 'completed') {
+          this.forgetPendingPasswordless();
+          return { status: answer.status };
+        }
+        if (answer?.status === 'approved' && answer.code) {
+          return await this.finishApprovedPasswordless(answer.code, record);
+        }
+        await sleepUntilAborted(PASSWORDLESS_POLL_INTERVAL_MS, signal);
+      }
+    } catch (error) {
+      // The caller's own abort is not a failure, so it gets no `Error` event.
+      if (signal?.aborted && error === signal.reason) {
+        throw error;
+      }
+      const errorPayload: OperationErrorPayload = {
+        operation: 'passwordless.wait',
+        message: error instanceof Error ? error.message : 'Waiting for the passwordless sign-in failed',
+        originalError: error,
+        code: error instanceof PassflowError ? error.id : undefined,
+      };
+      notifyError(this.subscribeStore, errorPayload);
+      throw error;
+    }
+  }
+
+  /** Redeems an approved row's code. The row is spent, so the record goes whatever happens here. */
+  private async finishApprovedPasswordless(code: string, record: PendingPasswordlessSignIn): Promise<PasswordlessWaitResult> {
+    try {
+      const tokens = await this.authApi.pkceExchange(code, record.verifier);
+      if (this.handlePendingSecondFactor(tokens, record.email)) {
+        this.forgetPendingPasswordless();
+        return { status: 'second-factor-required' };
+      }
+      await this.processAuthResponse(tokens, record.scopes);
+      this.forgetPendingPasswordless();
+      this.subscribeStore.notify(PassflowEvent.SignIn, {
+        tokens,
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
+      });
+      await this.submitSessionCheck();
+      return { status: 'signed-in', tokens };
+    } catch (error) {
+      this.forgetPendingPasswordless();
+      throw error;
+    }
+  }
+
+  /** The match code to show, when this tab's record names that challenge and holds one. */
+  getPendingPasswordlessSignIn(challengeId: string): { matchCode: string; expiresAt: number } | undefined {
+    const record = this.readPendingPasswordless();
+    if (record?.challengeId !== challengeId || !record.matchCode) {
+      return undefined;
+    }
+    return { matchCode: record.matchCode, expiresAt: record.expiresAt };
+  }
+
+  /** What the approving device shows about a waiting sign-in. It changes nothing on the server. */
+  async getPasswordlessApproval(challengeId: string): Promise<PasswordlessApprovalInfo> {
+    try {
+      return await this.authApi.passwordlessApprovalInfo({ challenge_id: challengeId });
+    } catch (error) {
+      this.reportApprovalFailure(error);
+      throw error;
+    }
+  }
+
+  /** Approves or denies a waiting sign-in. `matchCode` is the code shown in the tab that started it. */
+  async decidePasswordlessApproval(challengeId: string, otp: string, approve: boolean, matchCode?: string): Promise<void> {
+    try {
+      await this.authApi.passwordlessApprovalDecide({ challenge_id: challengeId, otp, approve, match_code: matchCode });
+    } catch (error) {
+      this.reportApprovalFailure(error);
+      throw error;
+    }
+  }
+
+  private reportApprovalFailure(error: unknown): void {
+    const errorPayload: OperationErrorPayload = {
+      operation: 'passwordless.approval',
+      message: error instanceof Error ? error.message : 'Passwordless approval failed',
+      originalError: error,
+      code: error instanceof PassflowError ? error.id : undefined,
+    };
+    notifyError(this.subscribeStore, errorPayload);
   }
 
   /**
@@ -807,6 +1115,7 @@ export class AuthService {
     await this.refresh.signOut(async (newest) => {
       await this.callLogoutApi(newest);
       this.forgetPkceSignIn();
+      this.forgetPendingPasswordless();
       this.emailChallenges.clear();
       this.clearLocalSession();
     });
@@ -1270,7 +1579,7 @@ export class AuthService {
   createFederatedAuthUrl(payload: PassflowFederatedAuthExtendedPayload): string {
     const passflowPathWithProvider = `/auth/federated/start/${payload.provider}`;
 
-    if (!this.appId) throw new Error('AppId is required for federated auth');
+    if (!this.appId) throw new Error(FEDERATED_APP_ID_MESSAGE);
     const sscopes = payload.scopes ?? this.scopes;
 
     const params: Record<string, string> = {
@@ -1280,6 +1589,8 @@ export class AuthService {
       ...(payload.invite_token ? { invite_token: payload.invite_token } : {}),
       ...(payload.create_tenant ? { create_tenant: payload.create_tenant.toString() } : {}),
       ...(payload.device ? { device: payload.device } : {}),
+      ...(payload.code_challenge ? { code_challenge: payload.code_challenge } : {}),
+      ...(payload.code_challenge_method ? { code_challenge_method: payload.code_challenge_method } : {}),
     };
 
     const url = new URL(passflowPathWithProvider, this.url);
@@ -1291,15 +1602,32 @@ export class AuthService {
 
   async federatedAuthWithPopup(payload: PassflowFederatedAuthPayload): Promise<void> {
     this.subscribeStore.notify(PassflowEvent.SignInStart, { provider: payload.provider });
+    if (!this.appId) throw new Error(FEDERATED_APP_ID_MESSAGE);
     const sscopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
-    const passflowURL = this.createFederatedAuthUrl({ ...payload, scopes: sscopes, device: deviceId });
 
     try {
-      const result = await this.platform.openAuthUrl(passflowURL, {
+      // Cleared before the popup opens: a same-origin popup starts with a copy of sessionStorage.
+      this.forgetFederatedSlot();
+      const pkce = await this.startPkce();
+      const passflowURL = this.createFederatedAuthUrl({
+        ...payload,
+        scopes: sscopes,
+        device: deviceId,
+        ...(pkce ? { code_challenge: pkce.challenge, code_challenge_method: 'S256' as const } : {}),
+      });
+      const opened = this.platform.openAuthUrl(passflowURL, {
         mode: 'popup',
         expectedReturnOrigin: this.platform.getCurrentUrl()?.origin ?? '',
       });
+      // Written in the same tick as the open, and not before it. After it, so the popup's own SDK
+      // holds no copy and cannot race this tab for the code. In the same tick, so a blocked popup's
+      // redirect still lands with the slot before the page unloads.
+      if (pkce) {
+        this.rememberFederatedSlot(pkce.verifier, sscopes);
+      }
+      const result = await opened;
+      this.forgetFederatedSlot();
 
       // A sign-in that owes its second factor comes back with the 2FA token
       // in the fragment, never the query, and with no tokens. Nothing is saved
@@ -1310,16 +1638,23 @@ export class AuthService {
       }
 
       const urlParams = new URLSearchParams(result.callbackSearch);
+      const code = urlParams.get('code');
       const access_token = urlParams.get('access_token') || '';
       const refresh_token = urlParams.get('refresh_token') || '';
       const id_token = urlParams.get('id_token') || '';
 
-      const tokensData = {
+      let tokensData: PassflowAuthorizationResponse = {
         access_token,
         refresh_token: refresh_token || undefined,
         id_token: id_token || undefined,
         scopes: sscopes,
       };
+      if (code && pkce) {
+        tokensData = await this.authApi.pkceExchange(code, pkce.verifier);
+        if (this.handlePendingSecondFactor(tokensData)) {
+          return;
+        }
+      }
 
       await this.processAuthResponse(tokensData, sscopes);
       this.subscribeStore.notify(PassflowEvent.SignIn, {
@@ -1328,6 +1663,7 @@ export class AuthService {
       });
       this.platform.navigateTo(this.platform.getCurrentUrl()?.origin ?? '');
     } catch (error) {
+      this.forgetFederatedSlot();
       const errorPayload: OperationErrorPayload = {
         operation: 'federated.popup',
         message: error instanceof Error ? error.message : 'Authentication failed',
@@ -1340,10 +1676,74 @@ export class AuthService {
 
   federatedAuthWithRedirect(payload: PassflowFederatedAuthPayload): void {
     this.subscribeStore.notify(PassflowEvent.SignInStart, { provider: payload.provider });
+    if (!this.appId) throw new Error(FEDERATED_APP_ID_MESSAGE);
     const sscopes = payload.scopes ?? this.scopes;
     const deviceId = this.deviceService.getDeviceId();
-    const passflowURL = this.createFederatedAuthUrl({ ...payload, scopes: sscopes, device: deviceId });
-    this.platform.navigateTo(passflowURL);
+
+    this.startPkce()
+      .then((pkce) => {
+        const passflowURL = this.createFederatedAuthUrl({
+          ...payload,
+          scopes: sscopes,
+          device: deviceId,
+          ...(pkce ? { code_challenge: pkce.challenge, code_challenge_method: 'S256' as const } : {}),
+        });
+        if (pkce) {
+          this.rememberFederatedSlot(pkce.verifier, sscopes);
+        } else {
+          this.forgetFederatedSlot();
+        }
+        this.platform.navigateTo(passflowURL);
+      })
+      .catch((error: unknown) => this.reportFederatedRedirectFailure(error));
+  }
+
+  /**
+   * Takes the slot for a `?code=` landing and exchanges the code in the background. `SignIn`,
+   * `TwoFactorRequired` or an `Error` with operation `federated.redirect` reports the outcome.
+   *
+   * @returns false with no appId yet, or with no live slot: the slot stays for the instance built
+   * after app-id discovery, and a code this tab did not ask for is not exchanged
+   */
+  handleFederatedCode(code: string): boolean {
+    if (!this.appId) {
+      return false;
+    }
+    const slot = this.readFederatedSlot();
+    if (!slot) {
+      return false;
+    }
+    this.forgetFederatedSlot();
+    this.finishFederatedLanding(code, slot);
+    return true;
+  }
+
+  private async finishFederatedLanding(code: string, slot: FederatedPkceSlot): Promise<void> {
+    try {
+      const tokens = await this.authApi.pkceExchange(code, slot.verifier);
+      if (this.handlePendingSecondFactor(tokens)) {
+        return;
+      }
+      await this.processAuthResponse(tokens, slot.scopes);
+      this.subscribeStore.notify(PassflowEvent.SignIn, {
+        tokens,
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
+        source: 'federated-landing',
+      });
+      await this.submitSessionCheck();
+    } catch (error) {
+      this.reportFederatedRedirectFailure(error);
+    }
+  }
+
+  private reportFederatedRedirectFailure(error: unknown): void {
+    const errorPayload: OperationErrorPayload = {
+      operation: 'federated.redirect',
+      message: error instanceof Error ? error.message : 'Federated sign-in failed',
+      originalError: error,
+      code: error instanceof PassflowError ? error.id : undefined,
+    };
+    notifyError(this.subscribeStore, errorPayload);
   }
 
   // Helper methods for authentication UI redirect

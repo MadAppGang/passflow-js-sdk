@@ -25,6 +25,8 @@ import {
   type PassflowSuccessResponse,
   type PassflowTenantResponse,
   type PassflowValidationResponse,
+  type PasswordlessApprovalInfo,
+  type PasswordlessWaitResult,
   type RequestInviteLinkPayload,
   resolveUpgradeDomain,
   SettingAPI,
@@ -100,6 +102,7 @@ export class Passflow {
   private scopes: string[];
   private createTenantForNewUser: boolean;
   private doRefreshTokens = false;
+  private deferFederatedLanding: boolean;
 
   // Services
   private deviceService: DeviceService;
@@ -152,6 +155,7 @@ export class Passflow {
     this.url = url || PASSFLOW_CLOUD_URL;
     this.appId = appId;
     this.platform = config.platform ?? webAdapter;
+    this.deferFederatedLanding = config.deferFederatedLanding ?? false;
 
     // Initialize single StorageManager instance
     this.storageManager = new StorageManager({
@@ -604,9 +608,26 @@ export class Passflow {
    *   // Tokens are automatically saved to storage
    * }
    * ```
+   *
+   * A PKCE federated landing (`?code=`) returns `undefined` and finishes in the background: `SignIn`
+   * or `TwoFactorRequired` is the signal. With `deferFederatedLanding` it is left to
+   * `completeFederatedLanding()`.
    */
   handleTokensRedirect(): Tokens | undefined {
     return this.checkAndSetTokens();
+  }
+
+  /**
+   * Takes a PKCE federated landing (`?code=&user_state=`) on this page, for an instance built with
+   * `deferFederatedLanding`. The code is exchanged in the background; `SignIn` with
+   * `source: 'federated-landing'`, `TwoFactorRequired`, or `Error` with operation `federated.redirect`
+   * reports the outcome, so subscribe first.
+   *
+   * @returns true when this tab started that sign-in and the exchange began. On false, neither the
+   * URL nor the stored proof key has changed, so an instance that has its app id can still take it.
+   */
+  completeFederatedLanding(): boolean {
+    return this.takeFederatedLanding();
   }
 
   private checkAndSetTokens(): Tokens | undefined {
@@ -698,9 +719,34 @@ export class Passflow {
       this.error = undefined;
       return tokens;
     } else {
+      if (!this.deferFederatedLanding) {
+        this.takeFederatedLanding();
+      }
       this.error = this.checkErrorsFromURL();
     }
     return undefined;
+  }
+
+  /**
+   * Removes only `code` and `user_state`, and only once the code is taken, so `appid` and
+   * `redirectto` stay for the login page. A code this tab did not ask for leaves the URL as it is.
+   */
+  private takeFederatedLanding(): boolean {
+    const currentUrl = this.platform.getCurrentUrl();
+    if (!currentUrl) return false;
+
+    const urlParams = new URLSearchParams(currentUrl.search);
+    const code = urlParams.get('code');
+    const hasTokens = urlParams.get('access_token') || new URLSearchParams(currentUrl.hash?.substring(1)).get('access_token');
+    if (hasTokens || !code || !urlParams.get('user_state') || !this.authService.handleFederatedCode(code)) {
+      return false;
+    }
+
+    urlParams.delete('code');
+    urlParams.delete('user_state');
+    const rest = urlParams.toString();
+    this.platform.replaceUrl(currentUrl.pathname + (rest ? `?${rest}` : '') + currentUrl.hash);
+    return true;
   }
 
   /**
@@ -1018,6 +1064,70 @@ export class Passflow {
     const response = await this.authService.passwordlessSignInComplete(payload);
 
     return response;
+  }
+
+  /**
+   * Waits for a magic-link sign-in this tab started to be approved on another device, then
+   * finishes it here. Polls every 3 s until the challenge expires; network errors, 429 and 5xx keep
+   * polling. Emits `SignIn` or `TwoFactorRequired` as any other sign-in does.
+   *
+   * Aborting rejects with `signal.reason` and keeps the sign-in, so a later call can wait again.
+   * Once the approval has been read, the token exchange finishes regardless of the signal.
+   *
+   * @param challengeId - The `challenge_id` from `passwordlessSignIn`
+   * @param options - Optional `signal` to stop waiting
+   * @returns `signed-in` with the tokens, or `second-factor-required`, `denied`, `expired`, `completed`
+   * @throws When this tab no longer holds the sign-in, on a refused status poll, or on a failed exchange
+   *
+   * @example
+   * ```typescript
+   * const { challenge_id } = await passflow.passwordlessSignIn(payload);
+   * const pending = passflow.getPendingPasswordlessSignIn(challenge_id);
+   * if (pending) {
+   *   showCode(pending.matchCode);
+   *   const result = await passflow.waitForPasswordlessSignIn(challenge_id);
+   * }
+   * ```
+   */
+  waitForPasswordlessSignIn(challengeId: string, options?: { signal?: AbortSignal }): Promise<PasswordlessWaitResult> {
+    return this.authService.waitForPasswordlessSignIn(challengeId, options);
+  }
+
+  /**
+   * The code to show while waiting for approval on another device.
+   *
+   * @param challengeId - The `challenge_id` from `passwordlessSignIn`
+   * @returns The match code and expiry (epoch milliseconds), or `undefined` unless this tab started
+   * that sign-in and it can be approved from another device
+   */
+  getPendingPasswordlessSignIn(challengeId: string): { matchCode: string; expiresAt: number } | undefined {
+    return this.authService.getPendingPasswordlessSignIn(challengeId);
+  }
+
+  /**
+   * Reads what the device that opened a magic link shows before approving: app, requesting browser
+   * and OS, location, time and attempts left. It holds no identity and changes nothing on the server.
+   *
+   * @param challengeId - The `challenge_id` from the link
+   * @returns The approval context
+   * @throws {PassflowError} If the challenge is unknown or cannot be approved
+   */
+  getPasswordlessApproval(challengeId: string): Promise<PasswordlessApprovalInfo> {
+    return this.authService.getPasswordlessApproval(challengeId);
+  }
+
+  /**
+   * Approves or denies a waiting sign-in from the device that opened the magic link. The tab that
+   * started the sign-in finishes it; this device gets no tokens.
+   *
+   * @param challengeId - The `challenge_id` from the link
+   * @param otp - The one-time code from the link
+   * @param approve - `true` to approve, `false` to deny
+   * @param matchCode - The code the user read from the waiting tab. Needed to approve.
+   * @throws {PassflowError} If the code is wrong, the sign-in is expired or already decided
+   */
+  decidePasswordlessApproval(challengeId: string, otp: string, approve: boolean, matchCode?: string): Promise<void> {
+    return this.authService.decidePasswordlessApproval(challengeId, otp, approve, matchCode);
   }
 
   /**

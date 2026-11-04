@@ -14,6 +14,7 @@ import {
   PassflowConfig,
   PassflowEmailCodePayload,
   PassflowEndpointPaths,
+  PassflowError,
   PassflowLogoutResponse,
   PassflowPasskeyAuthenticatePayload,
   PassflowPasskeyAuthenticateStartExtendedPayload,
@@ -22,10 +23,16 @@ import {
   PassflowPasskeyRegisterStartExtendedPayload,
   PassflowPasskeyRegisterStartPayload,
   PassflowPasskeyStart,
+  PassflowPasswordlessApprovalDecidePayload,
+  PassflowPasswordlessApprovalDecideResponse,
+  PassflowPasswordlessApprovalInfoPayload,
   PassflowPasswordlessResponse,
   PassflowPasswordlessSignInCompletePayload,
   PassflowPasswordlessSignInExtendedPayload,
   PassflowPasswordlessSignInPayload,
+  PassflowPasswordlessStatusPayload,
+  PassflowPasswordlessStatusResponse,
+  PassflowResponseError,
   PassflowSendPasswordResetEmailPayload,
   PassflowSessionValidationResponse,
   PassflowSignInExtendedPayload,
@@ -34,6 +41,7 @@ import {
   PassflowSuccessResponse,
   PassflowValidatePayload,
   PassflowValidationResponse,
+  PasswordlessApprovalInfo,
   UpgradeRefreshField,
 } from './model';
 
@@ -46,6 +54,29 @@ import {
  * flag: the Authorization and CSRF handling stay as the interceptor has them.
  */
 const SIGN_IN_REQUEST_CONFIG: AxiosRequestConfig = { withCredentials: true };
+
+/** One status poll may take this long, so a stalled request cannot hold up the next one. */
+const PASSWORDLESS_STATUS_TIMEOUT_MS = 15000;
+
+const SIGN_IN_FAILED_MESSAGE = 'Sign-in failed. Start again.';
+const TRY_AGAIN_LATER_MESSAGE = 'Something went wrong. Try again later.';
+
+/**
+ * The plain error of a failed call whose body holds a secret. The two rejections the axios client
+ * passes on raw (a POST 429 and no response) hold that body in `config.data`, so only the fields
+ * the server wrote are read here: never axios `config`, `request` or the original error.
+ */
+const toPlainError = (error: unknown, path: PassflowEndpointPaths, id: string, message: string): PassflowError => {
+  if (error instanceof PassflowError) return error;
+  const body = (error as { response?: { data?: Partial<PassflowResponseError> } } | undefined)?.response?.data?.error;
+  return new PassflowError({
+    id: typeof body?.id === 'string' ? body.id : id,
+    message: typeof body?.message === 'string' ? body.message : message,
+    status: typeof body?.status === 'number' ? body.status : 0,
+    location: path,
+    time: new Date().toISOString(),
+  });
+};
 
 export class AuthAPI {
   protected axiosClient: AxiosClient;
@@ -127,16 +158,26 @@ export class AuthAPI {
     );
   }
 
-  /** Redeems the code a PKCE sign-in answered with for the tokens it stands for. */
-  pkceExchange(code: string, verifier: string): Promise<PassflowAuthorizationResponse> {
-    return this.axiosClient.post<PassflowAuthorizationResponse, { authz_code: string; verifier: string }>(
-      PassflowEndpointPaths.pkceExchange,
-      { authz_code: code, verifier },
-      SIGN_IN_REQUEST_CONFIG,
-    );
+  /**
+   * Redeems the code a PKCE sign-in answered with for the tokens it stands for.
+   *
+   * Every exchange goes through here, so this is the one place that keeps the code and the
+   * verifier out of its errors: it rejects only with a `PassflowError`.
+   */
+  async pkceExchange(code: string, verifier: string): Promise<PassflowAuthorizationResponse> {
+    try {
+      return await this.axiosClient.post<PassflowAuthorizationResponse, { authz_code: string; verifier: string }>(
+        PassflowEndpointPaths.pkceExchange,
+        { authz_code: code, verifier },
+        SIGN_IN_REQUEST_CONFIG,
+      );
+    } catch (error) {
+      throw toPlainError(error, PassflowEndpointPaths.pkceExchange, 'error.pkce.exchange', SIGN_IN_FAILED_MESSAGE);
+    }
   }
 
-  passwordlessSignIn(
+  /** Rejects only with a `PassflowError`, because its body can hold the poll secret. */
+  async passwordlessSignIn(
     payload: PassflowPasswordlessSignInPayload,
     deviceId: string,
     os: OS,
@@ -148,18 +189,91 @@ export class AuthAPI {
       device: deviceId,
       os,
     };
-    return this.axiosClient.post<PassflowPasswordlessResponse, PassflowPasswordlessSignInExtendedPayload>(
-      PassflowEndpointPaths.passwordless,
-      defaultPayload,
-    );
+    try {
+      return await this.axiosClient.post<PassflowPasswordlessResponse, PassflowPasswordlessSignInExtendedPayload>(
+        PassflowEndpointPaths.passwordless,
+        defaultPayload,
+      );
+    } catch (error) {
+      throw toPlainError(error, PassflowEndpointPaths.passwordless, 'error.passwordless.start', TRY_AGAIN_LATER_MESSAGE);
+    }
   }
 
-  passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
-    return this.axiosClient.post<PassflowValidationResponse, PassflowPasswordlessSignInCompletePayload>(
-      PassflowEndpointPaths.passwordlessComplete,
-      payload,
-      SIGN_IN_REQUEST_CONFIG,
-    );
+  /** Rejects only with a `PassflowError`, because its body holds the OTP. */
+  async passwordlessSignInComplete(payload: PassflowPasswordlessSignInCompletePayload): Promise<PassflowValidationResponse> {
+    try {
+      return await this.axiosClient.post<PassflowValidationResponse, PassflowPasswordlessSignInCompletePayload>(
+        PassflowEndpointPaths.passwordlessComplete,
+        payload,
+        SIGN_IN_REQUEST_CONFIG,
+      );
+    } catch (error) {
+      throw toPlainError(
+        error,
+        PassflowEndpointPaths.passwordlessComplete,
+        'error.passwordless.complete',
+        TRY_AGAIN_LATER_MESSAGE,
+      );
+    }
+  }
+
+  /**
+   * Polls a magic-link sign-in waiting for approval from another device. Sent with credentials:
+   * the trusted-device cookie is read when an approved row answers with its code. It rejects only
+   * with a `PassflowError`, because its body holds the poll secret.
+   */
+  async passwordlessStatus(
+    payload: PassflowPasswordlessStatusPayload,
+    options?: { signal?: AbortSignal },
+  ): Promise<PassflowPasswordlessStatusResponse> {
+    try {
+      return await this.axiosClient.post<PassflowPasswordlessStatusResponse, PassflowPasswordlessStatusPayload>(
+        PassflowEndpointPaths.passwordlessStatus,
+        payload,
+        { ...SIGN_IN_REQUEST_CONFIG, timeout: PASSWORDLESS_STATUS_TIMEOUT_MS, signal: options?.signal },
+      );
+    } catch (error) {
+      throw toPlainError(error, PassflowEndpointPaths.passwordlessStatus, 'error.passwordless.status', SIGN_IN_FAILED_MESSAGE);
+    }
+  }
+
+  /** Reads what the approving device shows. It changes nothing on the server. */
+  async passwordlessApprovalInfo(payload: PassflowPasswordlessApprovalInfoPayload): Promise<PasswordlessApprovalInfo> {
+    try {
+      return await this.axiosClient.post<PasswordlessApprovalInfo, PassflowPasswordlessApprovalInfoPayload>(
+        PassflowEndpointPaths.passwordlessApprovalInfo,
+        payload,
+      );
+    } catch (error) {
+      throw toPlainError(
+        error,
+        PassflowEndpointPaths.passwordlessApprovalInfo,
+        'error.passwordless.approval',
+        TRY_AGAIN_LATER_MESSAGE,
+      );
+    }
+  }
+
+  /**
+   * Approves or denies a waiting sign-in from the device that opened the link. It rejects only with
+   * a `PassflowError`, because its body holds the OTP and the match code.
+   */
+  async passwordlessApprovalDecide(
+    payload: PassflowPasswordlessApprovalDecidePayload,
+  ): Promise<PassflowPasswordlessApprovalDecideResponse> {
+    try {
+      return await this.axiosClient.post<PassflowPasswordlessApprovalDecideResponse, PassflowPasswordlessApprovalDecidePayload>(
+        PassflowEndpointPaths.passwordlessApprovalDecide,
+        payload,
+      );
+    } catch (error) {
+      throw toPlainError(
+        error,
+        PassflowEndpointPaths.passwordlessApprovalDecide,
+        'error.passwordless.approval',
+        TRY_AGAIN_LATER_MESSAGE,
+      );
+    }
   }
 
   /**
