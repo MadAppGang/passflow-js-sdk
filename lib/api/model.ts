@@ -28,6 +28,7 @@ export enum PassflowEndpointPaths {
   signin = '/auth/login',
   signup = '/auth/register',
   pkceExchange = '/auth/pkce_exchange',
+  redirectCheck = '/auth/redirect/check',
   signInWithProvider = '/auth/federated/start/',
   passwordless = '/auth/passwordless/start',
   passwordlessComplete = '/auth/passwordless/complete',

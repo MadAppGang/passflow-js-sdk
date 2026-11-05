@@ -1004,6 +1004,10 @@ export class AuthService {
   }
 
   /** What the approving device shows about a waiting sign-in. It changes nothing on the server. */
+  checkRedirectUrl(url: string): Promise<string> {
+    return this.authApi.checkRedirectUrl(url);
+  }
+
   async getPasswordlessApproval(challengeId: string): Promise<PasswordlessApprovalInfo> {
     try {
       return await this.authApi.passwordlessApprovalInfo({ challenge_id: challengeId });

@@ -237,6 +237,19 @@ export class AuthAPI {
     }
   }
 
+  /** Asks the server whether this app may redirect to `url`, and for the address to use. */
+  async checkRedirectUrl(url: string): Promise<string> {
+    try {
+      const answer = await this.axiosClient.post<{ redirect_url: string }, { redirect_url: string }>(
+        PassflowEndpointPaths.redirectCheck,
+        { redirect_url: url },
+      );
+      return answer.redirect_url;
+    } catch (error) {
+      throw toPlainError(error, PassflowEndpointPaths.redirectCheck, 'error.redirect.check', TRY_AGAIN_LATER_MESSAGE);
+    }
+  }
+
   /** Reads what the approving device shows. It changes nothing on the server. */
   async passwordlessApprovalInfo(payload: PassflowPasswordlessApprovalInfoPayload): Promise<PasswordlessApprovalInfo> {
     try {
