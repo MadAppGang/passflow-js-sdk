@@ -70,6 +70,7 @@ export type PassflowOperation =
   | 'federated.redirect'
   | 'auth-redirect.url'
   | 'auth-redirect'
+  | 'redirect.check'
   | 'auth.is-authenticated'
   | 'session.check'
   | 'tokens.get'

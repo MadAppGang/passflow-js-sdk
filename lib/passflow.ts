@@ -1171,6 +1171,23 @@ export class Passflow {
    * @param context - Context description for the fallback message
    * @throws The original error after handling
    */
+  /**
+   * Asks the server whether this app may redirect to `url`.
+   *
+   * Navigate to the address it resolves to, not the one passed in. Treat any rejection as a refusal.
+   *
+   * @param url - The address to check
+   * @returns The address to navigate to
+   * @throws {PassflowError} `error.app.redirect.url.not.registered` when refused, or a request error
+   */
+  async checkRedirectUrl(url: string): Promise<string> {
+    try {
+      return await this.authService.checkRedirectUrl(url);
+    } catch (error) {
+      this.handleError(error, 'redirect.check', 'Redirect check');
+    }
+  }
+
   private handleError(error: unknown, operation: PassflowOperation, context: string): never {
     const errorPayload: OperationErrorPayload = {
       operation,
