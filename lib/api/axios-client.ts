@@ -27,6 +27,8 @@ import {
   RequestMethod,
   RequestOptions,
   resolveUpgradeDomain,
+  SERVICE_UNAVAILABLE_ERROR_ID,
+  SERVICE_UNAVAILABLE_MESSAGE,
   type UpgradeDomain,
 } from './model';
 
@@ -81,6 +83,39 @@ export type AxiosUpgradeHandler = (error: AxiosError, challenge: UpgradeChalleng
  * bearer instead of waiting for the retry.
  */
 export type AxiosRefreshHandler = (request: { trigger: 'pre-request'; allowStale: boolean }) => Promise<Tokens | undefined>;
+
+/**
+ * The request got no answer: offline, DNS, or a gateway answer the browser blocked because it had
+ * no CORS headers. Both axios adapters report it as `ERR_NETWORK`, or with no code and the fetch
+ * `TypeError` as the cause. Cancels and timeouts carry their own codes and do not match.
+ */
+const isNetworkFailure = (e: unknown): boolean =>
+  axios.isAxiosError(e) && !e.response && (e.code === AxiosError.ERR_NETWORK || (!e.code && e.cause instanceof TypeError));
+
+/** Statuses the API gateway answers with itself when the service behind it is down or too slow. */
+const GATEWAY_STATUSES = [502, 503, 504];
+
+const hasPassflowError = (data: unknown): boolean =>
+  typeof data === 'object' &&
+  data !== null &&
+  typeof (data as { error?: unknown }).error === 'object' &&
+  (data as { error?: unknown }).error !== null;
+
+const serviceUnavailable = (e: AxiosError, status: number): PassflowError => {
+  // A copy without config, request or response: the original holds the request body and headers.
+  const cause = new AxiosError(e.message, e.code);
+  if (e.cause instanceof TypeError) cause.cause = e.cause;
+  return new PassflowError(
+    {
+      id: SERVICE_UNAVAILABLE_ERROR_ID,
+      message: SERVICE_UNAVAILABLE_MESSAGE,
+      status,
+      location: e.config?.url ?? 'unknown',
+      time: new Date().toISOString(),
+    },
+    { cause },
+  );
+};
 
 /** `/auth/refresh` (also under a prefix such as `/admin`). */
 const isRefreshEndpoint = (url?: string): boolean => url?.includes(PassflowEndpointPaths.refresh) ?? false;
@@ -442,12 +477,20 @@ export class AxiosClient {
   // eslint-disable-next-line complexity
   // biome-ignore lint/suspicious/useAwait: async so any synchronous throw reaches the interceptor as a rejection
   private async handleAxiosError(e: AxiosError): Promise<unknown> {
-    // Handle network
+    if (isNetworkFailure(e)) {
+      return Promise.reject(serviceUnavailable(e, 0));
+    }
+    // Cancels, timeouts and anything else without an answer go to the caller as they are
     if (!e.response) {
       return Promise.reject(e);
     }
 
     const status = e.response.status as HttpStatuses;
+    // The gateway's own answer: its body is plain text, HTML or `{ message }`. A Passflow server
+    // error with the same status keeps its id below.
+    if (GATEWAY_STATUSES.includes(status) && !hasPassflowError(e.response.data)) {
+      return Promise.reject(serviceUnavailable(e, status));
+    }
     const errorData = e.response.data as Record<string, unknown>;
 
     // If we have a response with error data in Passflow format

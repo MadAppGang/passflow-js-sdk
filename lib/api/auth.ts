@@ -62,9 +62,10 @@ const SIGN_IN_FAILED_MESSAGE = 'Sign-in failed. Start again.';
 const TRY_AGAIN_LATER_MESSAGE = 'Something went wrong. Try again later.';
 
 /**
- * The plain error of a failed call whose body holds a secret. The two rejections the axios client
- * passes on raw (a POST 429 and no response) hold that body in `config.data`, so only the fields
- * the server wrote are read here: never axios `config`, `request` or the original error.
+ * The plain error of a failed call whose body holds a secret. The rejections the axios client
+ * passes on raw (a POST 429, a cancel, a timeout) hold that body in `config.data`, so only the
+ * fields the server wrote are read here: never axios `config`, `request` or the original error.
+ * A network failure already arrives as a `PassflowError` whose cause carries no config.
  */
 const toPlainError = (error: unknown, path: PassflowEndpointPaths, id: string, message: string): PassflowError => {
   if (error instanceof PassflowError) return error;

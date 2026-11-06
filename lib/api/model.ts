@@ -350,20 +350,29 @@ export type PassflowResponseError = {
   };
 };
 
+/** Id of the error a call rejects with when the Passflow API cannot be reached or its gateway answers 502, 503 or 504. */
+export const SERVICE_UNAVAILABLE_ERROR_ID = 'error.service.unavailable';
+
+/** Message of the {@link SERVICE_UNAVAILABLE_ERROR_ID} error. */
+export const SERVICE_UNAVAILABLE_MESSAGE = 'Passflow is temporarily unavailable. Please try again in a moment.';
+
 export class PassflowError extends Error {
   id: string;
   message: string;
   status: number;
   location: string;
   time: string;
+  /** Declared here rather than inherited: `Error.cause` is ES2022 and this build targets ES2021 libs. */
+  readonly cause?: unknown;
 
-  constructor(error: PassflowResponseError['error']) {
+  constructor(error: PassflowResponseError['error'], options?: { cause?: unknown }) {
     super();
     this.id = error?.id ?? 'unknown';
     this.message = error?.message ?? error ?? 'Something went wrong';
     this.status = error?.status ?? 500;
     this.location = error?.location ?? 'unknown';
     this.time = error?.time ?? new Date().toISOString();
+    if (options?.cause !== undefined) this.cause = options.cause;
   }
 }
 

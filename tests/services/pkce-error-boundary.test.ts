@@ -66,7 +66,10 @@ describe('plain boundary on every secret-bearing call', () => {
     else pending = h.sdk.decidePasswordlessApproval('device-b-challenge', OTP, true, MATCH);
     const error = await rejected(pending);
     errorIsPlain(h, error, operation);
-    if (path === PATH.info || path === PATH.decide) {
+    if (failure.kind === 'network') {
+      // No response at all: the service-unavailable error, never a flow-specific id.
+      expect(error).toMatchObject({ id: 'error.service.unavailable', status: 0 });
+    } else if (path === PATH.info || path === PATH.decide) {
       expect(error).toMatchObject({ id: 'error.passwordless.approval', status: 0 });
     }
     noSession(h);

@@ -112,7 +112,8 @@ resolves with no value; tab A sees the outcome on its next poll.
 | `error.auth.passwordless.approval.unavailable` | The app is inactive or PKCE is off, or the challenge has no approval step. |
 | `error.otp.expired` | The link expired. |
 | `error.otp.already.used` | Already decided (status 409). |
-| `error.passwordless.approval` | No usable answer (status 0): a network failure or a 429 with no error body. Try again later. |
+| `error.passwordless.approval` | No usable answer (status 0): a 429 with no error body. Try again later. |
+| `error.service.unavailable` | Passflow could not be reached (status 0) or its gateway answered 502/503/504 itself. Try again in a moment. The same id replaces the call's own id on every passwordless and PKCE call. |
 
 Failures of both device B calls emit one `Error` with operation `passwordless.approval`.
 
