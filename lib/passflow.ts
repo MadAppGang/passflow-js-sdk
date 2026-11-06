@@ -66,6 +66,7 @@ import {
 } from './store';
 import { parseToken, TokenType } from './token';
 import { TokenDeliveryMode } from './token/delivery-manager';
+import { verifyUrlTokens } from './token/verify';
 import type { ParsedTokens, SessionParams, Tokens } from './types';
 import {
   type AssuranceBar,
@@ -596,27 +597,30 @@ export class Passflow {
 
   // Token handling
   /**
-   * Handle OAuth redirect callback and extract tokens from URL query parameters.
+   * Handle OAuth redirect callback and take tokens from the URL query or fragment.
    * This method should be called on the redirect page after authentication.
    *
-   * @returns Tokens object if found in URL, undefined otherwise
+   * The tokens are removed from the URL at once, then verified in the background against the
+   * configured server's published keys and this app id (required). `SignIn` with
+   * `source: 'tokens-in-url'` (tokens saved), or `Error` with operation `tokens.from-url` (nothing
+   * saved), reports the outcome, so subscribe first.
    *
    * @example
    * ```typescript
    * // On your redirect page (e.g., /auth/callback)
-   * const tokens = passflow.handleTokensRedirect();
-   * if (tokens) {
-   *   console.log('Authentication successful', tokens.access_token);
-   *   // Tokens are automatically saved to storage
-   * }
+   * passflow.subscribe(
+   *   { onAuthChange: (event, payload) => console.log(event, payload) },
+   *   [PassflowEvent.SignIn, PassflowEvent.Error],
+   * );
+   * passflow.handleTokensRedirect();
    * ```
    *
    * A PKCE federated landing (`?code=`) returns `undefined` and finishes in the background: `SignIn`
    * or `TwoFactorRequired` is the signal. With `deferFederatedLanding` it is left to
    * `completeFederatedLanding()`.
    */
-  handleTokensRedirect(): Tokens | undefined {
-    return this.checkAndSetTokens();
+  handleTokensRedirect(): void {
+    this.checkAndSetTokens();
   }
 
   /**
@@ -632,14 +636,13 @@ export class Passflow {
     return this.takeFederatedLanding();
   }
 
-  private checkAndSetTokens(): Tokens | undefined {
+  private checkAndSetTokens(): void {
     // Cache the URL once to avoid redundant calls (especially for async/expensive adapters)
     const currentUrl = this.platform.getCurrentUrl();
 
     // Check query params first, then fall back to hash
     // React SDK may put tokens in hash (more secure), while some OAuth flows use query params
     let urlParams = new URLSearchParams(currentUrl?.search ?? '');
-    let fromHash = false;
 
     // If no access_token in query params, check hash
     if (!urlParams.get('access_token') && currentUrl?.hash) {
@@ -647,7 +650,6 @@ export class Passflow {
       const hashParams = new URLSearchParams(currentUrl.hash.substring(1));
       if (hashParams.get('access_token')) {
         urlParams = hashParams;
-        fromHash = true;
       }
     }
 
@@ -662,7 +664,6 @@ export class Passflow {
     const refresh_token = urlParams.get('refresh_token');
     const id_token = urlParams.get('id_token');
     const scopes: string[] = urlParams.get('scopes')?.split(',') ?? this.scopes;
-    let tokens: Tokens | undefined = undefined;
 
     if (access_token) {
       // Validate JWT format for access_token
@@ -673,7 +674,7 @@ export class Passflow {
           code: 'INVALID_TOKEN_FORMAT',
         };
         notifyError(this.subscribeStore, errorPayload);
-        this.cleanupUrlParams(fromHash, currentUrl);
+        this.cleanupUrlParams(currentUrl);
         return undefined;
       }
 
@@ -685,7 +686,7 @@ export class Passflow {
           code: 'INVALID_TOKEN_FORMAT',
         };
         notifyError(this.subscribeStore, errorPayload);
-        this.cleanupUrlParams(fromHash, currentUrl);
+        this.cleanupUrlParams(currentUrl);
         return undefined;
       }
 
@@ -697,30 +698,50 @@ export class Passflow {
           code: 'INVALID_TOKEN_FORMAT',
         };
         notifyError(this.subscribeStore, errorPayload);
-        this.cleanupUrlParams(fromHash, currentUrl);
+        this.cleanupUrlParams(currentUrl);
         return undefined;
       }
 
-      tokens = {
+      const tokens: Tokens = {
         access_token,
         refresh_token: refresh_token ?? undefined,
         id_token: id_token ?? undefined,
         scopes,
       };
 
-      // URL tokens mean we're in JSON mode, not cookie/BFF mode
-      // Clear any stored delivery mode to ensure consistent behavior
-      this.storageManager.clearDeliveryMode();
-      this.storageManager.saveTokens(tokens);
-      this.tokenCacheService.setTokensCache(tokens);
-      this.authService.refresh.sessionStarted();
-
-      this.subscribeStore.notify(PassflowEvent.SignIn, { tokens, parsedTokens: this.getParsedTokens() });
-      this.submitSessionCheck();
-      this.cleanupUrlParams(fromHash, currentUrl);
+      this.cleanupUrlParams(currentUrl);
       this.error = undefined;
-      return tokens;
+      // A failure to verify or to save the tokens is one `tokens.from-url` Error; what runs after
+      // SignIn (subscribers, the session check) reports its own failures.
+      verifyUrlTokens(this.url, this.appId, tokens)
+        .then(() => {
+          // URL tokens mean we're in JSON mode, not cookie/BFF mode
+          // Clear any stored delivery mode to ensure consistent behavior
+          this.storageManager.clearDeliveryMode();
+          this.storageManager.saveTokens(tokens);
+          this.tokenCacheService.setTokensCache(tokens);
+          this.authService.refresh.sessionStarted();
+        })
+        .then(
+          () => {
+            this.subscribeStore.notify(PassflowEvent.SignIn, {
+              tokens,
+              parsedTokens: this.getParsedTokens(),
+              source: 'tokens-in-url',
+            });
+            return this.submitSessionCheck();
+          },
+          (error: unknown) =>
+            notifyError(this.subscribeStore, {
+              operation: 'tokens.from-url',
+              message: error instanceof Error ? error.message : 'Tokens in the URL could not be verified',
+              code: 'TOKEN_NOT_VERIFIED',
+              originalError: error,
+            }),
+        );
+      return undefined;
     } else {
+      this.cleanupUrlParams(currentUrl);
       if (!this.deferFederatedLanding) {
         this.takeFederatedLanding();
       }
@@ -793,29 +814,22 @@ export class Passflow {
     return undefined;
   }
 
-  private cleanupUrlParams(fromHash = false, currentUrl: CurrentUrlInfo | null = null): void {
-    const url = currentUrl ?? this.platform.getCurrentUrl();
+  /**
+   * When a token appears in the query or the fragment, removes every token from the query and drops
+   * a token-carrying fragment, in one history replace. Other query params stay.
+   */
+  private cleanupUrlParams(url: CurrentUrlInfo | null): void {
     if (!url) return; // no URL context (SSR or unsupported environment)
 
-    if (fromHash) {
-      // Clear hash completely - tokens should be removed from URL for security
-      this.platform.replaceUrl(url.pathname + url.search);
-    } else {
-      const urlParams = new URLSearchParams(url.search);
+    const names = ['access_token', 'refresh_token', 'id_token'];
+    const query = new URLSearchParams(url.search);
+    const hash = new URLSearchParams(url.hash?.substring(1));
+    const hashHasTokens = names.some((name) => hash.get(name));
+    if (!hashHasTokens && !names.some((name) => query.get(name))) return;
 
-      // Remove sensitive token parameters
-      urlParams.delete('access_token');
-      urlParams.delete('refresh_token');
-      urlParams.delete('id_token');
-      urlParams.delete('client_challenge');
-
-      // Use replaceState to fully clear from browser history
-      if (urlParams.size > 0) {
-        this.platform.replaceUrl(`${url.pathname}?${urlParams.toString()}`);
-      } else {
-        this.platform.replaceUrl(url.pathname);
-      }
-    }
+    for (const name of [...names, 'client_challenge']) query.delete(name);
+    const rest = query.toString();
+    this.platform.replaceUrl(url.pathname + (rest ? `?${rest}` : '') + (hashHasTokens ? '' : (url.hash ?? '')));
   }
 
   private setTokensToCacheFromLocalStorage(): void {

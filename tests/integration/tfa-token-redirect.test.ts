@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { Passflow } from '../../lib/passflow';
 import { PassflowEvent } from '../../lib/store';
 import { TEST_CONFIG, VALID_ACCESS_TOKEN } from '../helpers/fixtures';
+import { serveIssuedTokens } from '../helpers/served-keys';
 
 const TFA_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJ0eXBlIjoiMmZhIn0.sig';
 
@@ -80,12 +81,14 @@ describe('handleTokensRedirect — #tfa_token fragment', () => {
     expect(replaceState).toHaveBeenCalledWith({}, expect.anything(), '/callback');
   });
 
-  test('tokens in the URL still sign in as before', () => {
+  test('tokens in the URL still sign in as before', async () => {
+    const issued = await serveIssuedTokens();
     // No leading `?`: tests/setup.ts swaps in a URLSearchParams that does not strip it.
-    landOn(`access_token=${VALID_ACCESS_TOKEN}`, '');
+    landOn(`access_token=${issued.access_token}`, '');
     const passflow = new Passflow({ ...TEST_CONFIG, parseQueryParams: false });
 
-    expect(passflow.handleTokensRedirect()?.access_token).toBe(VALID_ACCESS_TOKEN);
+    passflow.handleTokensRedirect();
+    await vi.waitFor(() => expect(passflow.getCachedTokens()?.access_token).toBe(issued.access_token));
     expect(passflow.isTwoFactorVerificationRequired()).toBe(false);
   });
 

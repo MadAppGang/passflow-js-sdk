@@ -22,6 +22,15 @@ import {
   TFA,
   until,
 } from '../helpers/pkce-harness';
+import { DISCOVERY_PATH, discoveryBody, generateSigningKey, issuedTokens, JWKS_PATH, jwksBody } from '../helpers/signed-tokens';
+
+/** Publishes a signing key on the harness and returns a token set issued with it. */
+async function serveSigned(h: ReturnType<typeof harness>) {
+  const key = await generateSigningKey();
+  h.reply(DISCOVERY_PATH, discoveryBody());
+  h.reply(JWKS_PATH, jwksBody(key));
+  return issuedTokens(key);
+}
 
 const landing = (extra = '') =>
   'https://app.example/callback?code=' +
@@ -335,21 +344,22 @@ describe('federated redirect landing', () => {
 
   test.each([false, true])('TEST-38 REQ-24 defer=%s leaves token landing behavior and user_state intact', async (defer) => {
     const h = harness({ config: { deferFederatedLanding: defer } });
+    const issued = await serveSigned(h);
     await startRedirect(h);
     const search = new URLSearchParams({
-      access_token: VALID_TOKENS.access_token!,
-      id_token: VALID_TOKENS.id_token!,
+      access_token: issued.access_token,
+      id_token: issued.id_token,
       user_state: 'legacy-state',
       code: CODE,
       appid: 'test-app-id',
     });
     h.land('https://app.example/callback?' + search);
-    const response = h.sdk.handleTokensRedirect();
-    expect(response?.access_token).toBe(VALID_TOKENS.access_token);
-    expect(h.sdk.getCachedTokens()?.access_token).toBe(VALID_TOKENS.access_token);
+    h.sdk.handleTokensRedirect();
+    await until(() => h.of(PassflowEvent.SignIn).length === 1);
+    expect(h.sdk.getCachedTokens()?.access_token).toBe(issued.access_token);
     expect(h.url().searchParams.get('user_state')).toBe('legacy-state');
     expect(h.wire(PATH.exchange)).toEqual([]);
-    for (const event of h.of(PassflowEvent.SignIn)) expect(event).not.toHaveProperty('source');
+    for (const event of h.of(PassflowEvent.SignIn)) expect(event).toHaveProperty('source', 'tokens-in-url');
   });
 
   test.each([false, true])('TEST-38 REQ-24 defer=%s still handles #tfa_token without a federated proof', (defer) => {
@@ -367,12 +377,13 @@ describe('federated redirect landing', () => {
 
   test('TEST-39 REQ-25 non-PKCE federated redirect/popup sends no proof and uses direct callback tokens', async () => {
     const h = harness({ pkce: false });
+    const issued = await serveSigned(h);
     const redirect = await startRedirect(h);
     expect(redirect.searchParams.has('code_challenge')).toBe(false);
     expect(redirect.searchParams.has('code_challenge_method')).toBe(false);
     expect(sessionStorage.getItem(FED_SLOT)).toBeNull();
     h.popup(async () => ({
-      callbackSearch: '?access_token=' + VALID_TOKENS.access_token + '&id_token=' + VALID_TOKENS.id_token,
+      callbackSearch: '?access_token=' + issued.access_token + '&id_token=' + issued.id_token,
       callbackHash: '',
     }));
     h.sdk.federatedAuthWithPopup(fedPayload());
@@ -381,7 +392,7 @@ describe('federated redirect landing', () => {
     expect(new URL(h.opened[0]).searchParams.has('code_challenge')).toBe(false);
     expect(sessionStorage.getItem(FED_SLOT)).toBeNull();
     expect(h.wire(PATH.exchange)).toEqual([]);
-    expect(h.sdk.getCachedTokens()?.access_token).toBe(VALID_TOKENS.access_token);
+    expect(h.sdk.getCachedTokens()?.access_token).toBe(issued.access_token);
     expect(h.of(PassflowEvent.SignIn)[0]).not.toHaveProperty('source');
   });
 

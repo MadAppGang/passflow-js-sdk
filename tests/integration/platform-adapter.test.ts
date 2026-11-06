@@ -17,6 +17,9 @@ import { UserService } from '../../lib/services/user-service';
 import { StorageManager } from '../../lib/storage';
 import { PassflowStore } from '../../lib/store';
 
+// The auth API is mocked here; signature checks are covered by url-token-verification.test.ts.
+vi.mock('../../lib/token/verify', () => ({ verifyUrlTokens: vi.fn().mockResolvedValue(undefined) }));
+
 // ---------------------------------------------------------------------------
 // MockStorage
 // ---------------------------------------------------------------------------
