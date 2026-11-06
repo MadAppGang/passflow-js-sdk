@@ -854,6 +854,35 @@ try {
 }
 ```
 
+### Service unavailable
+
+In a browser, when the Passflow API cannot be reached or its gateway answers 502, 503 or 504 itself,
+an SDK API call rejects with one `PassflowError`:
+
+- `id`: `error.service.unavailable`, exported as `SERVICE_UNAVAILABLE_ERROR_ID`
+- `message`: `Passflow is temporarily unavailable. Please try again in a moment.`, exported as
+  `SERVICE_UNAVAILABLE_MESSAGE`
+- `status`: the gateway status (502, 503 or 504), or `0` when no answer arrived
+- `cause`: the underlying network error, without the request's config, body or headers
+
+```typescript
+import { PassflowError, SERVICE_UNAVAILABLE_ERROR_ID } from "@passflow/core";
+
+try {
+  await passflow.signIn({ email: "user@example.com", password: "secret" });
+} catch (e) {
+  if (e instanceof PassflowError && e.id === SERVICE_UNAVAILABLE_ERROR_ID) {
+    showBanner(e.message);
+  }
+}
+```
+
+It also covers a device that is offline and a request the browser blocked (a gateway answer with no
+CORS headers). The call is not retried; token refresh keeps its own retry schedule. A tab that
+joins another tab's failed token refresh gets `error.refresh.unavailable` instead (see
+[docs/token-refresh.md](docs/token-refresh.md)). An error the Passflow server wrote keeps its own
+id, even with status 503. Calls that wrap their errors in a result object report it in that shape.
+
 ## API Reference
 
 ### Passflow Class

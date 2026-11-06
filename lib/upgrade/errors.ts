@@ -307,6 +307,10 @@ const kindFromErrorId = (errorId: string | undefined, endpoint: UpgradeEndpoint)
     // on that round contradicted the predicate that acts on it.
     case UpgradeErrorIds.tokenInvalid:
       return endpoint === 'refresh' ? 'session_changed' : 'fatal';
+    // The SDK's own id for no answer or a gateway 502-504 (`SERVICE_UNAVAILABLE_ERROR_ID`, written
+    // out because this module imports nothing). Its status 0 would otherwise read as `fatal`.
+    case 'error.service.unavailable':
+      return 'network';
     default:
       // An id we do not recognise — the normal case against a newer server.
       // `undefined` hands the decision to the status fallback.

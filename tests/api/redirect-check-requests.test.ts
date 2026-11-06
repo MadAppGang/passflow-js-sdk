@@ -40,7 +40,15 @@ describe('checkRedirectUrl', () => {
   });
 
   test('a failure with no server error still rejects', async () => {
-    const { api } = setup(502, 'bad gateway');
+    const { api } = setup(500, 'internal failure');
     await expect(api.checkRedirectUrl('https://app.example')).rejects.toMatchObject({ id: 'error.redirect.check' });
+  });
+
+  test('a gateway 502 rejects with the service-unavailable error', async () => {
+    const { api } = setup(502, 'bad gateway');
+    await expect(api.checkRedirectUrl('https://app.example')).rejects.toMatchObject({
+      id: 'error.service.unavailable',
+      status: 502,
+    });
   });
 });

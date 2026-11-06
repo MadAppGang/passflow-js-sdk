@@ -187,8 +187,9 @@ Resolution values:
   the outcome: the kept tokens after a transient, blocked or auth-with-strikes-left failure.
   `undefined` only after the session ended. `getTokensWithRefresh()` never rejects.
 - Rejections:
-  - this tab's own request failed: the request's original error (a `PassflowError` for HTTP
-    answers, the axios error for a network failure). The exception is `error.token.blocked`:
+  - this tab's own request failed: the request's error, a `PassflowError`. In a browser, a
+    network failure (no answer) and a gateway 502/503/504 are `error.service.unavailable` (status 0, or the
+    gateway status); a cancel or a timeout is the raw axios error. The exception is `error.token.blocked`:
     the callers, including this tab's own `refreshToken()`, do not see the 400. They wait up to
     20 s for the successor, then resolve with the adopted tokens or reject with
     `error.refresh.successor_timeout`;
