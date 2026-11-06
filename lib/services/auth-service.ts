@@ -39,6 +39,7 @@ import { StorageManager } from '../storage';
 import { OperationErrorPayload, type PassflowEmailVerificationOperation, PassflowEvent, PassflowStore } from '../store';
 import { isTokenExpired, parseToken, TokenType } from '../token';
 import { TokenDeliveryManager, TokenDeliveryMode } from '../token/delivery-manager';
+import { verifyUrlTokens } from '../token/verify';
 import { ParsedTokens, Tokens } from '../types';
 import { UpgradeSessionChangedError, UpgradeTransportError } from '../upgrade/errors';
 import { readSessionPin, sessionPinMatches, type UpgradeSessionPin } from '../upgrade/session';
@@ -1658,6 +1659,8 @@ export class AuthService {
         if (this.handlePendingSecondFactor(tokensData)) {
           return;
         }
+      } else {
+        await verifyUrlTokens(this.url, this.appId, tokensData);
       }
 
       await this.processAuthResponse(tokensData, sscopes);

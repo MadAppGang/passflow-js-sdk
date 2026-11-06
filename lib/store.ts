@@ -148,8 +148,11 @@ export type PassflowEventPayload = {
     parsedTokens?: ParsedTokens;
     /** `'other-tab'` only when an ended tab revives on a new session found in storage. Absent on this tab's own sign-in. */
     origin?: EventOrigin;
-    /** Set only when a federated redirect landed here and this instance exchanged its code. */
-    source?: 'federated-landing';
+    /**
+     * `'federated-landing'`: a federated redirect landed here and this instance exchanged its code.
+     * `'tokens-in-url'`: tokens received in this page's URL were verified and saved.
+     */
+    source?: 'federated-landing' | 'tokens-in-url';
   };
   [PassflowEvent.SignInStart]: { email?: string; provider?: string };
   [PassflowEvent.Register]: { tokens?: Tokens; parsedTokens?: ParsedTokens };

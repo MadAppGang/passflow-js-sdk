@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { Passflow } from '../../lib/passflow';
 import { PassflowEvent } from '../../lib/store';
 import { AUTH_RESPONSE, TEST_CONFIG, VALID_ACCESS_TOKEN, VALID_TOKENS } from '../helpers/fixtures';
+import { serveIssuedTokens } from '../helpers/served-keys';
 
 // Mock WebAuthn
 vi.mock('@simplewebauthn/browser', () => ({
@@ -222,20 +223,21 @@ describe('Passflow Delegation (Integration)', () => {
   });
 
   describe('parseQueryParams Configuration', () => {
-    test('parseQueryParams: true extracts tokens on construction', () => {
+    test('parseQueryParams: true extracts tokens on construction', async () => {
+      const issued = await serveIssuedTokens();
       Object.defineProperty(window, 'location', {
         value: {
           origin: 'https://example.com',
-          search: `access_token=${VALID_ACCESS_TOKEN}`,
-          href: `https://example.com?access_token=${VALID_ACCESS_TOKEN}`,
+          search: `access_token=${issued.access_token}`,
+          href: `https://example.com?access_token=${issued.access_token}`,
         },
         writable: true,
       });
 
       const sdk = new Passflow({ ...TEST_CONFIG, parseQueryParams: true });
 
-      // Should automatically parse and store tokens
-      expect(sdk.getCachedTokens()?.access_token).toBe(VALID_ACCESS_TOKEN);
+      // Should automatically parse, verify and store tokens
+      await vi.waitFor(() => expect(sdk.getCachedTokens()?.access_token).toBe(issued.access_token));
     });
 
     test('parseQueryParams: false does not extract tokens on construction', () => {

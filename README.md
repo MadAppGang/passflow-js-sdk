@@ -607,6 +607,8 @@ switch (await passflow.getTwoFactorEnrollment()) {
 ## Token Management
 
 ```javascript
+import { PassflowEvent } from "@passflow/core";
+
 // Check if user is authenticated
 const isAuthenticated = passflow.isAuthenticated();
 
@@ -642,12 +644,27 @@ const setTokens = async (tokens) => {
 
 // Handle tokens from redirect
 const handleRedirect = () => {
-  const tokens = passflow.handleTokensRedirect();
-  if (tokens) {
-    console.log("Tokens received from redirect", tokens);
-  }
+  passflow.subscribe(
+    {
+      onAuthChange: (event, payload) => {
+        if (event === PassflowEvent.SignIn && payload?.source === "tokens-in-url") {
+          console.log("Tokens received from redirect", payload.tokens);
+        }
+      },
+    },
+    [PassflowEvent.SignIn, PassflowEvent.Error],
+  );
+  passflow.handleTokensRedirect();
 };
 ```
+
+`handleTokensRedirect()` returns nothing. It removes the tokens from the URL at once, then
+verifies them in the background before saving them: each signature against the keys at
+`<url>/.well-known/jwks.json`, `iss` against the issuer in `<url>/.well-known/openid-configuration`,
+`aud` against your `appId` (required), `exp`, and the token type. The outcome is `SignIn` with
+`source: "tokens-in-url"`, or `Error` with operation `tokens.from-url` and code `TOKEN_NOT_VERIFIED`
+with nothing saved. Verification needs the Web Crypto API (https or localhost). A federated popup
+that returns tokens in its callback URL is verified the same way.
 
 ### Token refresh across tabs
 
@@ -1126,12 +1143,9 @@ document.getElementById("logout-button").addEventListener("click", async () => {
   // Logout successful - session callback will handle UI update
 });
 
-// Check for redirect tokens on page load
+// Check for redirect tokens on page load; SignIn with source "tokens-in-url" reports success
 window.addEventListener("load", () => {
-  const tokens = passflow.handleTokensRedirect();
-  if (tokens) {
-    console.log("Authenticated via redirect");
-  }
+  passflow.handleTokensRedirect();
 });
 ```
 

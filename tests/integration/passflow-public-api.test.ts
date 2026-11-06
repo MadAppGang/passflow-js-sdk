@@ -8,7 +8,8 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { Passflow } from '../../lib/passflow';
 import { PassflowEvent } from '../../lib/store';
 import { TokenType } from '../../lib/token';
-import { TEST_CONFIG, VALID_ACCESS_TOKEN, VALID_ID_TOKEN, VALID_REFRESH_TOKEN, VALID_TOKENS } from '../helpers/fixtures';
+import { TEST_CONFIG, VALID_ACCESS_TOKEN, VALID_ID_TOKEN, VALID_TOKENS } from '../helpers/fixtures';
+import { serveIssuedTokens } from '../helpers/served-keys';
 
 // Mock WebAuthn
 vi.mock('@simplewebauthn/browser', () => ({
@@ -207,31 +208,39 @@ describe('Passflow Public API (Integration)', () => {
       expect(tokens).toBeUndefined();
     });
 
-    test('handleTokensRedirect() extracts tokens from URL query params', () => {
+    test('handleTokensRedirect() extracts tokens from URL query params', async () => {
+      const issued = await serveIssuedTokens();
       // Setup: tokens in URL (without leading ? since URLSearchParams strips it)
       Object.defineProperty(window, 'location', {
         value: {
           origin: 'https://example.com',
-          search: `access_token=${VALID_ACCESS_TOKEN}&refresh_token=${VALID_REFRESH_TOKEN}&id_token=${VALID_ID_TOKEN}`,
-          href: `https://example.com?access_token=${VALID_ACCESS_TOKEN}`,
+          search: `access_token=${issued.access_token}&refresh_token=${issued.refresh_token}&id_token=${issued.id_token}`,
+          href: `https://example.com?access_token=${issued.access_token}`,
         },
         writable: true,
       });
 
       passflow = new Passflow({ ...TEST_CONFIG, parseQueryParams: false });
-      const tokens = passflow.handleTokensRedirect();
+      const signIns: unknown[] = [];
+      passflow.subscribe({ onAuthChange: (_e, payload) => signIns.push(payload) }, [PassflowEvent.SignIn]);
+      passflow.handleTokensRedirect();
 
-      expect(tokens).toBeDefined();
-      expect(tokens?.access_token).toBe(VALID_ACCESS_TOKEN);
-      expect(tokens?.refresh_token).toBe(VALID_REFRESH_TOKEN);
+      await vi.waitFor(() => expect(signIns).toHaveLength(1));
+      expect(signIns[0]).toEqual(
+        expect.objectContaining({
+          source: 'tokens-in-url',
+          tokens: expect.objectContaining({ access_token: issued.access_token, refresh_token: issued.refresh_token }),
+        }),
+      );
     });
 
-    test('handleTokensRedirect() saves tokens to storage', () => {
+    test('handleTokensRedirect() saves tokens to storage', async () => {
+      const issued = await serveIssuedTokens();
       Object.defineProperty(window, 'location', {
         value: {
           origin: 'https://example.com',
-          search: `access_token=${VALID_ACCESS_TOKEN}`,
-          href: `https://example.com?access_token=${VALID_ACCESS_TOKEN}`,
+          search: `access_token=${issued.access_token}`,
+          href: `https://example.com?access_token=${issued.access_token}`,
         },
         writable: true,
       });
@@ -240,24 +249,25 @@ describe('Passflow Public API (Integration)', () => {
       passflow.handleTokensRedirect();
 
       // Storage key is TokenType.access_token which equals 'access' (not 'access_token')
-      expect(localStorage.getItem('access')).toBe(VALID_ACCESS_TOKEN);
+      await vi.waitFor(() => expect(localStorage.getItem('access')).toBe(issued.access_token));
     });
 
-    test('parseQueryParams: true extracts tokens on construction', () => {
+    test('parseQueryParams: true extracts tokens on construction', async () => {
+      const issued = await serveIssuedTokens();
       Object.defineProperty(window, 'location', {
         value: {
           origin: 'https://example.com',
-          search: `access_token=${VALID_ACCESS_TOKEN}`,
-          href: `https://example.com?access_token=${VALID_ACCESS_TOKEN}`,
+          search: `access_token=${issued.access_token}`,
+          href: `https://example.com?access_token=${issued.access_token}`,
         },
         writable: true,
       });
 
       passflow = new Passflow({ ...TEST_CONFIG, parseQueryParams: true });
 
-      // Tokens should be in storage after construction
+      // Tokens are in storage once verified
       // Storage key is TokenType.access_token which equals 'access' (not 'access_token')
-      expect(localStorage.getItem('access')).toBe(VALID_ACCESS_TOKEN);
+      await vi.waitFor(() => expect(localStorage.getItem('access')).toBe(issued.access_token));
     });
 
     test('handleTokensRedirect() rejects invalid JWT format', () => {

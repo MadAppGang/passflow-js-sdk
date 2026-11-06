@@ -23,6 +23,9 @@ import { PassflowEvent, PassflowStore } from '../../lib/store';
 import { VALID_TOKENS } from '../helpers/fixtures';
 import { createMockPlatform } from '../helpers/mock-platform';
 
+// The server and its keys are mocked here; signature checks are covered by url-token-verification.test.ts.
+vi.mock('../../lib/token/verify', () => ({ verifyUrlTokens: vi.fn().mockResolvedValue(undefined) }));
+
 const TFA_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJ0eXBlIjoiMmZhIn0.sig';
 const PENDING: PassflowAuthorizationResponse = { tfa_token: TFA_TOKEN, challenge_id: 'ch-1' };
 const ORIGIN = 'https://app.example.com';
