@@ -62,6 +62,8 @@ export type {
 } from './m2m';
 // Re-export M2M (Machine-to-Machine) Authentication module
 export { M2M_DEFAULTS, M2MClient, M2MConfigError, M2MError, M2MErrorCodes, M2MNetworkError, M2MTokenParseError } from './m2m';
+// Hosted sign-in in SDK mode (authorization code + PKCE): the error a caller can branch on
+export { type OidcErrorCode, PassflowOidcError } from './oidc';
 // Export Passflow class
 export { Passflow } from './passflow';
 // Re-export platform types and WebAdapter for custom adapter implementations

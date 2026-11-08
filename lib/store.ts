@@ -76,6 +76,7 @@ export type PassflowOperation =
   | 'tokens.get'
   | 'tokens.load'
   | 'tokens.from-url'
+  | 'oidc.redirect'
   | 'refresh'
   | 'upgrade.commit'
   | 'log-out'
@@ -151,8 +152,11 @@ export type PassflowEventPayload = {
     /**
      * `'federated-landing'`: a federated redirect landed here and this instance exchanged its code.
      * `'tokens-in-url'`: tokens received in this page's URL were verified and saved.
+     * `'oidc-landing'`: hosted sign-in returned an authorization code here and this instance redeemed it.
      */
-    source?: 'federated-landing' | 'tokens-in-url';
+    source?: 'federated-landing' | 'tokens-in-url' | 'oidc-landing';
+    /** For `source: 'tokens-in-url'`: the `state` the URL carried with the tokens, when it had one. */
+    state?: string;
   };
   [PassflowEvent.SignInStart]: { email?: string; provider?: string };
   [PassflowEvent.Register]: { tokens?: Tokens; parsedTokens?: ParsedTokens };

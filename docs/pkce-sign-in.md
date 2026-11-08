@@ -146,7 +146,10 @@ leaving, and listen for failures:
 - Any later failure emits `Error` with operation `federated.redirect`, and the page stays.
 
 `federatedAuthWithPopup` finishes in the opening tab as before. If the browser blocks the popup, the
-SDK falls back to a redirect, so a popup host's `redirect_url` page must also handle a landing.
+SDK falls back to a redirect, so a popup host's `redirect_url` page must also handle a landing. On a
+PKCE app the popup's callback must carry a code; a callback with tokens instead (query or fragment) is
+refused with an `Error` with operation `tokens.from-url` and code `TOKENS_IN_URL_NOT_ALLOWED`. Core
+accepts URL tokens only for apps in Simple mode (`pkce_enabled: false`).
 
 ### The landing
 
@@ -189,3 +192,35 @@ path either way.
 `completeFederatedLanding()` returns `true` when the exchange began, once per landing. On `false`, the
 URL and the stored verifier are unchanged, so an instance that has its app id can still take the
 landing. An instance with no `appId` yet always answers `false`.
+
+## Hosted sign-in on PKCE apps (SDK mode)
+
+On an app with PKCE on, `authRedirect()` starts an authorization-code request with PKCE at
+`/oidc/authorize`, and hosted sign-in returns an authorization code (`?code=&state=`). The proof key,
+`state`, `nonce`, client id and redirect URI stay in this tab's sessionStorage (`passflow_oidc_pkce`)
+for 10 minutes; a newer start in the same tab replaces them.
+
+The landing is taken where the federated landing is: by the constructor under `parseQueryParams`, by
+`handleTokensRedirect()`, or, with `deferFederatedLanding`, by `completeFederatedLanding()`, which tries
+the federated landing first. The code is redeemed with a plain form POST to `/oidc/token`, with no
+secret and none of the SDK's own headers.
+
+| This tab | Result |
+|---|---|
+| No `appId` yet, or no stored slot | `false`: the URL is unchanged and no event follows. |
+| A slot, the same `state` | `true`: `code`, `state` and `iss` leave the URL; `SignIn` with `source: 'oidc-landing'` follows, or one `Error` with operation `oidc.redirect` when the exchange fails. |
+| A slot, a different `state` | `true`: `Error` with code `STATE_MISMATCH`. |
+| A slot that is unreadable or expired | `true`: `Error` with code `VERIFIER_MISSING`. |
+| A slot and `?error=` | `true`: `Error` with the OAuth error as its code. |
+
+Every refused landing clears the slot, removes `code`, `state`, `iss`, `error` and `error_description`
+from the URL, stores nothing, and is not retried. Every outcome is emitted after an `await`, so a
+subscriber attached right after the call hears it.
+
+## Magic link under an OIDC parent
+
+When the hosted login runs a magic-link sign-in for an app in SDK mode, the status poll answers with
+the relying party's `redirect_url`, or a `tfa_token` when a second factor is owed, instead of a code.
+`waitForPasswordlessSignIn` then ends with `signed-in` (its `tokens` carry only `redirect_url`) or
+`second-factor-required`. `PasswordlessApprovalInfo.one_click` tells the approving page that approval
+takes one click and no number.

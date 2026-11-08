@@ -52,10 +52,19 @@ import type { AxiosClient, AxiosUpgradeHandler } from './api/axios-client';
 import { DEFAULT_SCOPES, PASSFLOW_CLOUD_URL, SDK_VERSION } from './constants';
 import { DeviceService } from './device';
 import { notifyError } from './error-report';
+import { PassflowOidcError, tokensInUrlNotAllowed } from './oidc';
 import type { CurrentUrlInfo, PlatformAdapter } from './platform';
 import { webAdapter } from './platform';
 import { resolveCoordination } from './refresh/resolve';
-import { AuthService, InvitationService, TenantService, TokenCacheService, TwoFactorService, UserService } from './services';
+import {
+  type AuthRedirectOptions,
+  AuthService,
+  InvitationService,
+  TenantService,
+  TokenCacheService,
+  TwoFactorService,
+  UserService,
+} from './services';
 import { StorageManager } from './storage';
 import {
   type OperationErrorPayload,
@@ -141,8 +150,8 @@ export class Passflow {
   private createSessionCallback?: ({ tokens, parsedTokens }: { tokens?: Tokens; parsedTokens?: ParsedTokens }) => Promise<void>;
   private expiredSessionCallback?: () => Promise<void>;
 
-  // The app's PKCE setting, read once per appId
-  private pkceEnabledRead?: Promise<boolean>;
+  // The app's settings, read once per appId
+  private appSettingsRead?: Promise<AppSettings>;
 
   // State
   error?: Error;
@@ -216,6 +225,7 @@ export class Passflow {
         coordination,
         ...(config.refreshStrikes !== undefined ? { strikes: config.refreshStrikes } : {}),
       },
+      () => this.readAppSettings(),
     );
 
     // getTokensWithRefresh() refreshes through the same controller.
@@ -279,24 +289,30 @@ export class Passflow {
   }
 
   /**
-   * Whether the current app wants PKCE. A sign-in asks before a passkey ceremony,
-   * where a round-trip eats into the browser's user-gesture window, so the answer
-   * is kept for the appId. A failed read is not kept: the next sign-in asks again.
+   * The current app's settings, `undefined` while there is no app id. A sign-in asks before a
+   * passkey ceremony, where a round-trip eats into the browser's user-gesture window, and
+   * `authRedirect()`, the URL-token reader and `getAppSettings()` ask too, so one read is kept for
+   * the appId. A failed read is not kept: the next caller asks again.
    */
-  private readPkceEnabled(): Promise<boolean> {
+  private readAppSettings(): Promise<AppSettings | undefined> {
     if (!this.appId) {
-      return Promise.resolve(false);
+      return Promise.resolve(undefined);
     }
-    if (!this.pkceEnabledRead) {
-      const read: Promise<boolean> = this.appApi.getAppSettings().then((settings) => settings.pkce_enabled);
-      this.pkceEnabledRead = read;
+    if (!this.appSettingsRead) {
+      const read = this.appApi.getAppSettings();
+      this.appSettingsRead = read;
       read.catch(() => {
-        if (this.pkceEnabledRead === read) {
-          this.pkceEnabledRead = undefined;
+        if (this.appSettingsRead === read) {
+          this.appSettingsRead = undefined;
         }
       });
     }
-    return this.pkceEnabledRead;
+    return this.appSettingsRead;
+  }
+
+  /** Whether the current app wants PKCE; `false` while there is no app id. */
+  private readPkceEnabled(): Promise<boolean> {
+    return this.readAppSettings().then((settings) => settings?.pkce_enabled ?? false);
   }
 
   /**
@@ -313,7 +329,7 @@ export class Passflow {
    */
   setAppId(appId: string): void {
     this.appId = appId;
-    this.pkceEnabledRead = undefined;
+    this.appSettingsRead = undefined;
 
     // Update all API clients
     this.authApi.setAppId(appId);
@@ -325,11 +341,7 @@ export class Passflow {
     this.twoFactorApi.setAppId(appId);
     this.upgradeApi.setAppId(appId);
 
-    // Update authService appId if needed
-    if (this.authService) {
-      // AuthService stores appId internally but doesn't have a setter
-      // The API clients will handle the headers, so this is sufficient
-    }
+    this.authService.setAppId(appId);
   }
 
   /**
@@ -600,10 +612,12 @@ export class Passflow {
    * Handle OAuth redirect callback and take tokens from the URL query or fragment.
    * This method should be called on the redirect page after authentication.
    *
-   * The tokens are removed from the URL at once, then verified in the background against the
-   * configured server's published keys and this app id (required). `SignIn` with
-   * `source: 'tokens-in-url'` (tokens saved), or `Error` with operation `tokens.from-url` (nothing
-   * saved), reports the outcome, so subscribe first.
+   * The tokens are removed from the URL at once. Core accepts URL tokens only for apps in Simple
+   * mode: the app settings are read (`pkce_enabled` must be `false`; an SDK-mode app, no app id or
+   * a failed read is refused with code `TOKENS_IN_URL_NOT_ALLOWED`), then the tokens are verified in
+   * the background against the configured server's published keys and this app id. `SignIn` with
+   * `source: 'tokens-in-url'` (tokens saved; `state` set when the URL carried one), or `Error` with
+   * operation `tokens.from-url` (nothing saved), reports the outcome, so subscribe first.
    *
    * @example
    * ```typescript
@@ -615,8 +629,9 @@ export class Passflow {
    * passflow.handleTokensRedirect();
    * ```
    *
-   * A PKCE federated landing (`?code=`) returns `undefined` and finishes in the background: `SignIn`
-   * or `TwoFactorRequired` is the signal. With `deferFederatedLanding` it is left to
+   * A PKCE federated landing (`?code=&user_state=`) or a hosted sign-in landing in SDK mode
+   * (`?code=&state=`) returns `undefined` and finishes in the background: `SignIn`,
+   * `TwoFactorRequired` or `Error` is the signal. With `deferFederatedLanding` it is left to
    * `completeFederatedLanding()`.
    */
   handleTokensRedirect(): void {
@@ -624,16 +639,20 @@ export class Passflow {
   }
 
   /**
-   * Takes a PKCE federated landing (`?code=&user_state=`) on this page, for an instance built with
-   * `deferFederatedLanding`. The code is exchanged in the background; `SignIn` with
-   * `source: 'federated-landing'`, `TwoFactorRequired`, or `Error` with operation `federated.redirect`
-   * reports the outcome, so subscribe first.
+   * Takes a landing on this page, for an instance built with `deferFederatedLanding`: a PKCE
+   * federated landing (`?code=&user_state=`), else a hosted sign-in landing in SDK mode
+   * (`?code=&state=`). The code is exchanged in the background, so subscribe first:
+   * - federated: `SignIn` with `source: 'federated-landing'`, `TwoFactorRequired`, or `Error` with
+   *   operation `federated.redirect`;
+   * - hosted sign-in: `SignIn` with `source: 'oidc-landing'`, or one `Error` with operation
+   *   `oidc.redirect` (also for a landing refused here, such as a `state` this tab did not send).
    *
-   * @returns true when this tab started that sign-in and the exchange began. On false, neither the
-   * URL nor the stored proof key has changed, so an instance that has its app id can still take it.
+   * @returns true when this tab started that sign-in: the URL is cleaned at once and the outcome
+   * arrives by event. On false, neither the URL nor the stored proof key has changed and no event
+   * follows, so an instance that has its app id can still take it.
    */
   completeFederatedLanding(): boolean {
-    return this.takeFederatedLanding();
+    return this.takeFederatedLanding() || this.takeOidcLanding();
   }
 
   private checkAndSetTokens(): void {
@@ -663,6 +682,7 @@ export class Passflow {
     const access_token = urlParams.get('access_token');
     const refresh_token = urlParams.get('refresh_token');
     const id_token = urlParams.get('id_token');
+    const state = urlParams.get('state') ?? undefined;
     const scopes: string[] = urlParams.get('scopes')?.split(',') ?? this.scopes;
 
     if (access_token) {
@@ -711,9 +731,16 @@ export class Passflow {
 
       this.cleanupUrlParams(currentUrl);
       this.error = undefined;
-      // A failure to verify or to save the tokens is one `tokens.from-url` Error; what runs after
-      // SignIn (subscribers, the session check) reports its own failures.
-      verifyUrlTokens(this.url, this.appId, tokens)
+      // Core accepts URL tokens only for apps in Simple mode (`pkce_enabled === false`); an SDK-mode
+      // app, an unknown mode (no app id, a failed settings read) is refused. A refusal, or a failure
+      // to verify or to save the tokens, is one `tokens.from-url` Error; what runs after SignIn
+      // (subscribers, the session check) reports its own failures.
+      this.readAppSettings()
+        .catch(() => undefined)
+        .then((settings) => {
+          if (settings?.pkce_enabled !== false) throw tokensInUrlNotAllowed();
+          return verifyUrlTokens(this.url, this.appId, tokens);
+        })
         .then(() => {
           // URL tokens mean we're in JSON mode, not cookie/BFF mode
           // Clear any stored delivery mode to ensure consistent behavior
@@ -728,6 +755,7 @@ export class Passflow {
               tokens,
               parsedTokens: this.getParsedTokens(),
               source: 'tokens-in-url',
+              ...(state ? { state } : {}),
             });
             return this.submitSessionCheck();
           },
@@ -735,15 +763,15 @@ export class Passflow {
             notifyError(this.subscribeStore, {
               operation: 'tokens.from-url',
               message: error instanceof Error ? error.message : 'Tokens in the URL could not be verified',
-              code: 'TOKEN_NOT_VERIFIED',
+              code: error instanceof PassflowOidcError ? error.code : 'TOKEN_NOT_VERIFIED',
               originalError: error,
             }),
         );
       return undefined;
     } else {
       this.cleanupUrlParams(currentUrl);
-      if (!this.deferFederatedLanding) {
-        this.takeFederatedLanding();
+      if (!this.deferFederatedLanding && !this.takeFederatedLanding()) {
+        this.takeOidcLanding();
       }
       this.error = this.checkErrorsFromURL();
     }
@@ -770,6 +798,12 @@ export class Passflow {
     const rest = urlParams.toString();
     this.platform.replaceUrl(currentUrl.pathname + (rest ? `?${rest}` : '') + currentUrl.hash);
     return true;
+  }
+
+  /** A hosted sign-in landing in SDK mode (`?code=&state=`); see `completeFederatedLanding()`. */
+  private takeOidcLanding(): boolean {
+    const currentUrl = this.platform.getCurrentUrl();
+    return currentUrl ? this.authService.handleOidcLanding(currentUrl) : false;
   }
 
   /**
@@ -815,8 +849,9 @@ export class Passflow {
   }
 
   /**
-   * When a token appears in the query or the fragment, removes every token from the query and drops
-   * a token-carrying fragment, in one history replace. Other query params stay.
+   * When a token appears in the query or the fragment, removes every token and `client_challenge`
+   * from the query, and the tokens, `client_challenge` and `state` from whichever part carried the
+   * tokens, in one history replace. Other params stay, in the query and in the fragment.
    */
   private cleanupUrlParams(url: CurrentUrlInfo | null): void {
     if (!url) return; // no URL context (SSR or unsupported environment)
@@ -824,12 +859,19 @@ export class Passflow {
     const names = ['access_token', 'refresh_token', 'id_token'];
     const query = new URLSearchParams(url.search);
     const hash = new URLSearchParams(url.hash?.substring(1));
+    const queryHasTokens = names.some((name) => query.get(name));
     const hashHasTokens = names.some((name) => hash.get(name));
-    if (!hashHasTokens && !names.some((name) => query.get(name))) return;
+    if (!hashHasTokens && !queryHasTokens) return;
 
-    for (const name of [...names, 'client_challenge']) query.delete(name);
+    for (const name of [...names, 'client_challenge', ...(queryHasTokens ? ['state'] : [])]) query.delete(name);
     const rest = query.toString();
-    this.platform.replaceUrl(url.pathname + (rest ? `?${rest}` : '') + (hashHasTokens ? '' : (url.hash ?? '')));
+    let fragment = url.hash ?? '';
+    if (hashHasTokens) {
+      for (const name of [...names, 'client_challenge', 'state']) hash.delete(name);
+      const hashRest = hash.toString();
+      fragment = hashRest ? `#${hashRest}` : '';
+    }
+    this.platform.replaceUrl(url.pathname + (rest ? `?${rest}` : '') + fragment);
   }
 
   private setTokensToCacheFromLocalStorage(): void {
@@ -1439,6 +1481,9 @@ export class Passflow {
   /**
    * Get application settings and configuration.
    *
+   * Read once per app id and kept for this instance (sign-in, `authRedirect()` and the URL-token
+   * reader use the same read); a failed read is not kept, so the next call asks again.
+   *
    * @returns Promise with app settings including branding, features, and config
    * @throws {PassflowError} If request fails
    *
@@ -1451,7 +1496,7 @@ export class Passflow {
    */
   async getAppSettings(): Promise<AppSettings> {
     try {
-      return await this.appApi.getAppSettings();
+      return (await this.readAppSettings()) ?? (await this.appApi.getAppSettings());
     } catch (error) {
       this.handleError(error, 'settings.app', 'Get app settings');
     }
@@ -1928,24 +1973,37 @@ export class Passflow {
   }
 
   /**
-   * Redirect to the Passflow hosted login page.
+   * Redirect to Passflow hosted sign-in, in the app's mode (`pkce_enabled` in its settings).
+   *
+   * - Simple mode (`pkce_enabled` false, or no app id): the `/web` URL of `authRedirectUrl()`.
+   *   Hosted sign-in returns tokens in the URL; `options.state` is echoed back with them.
+   * - SDK mode (`pkce_enabled` true): `/oidc/authorize` with PKCE. Hosted sign-in returns an
+   *   authorization code, which this SDK redeems on the landing page. `state` is generated here
+   *   (`options.state` is not sent), and the default `redirectUrl` is this page's origin and
+   *   pathname, so a deep link passes an explicit, registered `redirectUrl`. The app must be a
+   *   public client (type SPA).
+   *
+   * Reads the app settings (one read per app id). Every failure emits one `Error` with operation
+   * `auth-redirect` and rejects; nothing navigates then.
    *
    * @param options - Redirect configuration
-   * @param options.url - Optional custom Passflow server URL
-   * @param options.redirectUrl - URL to redirect to after authentication
+   * @param options.url - Must equal the instance's `url` when given (`OVERRIDE_NOT_SUPPORTED` otherwise)
+   * @param options.redirectUrl - URL to return to after authentication
    * @param options.scopes - Optional scopes to request
-   * @param options.appId - Optional app ID to use
+   * @param options.appId - Must equal the instance's `appId` when given (`OVERRIDE_NOT_SUPPORTED` otherwise)
+   * @param options.state - Simple mode only: echoed back with the tokens
+   * @throws {PassflowOidcError} `OVERRIDE_NOT_SUPPORTED`, `CONFIDENTIAL_CLIENT`,
+   * `SECURE_CONTEXT_REQUIRED`, `STORAGE_UNAVAILABLE`; or the error of a failed settings read
    *
    * @example
    * ```typescript
-   * // Redirect to hosted login page
-   * passflow.authRedirect({
-   *   redirectUrl: window.location.origin + '/auth/callback'
-   * });
+   * if (!passflow.isAuthenticated()) {
+   *   await passflow.authRedirect({ redirectUrl: window.location.origin + '/auth/callback' });
+   * }
    * ```
    */
-  authRedirect(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string } = {}): void {
-    this.authService.authRedirect(options);
+  authRedirect(options: AuthRedirectOptions = {}): Promise<void> {
+    return this.authService.authRedirect(options);
   }
 
   /**

@@ -6,7 +6,7 @@
  * lifecycle hooks, passkeys, navigation, base64, and auth UI.
  */
 import { describe, expect, test, vi } from 'vitest';
-import type { AuthAPI, UserAPI } from '../../lib/api';
+import type { AppSettings, AuthAPI, UserAPI } from '../../lib/api';
 import { Providers } from '../../lib/api';
 import type { DeviceService } from '../../lib/device';
 import { Passflow } from '../../lib/passflow';
@@ -466,11 +466,11 @@ describe('Group 5: Navigation Adapter', () => {
     expect(adapter.getCurrentUrl).toHaveBeenCalled();
   });
 
-  test('TC-5.3: navigateTo called when authRedirect is invoked', () => {
+  test('TC-5.3: navigateTo called when authRedirect is invoked', async () => {
     const adapter = createMockAdapter();
     const authService = buildAuthServiceWithAdapter(adapter);
 
-    authService.authRedirect();
+    await authService.authRedirect();
 
     expect(adapter.navigateTo).toHaveBeenCalled();
   });
@@ -605,6 +605,10 @@ describe('Group 7: Auth UI Adapter', () => {
       'test-app-id',
       undefined,
       adapter,
+      // A known Simple-mode app: core accepts URL tokens only for apps in Simple mode.
+      async () => false,
+      undefined,
+      async () => ({ pkce_enabled: false }) as AppSettings,
     );
 
     await authService.federatedAuthWithPopup({ provider: Providers.google, redirect_url: 'https://example.com' });
