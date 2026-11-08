@@ -2,7 +2,7 @@
 
 ## Changelog
 
-### Unreleased
+### Version 0.29.0
 
 - **Breaking:** `authRedirect()` is now `async` and returns `Promise<void>`. It reads the app
   settings and follows the app's mode: Simple mode (`pkce_enabled: false`) goes to the hosted `/web`
