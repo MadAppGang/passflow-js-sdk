@@ -43,7 +43,14 @@ export const s256Challenge = async (verifier: string): Promise<string> => {
   return base64UrlEncode(new Uint8Array(digest));
 };
 
+/** `bytes` random bytes, base64url-encoded. Used for verifiers, OAuth `state` and `nonce`. */
+export const randomBase64Url = (bytes: number = VERIFIER_BYTES): string =>
+  base64UrlEncode(webCrypto().getRandomValues(new Uint8Array(bytes)));
+
 export const createPkcePair = async (): Promise<PkcePair> => {
-  const verifier = base64UrlEncode(webCrypto().getRandomValues(new Uint8Array(VERIFIER_BYTES)));
+  const verifier = randomBase64Url(VERIFIER_BYTES);
   return { verifier, challenge: await s256Challenge(verifier) };
 };
+
+/** Whether the Web Crypto API that PKCE needs is available here (a secure context). */
+export const hasWebCrypto = (): boolean => Boolean(globalThis.crypto?.subtle);

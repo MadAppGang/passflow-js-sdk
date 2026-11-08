@@ -2,6 +2,31 @@
 
 ## Changelog
 
+### Unreleased
+
+- **Breaking:** `authRedirect()` is now `async` and returns `Promise<void>`. It reads the app
+  settings and follows the app's mode: Simple mode (`pkce_enabled: false`) goes to the hosted `/web`
+  page as before; SDK mode (`pkce_enabled: true`) starts an authorization-code request with PKCE at
+  `/oidc/authorize`, and hosted sign-in returns an authorization code that the SDK redeems on the
+  landing page. Every failure emits one `Error` with operation `auth-redirect` and rejects, so
+  `await` it or add `.catch()`. A `url` or `appId` option that differs from the instance's rejects
+  with code `OVERRIDE_NOT_SUPPORTED`. See [Hosted Sign-In](#hosted-sign-in).
+- **Breaking:** core accepts URL tokens only for apps in Simple mode. Tokens in the URL of an app
+  in SDK mode, with no app id, or whose settings cannot be read are refused with an `Error` with
+  operation `tokens.from-url` and code `TOKENS_IN_URL_NOT_ALLOWED`, and nothing is saved. A federated
+  popup follows the same rule.
+- New `SignIn` source `'oidc-landing'` and `Error` operation `oidc.redirect` for the SDK-mode landing;
+  `completeFederatedLanding()` also takes that landing. New `PassflowOidcError` with its `code`.
+- `SignIn` with `source: 'tokens-in-url'` carries `state` when the URL had one. Removing the tokens
+  from the URL now keeps the other fragment params.
+- `authRedirect({ state })` (Simple mode) and `PassflowFederatedAuthPayload.state` and
+  `parent_challenge_id` are sent to the server. A federated popup reads tokens from the fragment too.
+- `AppSettings.public_client` and `PasswordlessApprovalInfo.one_click` are typed. The app settings
+  are read once per app id and shared by sign-in, `authRedirect()`, the URL-token reader and
+  `getAppSettings()`.
+- `waitForPasswordlessSignIn` ends on an answer with `redirect_url` (`signed-in`) or `tfa_token`
+  (`second-factor-required`), as a sign-in under an OIDC parent answers.
+
 ### Version 0.1.45
 
 - Fixed bug related to null/undefined checks in the codebase
@@ -10,6 +35,7 @@
 
 - [Passflow JavaScript SDK Documentation](#passflow-javascript-sdk-documentation)
   - [Changelog](#changelog)
+    - [Unreleased](#unreleased)
     - [Version 0.1.45](#version-0145)
   - [Table of Contents](#table-of-contents)
   - [Quick Start Examples](#quick-start-examples)
@@ -25,6 +51,7 @@
   - [Getting Started](#getting-started)
     - [Initialization](#initialization)
     - [Session Management](#session-management)
+  - [Hosted Sign-In](#hosted-sign-in)
   - [Authentication](#authentication)
     - [Sign In](#sign-in)
     - [Sign Up](#sign-up)
@@ -275,6 +302,61 @@ passflow.session({
 });
 ```
 
+## Hosted Sign-In
+
+`authRedirect()` sends the user to Passflow's hosted sign-in page. It is `async`: it reads the app
+settings (once per app id) and follows the app's hand-off mode, `pkce_enabled` in the app settings.
+
+```javascript
+const passflow = new Passflow({ url: "https://auth.example.com", appId: "your-app-id", parseQueryParams: true });
+
+passflow.subscribe(
+  {
+    onAuthChange: (event, payload) => {
+      if (event === PassflowEvent.Error && payload.operation === "auth-redirect") showError(payload.message);
+      if (event === PassflowEvent.Error && payload.operation === "oidc.redirect") showError(payload.message);
+    },
+  },
+  [PassflowEvent.SignIn, PassflowEvent.Error],
+);
+
+// The app starts sign-in itself whenever there is no session: nothing redirects on its own.
+if (!passflow.isAuthenticated()) {
+  passflow.authRedirect().catch(() => {}); // the Error event above reports the failure
+}
+```
+
+- **Simple mode** (`pkce_enabled: false`, and the outcome when the instance has no app id): the
+  browser goes to `{url}/web?appId&redirectto&scopes`, and hosted sign-in returns tokens in the URL
+  (`#access_token=…`). `parseQueryParams` or `handleTokensRedirect()` takes them (see
+  [Token Management](#token-management)). `authRedirect({ state })` sends a `state`, which comes back
+  on the `SignIn` event as `payload.state`. The default `redirectUrl` is the current `href`.
+  `authRedirectUrl()` still builds this URL synchronously for integrations that navigate themselves.
+- **SDK mode** (`pkce_enabled: true`): the browser goes to `{url}/oidc/authorize` with a PKCE (S256)
+  challenge, a `state` and, when the scopes include `openid`, a `nonce`; the proof key stays in this
+  tab's sessionStorage. Hosted sign-in returns an authorization code (`?code=&state=`), which the SDK
+  redeems at `{url}/oidc/token` on the landing page, as a public client with no secret. The outcome
+  is `SignIn` with `source: 'oidc-landing'`, or one `Error` with operation `oidc.redirect` (codes
+  `STATE_MISMATCH`, `VERIFIER_MISSING`, `ID_TOKEN_INVALID`, `TOKEN_EXCHANGE_FAILED`, `invalid_client`,
+  `invalid_grant`, or the OAuth `error` the server returned). Nothing is retried: the user signs in
+  again.
+  - `options.state` is Simple-only: in SDK mode the SDK generates `state` itself and does not send yours.
+  - The default `redirectUrl` is the page's origin and pathname, because the redirect URI must match a
+    registered one exactly. A deep link passes an explicit, registered `redirectUrl`.
+  - `openid` is added to the scopes when they include `id` or `oidc`, so an ID token is issued. That ID
+    token is the slim OIDC one (`sub`, `iss`, `aud`, `exp`, `iat`, `nonce`, `at_hash`, `auth_time`, `amr`, `acr`);
+    profile claims come from the access token and `/userinfo`. After a refresh the token pair has the
+    same shape as one from `/auth/login`.
+  - The app must be a public client (type SPA). An app whose settings report `public_client: false`
+    is refused before any redirect with code `CONFIDENTIAL_CLIENT` and a message naming the fix.
+  - The page must be a secure context (https or localhost) and sessionStorage must be writable;
+    otherwise `authRedirect()` rejects with `SECURE_CONTEXT_REQUIRED` or `STORAGE_UNAVAILABLE`.
+
+`options.url` and `options.appId` may only repeat the instance's own values (compared without case,
+default port or trailing slash); a different value rejects with `OVERRIDE_NOT_SUPPORTED`. Create a
+second `Passflow` instance for another server or app. Every failure, including a failed settings read,
+emits one `Error` with operation `auth-redirect`, rejects with that error, and does not navigate.
+
 ## Authentication
 
 ### Sign In
@@ -421,7 +503,12 @@ in the background, so `SignIn` with `source: "federated-landing"`, `TwoFactorReq
 the signal. A `?code=` this tab did not ask for leaves the URL alone and emits no `SignIn`.
 
 A host that builds its instance during render, as React StrictMode may discard it, sets
-`deferFederatedLanding: true` and calls `completeFederatedLanding()` once the instance is kept. Details:
+`deferFederatedLanding: true` and calls `completeFederatedLanding()` once the instance is kept. It takes
+the SDK-mode hosted sign-in landing (`?code=&state=`) the same way: `true` means this tab started that
+sign-in and the outcome follows by event; `false` means nothing was touched and no event follows.
+
+The federated payload also takes `state` (echoed back on a Simple-mode landing) and
+`parent_challenge_id` (the hosted login's OIDC parent sign-in); both are sent on the start URL. Details:
 [docs/pkce-sign-in.md](docs/pkce-sign-in.md).
 
 ### Passkey Authentication
@@ -658,13 +745,18 @@ const handleRedirect = () => {
 };
 ```
 
-`handleTokensRedirect()` returns nothing. It removes the tokens from the URL at once, then
-verifies them in the background before saving them: each signature against the keys at
+`handleTokensRedirect()` returns nothing. It removes the tokens (and their `state`) from the URL at
+once; the other query and fragment params stay. Core accepts URL tokens only for apps in Simple mode:
+it reads the app settings first, and an app in SDK mode, an instance with no app id, or a failed read
+ends in `Error` with operation `tokens.from-url` and code `TOKENS_IN_URL_NOT_ALLOWED`, with nothing
+saved. For a Simple app it then verifies the tokens in the background before saving them: each signature against the keys at
 `<url>/.well-known/jwks.json`, `iss` against the issuer in `<url>/.well-known/openid-configuration`,
 `aud` against your `appId` (required), `exp`, and the token type. The outcome is `SignIn` with
 `source: "tokens-in-url"`, or `Error` with operation `tokens.from-url` and code `TOKEN_NOT_VERIFIED`
-with nothing saved. Verification needs the Web Crypto API (https or localhost). A federated popup
-that returns tokens in its callback URL is verified the same way.
+with nothing saved. Verification needs the Web Crypto API (https or localhost). `SignIn` carries
+`state` when the URL had one. A federated popup that returns tokens in its callback URL (query or
+fragment) follows the same Simple-only rule and is verified the same way; on a PKCE app it requires a
+code.
 
 ### Token refresh across tabs
 
@@ -941,7 +1033,7 @@ Configuration options:
 | `setTokens(tokens)`        | Set tokens manually            |
 | `handleTokensRedirect()`   | Handle tokens from redirect    |
 | `authRedirectUrl(options)` | Generate an auth redirect URL  |
-| `authRedirect(options)`    | Redirect to the auth page      |
+| `authRedirect(options)`    | Redirect to hosted sign-in in the app's mode (async, see [Hosted Sign-In](#hosted-sign-in)) |
 
 **Tenant Methods**
 

@@ -11,7 +11,7 @@
  * exercised end to end rather than asserted on a mocked `notify`.
  */
 import { beforeEach, describe, expect, Mock, test, vi } from 'vitest';
-import { AuthAPI, PassflowAuthorizationResponse, Providers } from '../../lib/api';
+import { AppSettings, AuthAPI, PassflowAuthorizationResponse, Providers } from '../../lib/api';
 import { TwoFactorApiClient } from '../../lib/api/two-factor';
 import { DeviceService } from '../../lib/device';
 import type { PlatformAdapter } from '../../lib/platform';
@@ -178,13 +178,31 @@ describe('AuthService — a sign-in pending its second factor', () => {
     expect(twoFactor.isVerificationRequired()).toBe(false);
   });
 
-  test('a federated popup with tokens in its query still signs in', async () => {
+  test('a federated popup with tokens in its query still signs in on an app in Simple mode', async () => {
+    // Core accepts URL tokens only for apps known to be in Simple mode.
+    const simpleApp = new AuthService(
+      authApi as unknown as AuthAPI,
+      { getDeviceId: () => 'device-1' } as unknown as DeviceService,
+      storageManager,
+      store,
+      tokenCache as unknown as TokenCacheService,
+      ['id', 'openid'],
+      false,
+      'https://auth.example.com',
+      { createSession },
+      'app-1',
+      undefined,
+      platform as unknown as PlatformAdapter,
+      async () => false,
+      undefined,
+      async () => ({ pkce_enabled: false }) as AppSettings,
+    );
     platform.openAuthUrl.mockResolvedValueOnce({
       callbackSearch: `?access_token=${VALID_TOKENS.access_token}`,
       callbackHash: '',
     });
 
-    await authService.federatedAuthWithPopup({ provider: Providers.google, redirect_url: ORIGIN });
+    await simpleApp.federatedAuthWithPopup({ provider: Providers.google, redirect_url: ORIGIN });
 
     expect(storageManager.saveTokens).toHaveBeenCalled();
     expect(events).toContain(PassflowEvent.SignIn);

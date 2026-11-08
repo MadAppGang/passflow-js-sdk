@@ -343,7 +343,8 @@ describe('federated redirect landing', () => {
   });
 
   test.each([false, true])('TEST-38 REQ-24 defer=%s leaves token landing behavior and user_state intact', async (defer) => {
-    const h = harness({ config: { deferFederatedLanding: defer } });
+    // Core accepts URL tokens only for apps in Simple mode.
+    const h = harness({ pkce: false, config: { deferFederatedLanding: defer } });
     const issued = await serveSigned(h);
     await startRedirect(h);
     const search = new URLSearchParams({

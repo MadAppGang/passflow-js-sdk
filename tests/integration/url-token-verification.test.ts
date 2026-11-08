@@ -8,6 +8,9 @@
  *
  * The URL is stripped synchronously on every path. The outcome is reported asynchronously: `SignIn`
  * with `source: 'tokens-in-url'`, or one `Error` with operation `tokens.from-url` and nothing stored.
+ *
+ * Core accepts URL tokens only for apps in Simple mode, so every app here is served with
+ * `pkce_enabled: false`; the mode rule itself is covered by url-token-mode-gate.test.ts.
  */
 import { describe, expect, test, vi } from 'vitest';
 import { PassflowEvent } from '../../lib/index';
@@ -81,7 +84,7 @@ function landAndHandle(h: Harness, tokens: Partial<IssuedTokens>, where: Where =
 
 describe('tokens in the page URL are verified before they are stored', () => {
   test.each<Where>(['query', 'hash'])('a valid issued set in the %s signs in after verification', async (where) => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const key = await generateSigningKey();
     serve(h, key);
     const tokens = await issuedTokens(key);
@@ -110,7 +113,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   });
 
   test('parseQueryParams: true strips at construction and stores only after verification', async () => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const key = await generateSigningKey();
     serve(h, key);
     const tokens = await issuedTokens(key);
@@ -127,7 +130,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   });
 
   test('an RS256 issued set is accepted too', async () => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const key = await generateSigningKey('rsa-1', 'RS256');
     serve(h, key);
     const tokens = await issuedTokens(key);
@@ -141,7 +144,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   test.each<Where>(['query', 'hash'])(
     'a forged signature (same kid, another key) in the %s is refused; URL stripped synchronously',
     async (where) => {
-      const h = harness();
+      const h = harness({ pkce: false });
       const server = await generateSigningKey('k1');
       const forger = await generateSigningKey('k1');
       serve(h, server);
@@ -153,7 +156,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   );
 
   test('parseQueryParams: true refuses forged tokens at construction', async () => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const server = await generateSigningKey('k1');
     const forger = await generateSigningKey('k1');
     serve(h, server);
@@ -173,7 +176,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
     ['an exp in the past', { exp: Math.floor(Date.now() / 1000) - 60 }],
     ['no exp', { exp: undefined }],
   ])('a validly signed set with %s is refused', async (_name, overrides) => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const key = await generateSigningKey();
     serve(h, key);
     const tokens = await issuedTokens(key, overrides);
@@ -186,7 +189,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
     ['access token typed refresh', 'access', 'refresh'],
     ['refresh token typed access', 'refresh', 'access'],
   ] as const)('a validly signed %s is refused', async (_name, which, type) => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const key = await generateSigningKey();
     serve(h, key);
     const claims = tokenClaims();
@@ -201,7 +204,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   test.each(['refresh_token', 'id_token'] as const)(
     'a valid access token with a forged %s is refused as a whole',
     async (forgedName) => {
-      const h = harness();
+      const h = harness({ pkce: false });
       const server = await generateSigningKey('k1');
       const forger = await generateSigningKey('k1');
       serve(h, server);
@@ -215,7 +218,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   );
 
   test.each(['HS256', 'none'])('a token with alg %s and otherwise valid claims is refused', async (alg) => {
-    const h = harness();
+    const h = harness({ pkce: false });
     serve(h, await generateSigningKey('k1'));
     const claims = tokenClaims();
     const landed = {
@@ -228,7 +231,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   });
 
   test('the HS256 fixture tokens are refused', async () => {
-    const h = harness();
+    const h = harness({ pkce: false });
     serve(h, await generateSigningKey('k1'));
     const landed = {
       access_token: VALID_TOKENS.access_token as string,
@@ -241,7 +244,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   });
 
   test('a token whose kid is not published is refused', async () => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const published = await generateSigningKey('k1');
     const other = await generateSigningKey('k2');
     serve(h, published);
@@ -252,7 +255,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   });
 
   test('without an app id, valid tokens are refused and still stripped', async () => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const key = await generateSigningKey();
     serve(h, key);
     const tokens = await issuedTokens(key);
@@ -270,7 +273,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
     ['JWKS unreachable', JWKS_PATH, fault('network')],
     ['JWKS 500', JWKS_PATH, fault('http', 500)],
   ])('%s: one Error, nothing stored, URL already stripped', async (_name, path, reply) => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const key = await generateSigningKey();
     serve(h, key);
     h.reply(path, reply);
@@ -285,7 +288,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
     ['id_token only', ['id_token']],
     ['refresh_token and id_token', ['refresh_token', 'id_token']],
   ] as const)('a URL with %s and no access_token is stripped and nothing is stored', async (_name, names) => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const key = await generateSigningKey();
     serve(h, key);
     const all = await issuedTokens(key);
@@ -299,7 +302,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   test.each(['refresh_token', 'id_token'] as const)(
     'a fragment with only %s is stripped and nothing is stored',
     async (name) => {
-      const h = harness();
+      const h = harness({ pkce: false });
       const key = await generateSigningKey();
       serve(h, key);
       const landed = { [name]: (await issuedTokens(key))[name] };
@@ -311,7 +314,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   );
 
   test('a fragment access token with a refresh token in the query strips both and signs in with the fragment set', async () => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const key = await generateSigningKey();
     serve(h, key);
     const tokens = await issuedTokens(key);
@@ -330,7 +333,7 @@ describe('tokens in the page URL are verified before they are stored', () => {
   });
 
   test('a verified set that cannot be saved ends in one tokens.from-url Error and no SignIn', async () => {
-    const h = harness();
+    const h = harness({ pkce: false });
     const key = await generateSigningKey();
     serve(h, key);
     const tokens = await issuedTokens(key);

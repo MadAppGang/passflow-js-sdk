@@ -1,4 +1,5 @@
 import {
+  type AppSettings,
   AuthAPI,
   getOSFromDeviceType,
   isEmailVerificationStep,
@@ -25,6 +26,16 @@ import {
 } from '../api';
 import { DeviceService } from '../device';
 import { notifyError } from '../error-report';
+import {
+  confidentialClientMessage,
+  forgetOidcSlot,
+  normaliseUrl,
+  PassflowOidcError,
+  readOidcSlot,
+  redeemOidcCode,
+  startOidcAuthorization,
+  tokensInUrlNotAllowed,
+} from '../oidc';
 import { createPkcePair, type PkcePair } from '../pkce';
 import { type CurrentUrlInfo, type PlatformAdapter, PopupClosedError, webAdapter } from '../platform';
 import {
@@ -43,7 +54,7 @@ import { verifyUrlTokens } from '../token/verify';
 import { ParsedTokens, Tokens } from '../types';
 import { UpgradeSessionChangedError, UpgradeTransportError } from '../upgrade/errors';
 import { readSessionPin, sessionPinMatches, type UpgradeSessionPin } from '../upgrade/session';
-import { isValidEmail, isValidPhoneNumber, isValidUsername } from '../utils/validation';
+import { isValidEmail, isValidPhoneNumber, isValidUsername, sanitizeErrorMessage } from '../utils/validation';
 import { getDefaultLogger } from './logger';
 import { TokenCacheService } from './token-cache-service';
 
@@ -81,6 +92,16 @@ type EmailChallenge = {
   email?: string;
   scopes: string[];
   pkce: boolean;
+};
+
+/** Options of `authRedirect()`. `url` and `appId` may only repeat the instance's own values. */
+export type AuthRedirectOptions = {
+  url?: string;
+  redirectUrl?: string;
+  scopes?: string[];
+  appId?: string;
+  /** Simple mode only: echoed back with the tokens. In SDK mode the SDK generates `state` itself. */
+  state?: string;
 };
 
 /** How this instance's refresh controller coordinates (architecture §3.3, §3.4). */
@@ -182,6 +203,8 @@ export class AuthService {
     private platform: PlatformAdapter = webAdapter,
     private readPkceEnabled?: () => Promise<boolean>,
     refreshOptions: AuthServiceRefreshOptions = { coordination: localCoordination() },
+    /** The app's settings, read once per app id; `undefined` while there is no app id. */
+    private readAppSettings?: () => Promise<AppSettings | undefined>,
   ) {
     this.tokenExchangeConfig = tokenExchangeConfig;
     this.tokenDeliveryManager = new TokenDeliveryManager(storageManager);
@@ -206,6 +229,23 @@ export class AuthService {
 
     // Initialize session state on page load (cookie/BFF mode only)
     this.initializeSession();
+  }
+
+  /** The app id used for `client_id`, the override check, federated starts and landings. */
+  setAppId(appId: string): void {
+    this.appId = appId;
+  }
+
+  /**
+   * Whether the app is known to be in Simple mode (`pkce_enabled === false`), the only mode in
+   * which tokens are accepted from a URL. An unknown mode (no app id, a failed read) is not.
+   */
+  private async isSimpleModeApp(): Promise<boolean> {
+    try {
+      return (await this.readAppSettings?.())?.pkce_enabled === false;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -955,6 +995,17 @@ export class AuthService {
         if (answer?.status === 'approved' && answer.code) {
           return await this.finishApprovedPasswordless(answer.code, record);
         }
+        // Under an OIDC parent the approved row ends the parent sign-in: the answer is the
+        // relying party's redirect, or a 2FA token when a second factor is owed.
+        if (answer && answer.status === undefined && answer.tfa_token) {
+          this.handlePendingSecondFactor(answer, record.email);
+          this.forgetPendingPasswordless();
+          return { status: 'second-factor-required' };
+        }
+        if (answer && answer.status === undefined && answer.redirect_url) {
+          this.forgetPendingPasswordless();
+          return { status: 'signed-in', tokens: { redirect_url: answer.redirect_url } };
+        }
         await sleepUntilAborted(PASSWORDLESS_POLL_INTERVAL_MS, signal);
       }
     } catch (error) {
@@ -1596,6 +1647,8 @@ export class AuthService {
       ...(payload.device ? { device: payload.device } : {}),
       ...(payload.code_challenge ? { code_challenge: payload.code_challenge } : {}),
       ...(payload.code_challenge_method ? { code_challenge_method: payload.code_challenge_method } : {}),
+      ...(payload.state ? { state: payload.state } : {}),
+      ...(payload.parent_challenge_id ? { parent_challenge_id: payload.parent_challenge_id } : {}),
     };
 
     const url = new URL(passflowPathWithProvider, this.url);
@@ -1644,9 +1697,11 @@ export class AuthService {
 
       const urlParams = new URLSearchParams(result.callbackSearch);
       const code = urlParams.get('code');
-      const access_token = urlParams.get('access_token') || '';
-      const refresh_token = urlParams.get('refresh_token') || '';
-      const id_token = urlParams.get('id_token') || '';
+      // Tokens from the query, else from the fragment.
+      const tokenParams = urlParams.get('access_token') ? urlParams : hashParams;
+      const access_token = tokenParams.get('access_token') || '';
+      const refresh_token = tokenParams.get('refresh_token') || '';
+      const id_token = tokenParams.get('id_token') || '';
 
       let tokensData: PassflowAuthorizationResponse = {
         access_token,
@@ -1654,12 +1709,15 @@ export class AuthService {
         id_token: id_token || undefined,
         scopes: sscopes,
       };
-      if (code && pkce) {
+      if (pkce) {
+        // An SDK-mode app answers with a code; tokens in the URL are not accepted from it.
+        if (!code) throw tokensInUrlNotAllowed();
         tokensData = await this.authApi.pkceExchange(code, pkce.verifier);
         if (this.handlePendingSecondFactor(tokensData)) {
           return;
         }
       } else {
+        if (!(await this.isSimpleModeApp())) throw tokensInUrlNotAllowed();
         await verifyUrlTokens(this.url, this.appId, tokensData);
       }
 
@@ -1671,6 +1729,15 @@ export class AuthService {
       this.platform.navigateTo(this.platform.getCurrentUrl()?.origin ?? '');
     } catch (error) {
       this.forgetFederatedSlot();
+      if (error instanceof PassflowOidcError && error.code === 'TOKENS_IN_URL_NOT_ALLOWED') {
+        notifyError(this.subscribeStore, {
+          operation: 'tokens.from-url',
+          message: error.message,
+          code: error.code,
+          originalError: error,
+        });
+        return;
+      }
       const errorPayload: OperationErrorPayload = {
         operation: 'federated.popup',
         message: error instanceof Error ? error.message : 'Authentication failed',
@@ -1781,17 +1848,118 @@ export class AuthService {
     }
   }
 
-  authRedirect(options: { url?: string; redirectUrl?: string; scopes?: string[]; appId?: string } = {}): void {
+  /**
+   * Sends the user to hosted sign-in, in the app's mode. Simple (`pkce_enabled` false or absent,
+   * or no app id): the `/web` URL of `authRedirectUrl()`, plus `state` when given. SDK
+   * (`pkce_enabled` true): `/oidc/authorize` with PKCE, `state` generated here, and `redirect_uri`
+   * = `redirectUrl` or this page's origin and pathname.
+   *
+   * Every failure is one `Error` with operation `auth-redirect` and a rejection; nothing navigates.
+   */
+  async authRedirect(options: AuthRedirectOptions = {}): Promise<void> {
     try {
-      this.platform.navigateTo(this.authRedirectUrl(options));
+      const { url, appId, redirectUrl, scopes, state } = options;
+      if (
+        (url !== undefined && normaliseUrl(url) !== normaliseUrl(this.url)) ||
+        (appId !== undefined && appId !== (this.appId ?? ''))
+      ) {
+        throw new PassflowOidcError(
+          'OVERRIDE_NOT_SUPPORTED',
+          "authRedirect() signs in to this instance's url and appId; create a Passflow instance for another server or app",
+        );
+      }
+
+      const settings = await this.readAppSettings?.();
+      if (settings?.pkce_enabled !== true) {
+        const target = this.authRedirectUrl({ redirectUrl, scopes });
+        this.platform.navigateTo(state ? `${target}&${new URLSearchParams({ state })}` : target);
+        return;
+      }
+
+      if (settings.public_client === false) {
+        throw new PassflowOidcError('CONFIDENTIAL_CLIENT', confidentialClientMessage(settings.type));
+      }
+      const current = this.platform.getCurrentUrl();
+      const target = await startOidcAuthorization({
+        url: this.url,
+        clientId: this.appId ?? '',
+        redirectUri: redirectUrl ?? (current ? current.origin + current.pathname : ''),
+        scopes: scopes ?? this.scopes,
+      });
+      this.platform.navigateTo(target);
     } catch (error) {
       const errorPayload: OperationErrorPayload = {
         operation: 'auth-redirect',
         message: error instanceof Error ? error.message : 'Failed to redirect to auth page',
         originalError: error,
+        code: error instanceof PassflowOidcError ? error.code : error instanceof PassflowError ? error.id : undefined,
       };
       notifyError(this.subscribeStore, errorPayload);
       throw error;
+    }
+  }
+
+  /**
+   * Takes a hosted sign-in landing in SDK mode (`?code=&state=`, or `?error=&state=`).
+   *
+   * @returns false with no app id yet, or with no slot in this tab: nothing is touched and no event
+   * follows. true when this tab holds a slot: the URL is cleaned now, and `SignIn` with
+   * `source: 'oidc-landing'` or one `Error` with operation `oidc.redirect` follows after an await.
+   */
+  handleOidcLanding(currentUrl: CurrentUrlInfo): boolean {
+    if (!this.appId) return false;
+    const params = new URLSearchParams(currentUrl.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    const error = params.get('error');
+    const errorDescription = params.get('error_description');
+    if (params.get('user_state') || state === null || (!code && !error)) return false;
+
+    const read = readOidcSlot();
+    if (read.status === 'none') return false;
+
+    forgetOidcSlot();
+    for (const name of ['code', 'state', 'iss', 'error', 'error_description']) params.delete(name);
+    const rest = params.toString();
+    this.platform.replaceUrl(currentUrl.pathname + (rest ? `?${rest}` : '') + currentUrl.hash);
+
+    this.finishOidcLanding(async () => {
+      if (read.status === 'unusable') {
+        throw new PassflowOidcError('VERIFIER_MISSING', 'This sign-in has expired or its proof key is gone. Sign in again.');
+      }
+      if (read.slot.state !== state) {
+        throw new PassflowOidcError('STATE_MISMATCH', 'The sign-in answer does not belong to this sign-in. Sign in again.');
+      }
+      if (error || !code) {
+        throw new PassflowOidcError(
+          error ?? 'TOKEN_EXCHANGE_FAILED',
+          sanitizeErrorMessage(errorDescription || error || 'Sign in again.'),
+        );
+      }
+      return { tokens: await redeemOidcCode(this.url, code, read.slot), scopes: read.slot.scopes };
+    });
+    return true;
+  }
+
+  private async finishOidcLanding(redeem: () => Promise<{ tokens: Tokens; scopes: string[] }>): Promise<void> {
+    try {
+      // Every outcome comes after an await, so a subscriber attached right after this call sees it.
+      await Promise.resolve();
+      const { tokens, scopes } = await redeem();
+      await this.processAuthResponse(tokens, scopes);
+      this.subscribeStore.notify(PassflowEvent.SignIn, {
+        tokens,
+        parsedTokens: this.tokenCacheService.getParsedTokens(),
+        source: 'oidc-landing',
+      });
+      await this.submitSessionCheck();
+    } catch (error) {
+      notifyError(this.subscribeStore, {
+        operation: 'oidc.redirect',
+        message: error instanceof Error ? error.message : 'Sign-in failed',
+        code: error instanceof PassflowOidcError ? error.code : undefined,
+        originalError: error,
+      });
     }
   }
 

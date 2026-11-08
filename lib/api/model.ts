@@ -466,7 +466,12 @@ export type PassflowPasswordlessStatusPayload = {
 
 export type PassflowPasswordlessStatusResponse =
   | { status: 'pending' | 'denied' | 'expired' | 'completed' }
-  | { status: 'approved'; code: string };
+  | { status: 'approved'; code: string }
+  /**
+   * A sign-in under an OIDC parent ends where every parent sign-in ends: with the relying party's
+   * `redirect_url`, or with a `tfa_token` when a second factor is owed.
+   */
+  | { status?: undefined; redirect_url?: string; tfa_token?: string; requires_2fa?: boolean; challenge_id?: string };
 
 export type PassflowPasswordlessApprovalInfoPayload = {
   challenge_id: string;
@@ -483,6 +488,10 @@ export type PassflowPasswordlessApprovalDecideResponse = {
   state: 'approved' | 'denied';
 };
 
+/**
+ * How a passwordless wait ended. Under an OIDC parent, `signed-in` carries only `redirect_url`
+ * (the relying party's address with its code) in `tokens`, and no tokens.
+ */
 export type PasswordlessWaitResult =
   | { status: 'signed-in'; tokens: PassflowAuthorizationResponse }
   | { status: 'second-factor-required' | 'denied' | 'expired' | 'completed' };
@@ -496,6 +505,8 @@ export type PasswordlessApprovalInfo = {
   os: string;
   location: { city: string; country: string } | null;
   attempts_left: number;
+  /** `true` when approving takes one click and no number is typed. */
+  one_click?: boolean;
 };
 
 export enum Providers {
@@ -546,7 +557,16 @@ export type AppSettings = {
   custom_email_templates: boolean;
   auth_strategies: AuthStrategies[];
   force_passwordless_login: boolean;
+  /**
+   * `true`: hosted sign-in returns an authorization code (SDK mode), which `authRedirect()` redeems.
+   * `false`: hosted sign-in returns tokens in the URL (Simple mode).
+   */
   pkce_enabled: boolean;
+  /**
+   * `true` when the app is a public client (no secret), so a browser can redeem its code. Absent
+   * on servers that do not report it.
+   */
+  public_client?: boolean;
   custom_sms_messages: boolean;
   registration_allowed: boolean;
   invite_only_registration: boolean;
@@ -707,6 +727,10 @@ export type PassflowFederatedAuthPayload = {
   create_tenant?: boolean;
   code_challenge?: string;
   code_challenge_method?: 'S256';
+  /** Echoed back on a Simple-mode landing, so the app can match the return to its start. */
+  state?: string;
+  /** The hosted login's OIDC parent sign-in, when the federated sign-in runs under one. */
+  parent_challenge_id?: string;
 };
 
 export type PassflowFederatedAuthExtendedPayload = PassflowFederatedAuthPayload & {
