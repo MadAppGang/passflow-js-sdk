@@ -2,6 +2,19 @@
 
 ## Changelog
 
+### Version 0.30.0
+
+- `passflow.hostedUpgrade`: step-up for the hosted login page's cookie session. It has the same
+  surface as `passflow.upgrade`, but sends `POST /auth/session/upgrade/start` and
+  `POST /auth/session/upgrade` with the session cookie, and the server issues nothing, so no tokens
+  are stored. Call `enable({ prompt })` once, then `elevate(challenge, { kind: 'imperative' })`.
+  Never wire interception (`interceptFetch`, `withAuth`, `attachAuth`) to it.
+- `UpgradeAPI.startHostedUpgrade()` and `UpgradeAPI.commitHostedUpgrade()`, and the endpoint
+  paths `PassflowEndpointPaths.hostedUpgradeStart` and `.hostedUpgrade`.
+- Requests to `/auth/session/*` never carry the stored `Authorization` header and never trigger
+  a token refresh. A 401 from them never ends the stored token session, and the
+  `passflow.upgrade` step-up never acts on them.
+
 ### Version 0.29.0
 
 - **Breaking:** `authRedirect()` is now `async` and returns `Promise<void>`. It reads the app
