@@ -2,6 +2,11 @@
 
 ## Changelog
 
+### Version 0.30.1
+
+- Fixed: `setAppId()` on an instance built with an `appId` now changes the `X-Passflow-ClientID`
+  header that later requests send. Before, they kept sending the app id from construction.
+
 ### Version 0.30.0
 
 - `passflow.hostedUpgrade`: step-up for the hosted login page's cookie session. It has the same
