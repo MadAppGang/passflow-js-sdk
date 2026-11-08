@@ -564,7 +564,8 @@ export class AxiosClient {
       [APP_ID_HEADER_KEY]: appId,
     };
 
-    // Update axios instance headers
-    this.instance.defaults.headers.common[APP_ID_HEADER_KEY] = appId;
+    // The constructor sets the header at the top level of the instance defaults, which axios
+    // merges over `common`, so it has to be replaced at that same level.
+    this.instance.defaults.headers[APP_ID_HEADER_KEY] = appId;
   }
 }
