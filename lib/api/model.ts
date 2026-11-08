@@ -88,6 +88,9 @@ export enum PassflowEndpointPaths {
   cliAuthComplete = '/cli/auth/complete',
   // Assurance upgrade (step-up) endpoints. The commit round reuses `refresh`.
   upgradeStart = '/auth/upgrade/start',
+  // Step-up of the hosted sign-in session, authenticated by its cookie alone.
+  hostedUpgradeStart = '/auth/session/upgrade/start',
+  hostedUpgrade = '/auth/session/upgrade',
 }
 
 export enum PassflowAdminEndpointPaths {
@@ -255,6 +258,7 @@ export type UpgradeStartWire = {
 
 /**
  * The `upgrade` field of `POST /auth/refresh` — the commit round.
+ * Also the whole body of `POST /auth/session/upgrade`.
  *
  * The server types `assertion` as `json.RawMessage`, so a new factor can extend
  * the payload without a wire-format change.

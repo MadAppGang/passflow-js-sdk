@@ -120,6 +120,9 @@ const serviceUnavailable = (e: AxiosError, status: number): PassflowError => {
 /** `/auth/refresh` (also under a prefix such as `/admin`). */
 const isRefreshEndpoint = (url?: string): boolean => url?.includes(PassflowEndpointPaths.refresh) ?? false;
 
+/** The hosted sign-in session's cookie-only endpoints. The stored token session never takes part. */
+const isHostedSessionEndpoint = (url?: string): boolean => url?.includes('/auth/session/') ?? false;
+
 /** Any logout endpoint: it revokes the session, so it never refreshes one first. */
 const isLogoutEndpoint = (url?: string): boolean => url?.includes('logout') ?? false;
 
@@ -227,8 +230,9 @@ export class AxiosClient {
     });
 
     this.instance.interceptors.request.use(async (axiosConfig: InternalAxiosRequestConfig) => {
-      // Request to non-access token endpoints, or one that brings its own credential
-      if (this.isNonAuthEndpoint(axiosConfig.url) || hasOwnBearer(axiosConfig)) {
+      // Request to non-access token endpoints, one that brings its own credential, or one of the
+      // hosted session's cookie-only calls, where the stored token session must not appear at all
+      if (this.isNonAuthEndpoint(axiosConfig.url) || hasOwnBearer(axiosConfig) || isHostedSessionEndpoint(axiosConfig.url)) {
         return axiosConfig;
       }
 
@@ -307,9 +311,12 @@ export class AxiosClient {
         //
         // A 401 from `/auth/refresh` itself never invalidates here: the refresh controller
         // classifies it and invalidates only at a real session end (PFL-792).
+        // A 401 from the hosted session's endpoints is about the cookie session and never marks the
+        // stored token session invalid.
         if (
           e.response?.status === HttpStatuses.unauthorized &&
           !isRefreshEndpoint(e.config?.url) &&
+          !isHostedSessionEndpoint(e.config?.url) &&
           !hasOwnBearer(e.config) &&
           !this.isUpgradeTransactionError(e)
         ) {
@@ -317,8 +324,9 @@ export class AxiosClient {
         }
 
         // An elevation seam, consulted here because a later-registered
-        // interceptor would only ever see the `PassflowError` below.
-        if (e.response && this.upgradeHandler) {
+        // interceptor would only ever see the `PassflowError` below. The token session's step-up
+        // seam does not act on the hosted session's calls.
+        if (e.response && this.upgradeHandler && !isHostedSessionEndpoint(e.config?.url)) {
           const challenge = readUpgradeChallengeFrom(e.response);
           if (challenge) {
             try {

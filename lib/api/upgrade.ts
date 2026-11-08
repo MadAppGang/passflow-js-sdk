@@ -1,10 +1,10 @@
 /**
- * The assurance-upgrade API — the prepare round of a step-up.
+ * The assurance-upgrade API.
  *
- * One endpoint, deliberately. The commit round is `POST /auth/refresh`, which
- * belongs to `AuthAPI` because that is the only path that stores the rotated
- * tokens; splitting it off here would elevate the session on the server and
- * leave the client holding stale ones.
+ * For the token session only the prepare round is here. Its commit round is
+ * `POST /auth/refresh`, which belongs to `AuthAPI` because that is the only path
+ * that stores the new token pair. The hosted cookie session's two rounds are
+ * both here, because they store nothing.
  *
  * Constructed exactly like `AuthAPI`, sharing `StorageManager` and
  * `DeviceService`, which is what makes cookie mode, CSRF and the device headers
@@ -18,7 +18,7 @@ import type { StorageManager } from '../storage';
 import { markUpgradeTransaction } from '../upgrade/markers';
 
 import { AxiosClient } from './axios-client';
-import { type PassflowConfig, PassflowEndpointPaths, type UpgradeStartWire } from './model';
+import { type PassflowConfig, PassflowEndpointPaths, type UpgradeRefreshField, type UpgradeStartWire } from './model';
 
 /** The `POST /auth/upgrade/start` request body. `relying_party_id` is passkey-only. */
 export type UpgradeStartPayload = {
@@ -54,5 +54,26 @@ export class UpgradeAPI {
       payload,
       markUpgradeTransaction<AxiosRequestConfig>({}),
     );
+  }
+
+  /**
+   * Issues an upgrade challenge for the hosted sign-in session. Authenticated by the session
+   * cookie alone: no bearer is sent and no stored token is refreshed first (see `AxiosClient`).
+   * Same answer shape as `startUpgrade`.
+   */
+  startHostedUpgrade(payload: UpgradeStartPayload): Promise<UpgradeStartWire> {
+    return this.axiosClient.post<UpgradeStartWire, UpgradeStartPayload>(PassflowEndpointPaths.hostedUpgradeStart, payload, {
+      withCredentials: true,
+    });
+  }
+
+  /**
+   * Proves the factor for the hosted sign-in session. The body is the proof itself, not wrapped.
+   * The server answers 204 and issues nothing, so nothing is stored.
+   */
+  async commitHostedUpgrade(upgrade: UpgradeRefreshField): Promise<void> {
+    await this.axiosClient.post<void, UpgradeRefreshField>(PassflowEndpointPaths.hostedUpgrade, upgrade, {
+      withCredentials: true,
+    });
   }
 }

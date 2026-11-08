@@ -139,6 +139,18 @@ export class Passflow {
   readonly upgrade: UpgradeFacade;
 
   /**
+   * Step-up of the hosted sign-in session, the HttpOnly cookie the hosted login page holds. Same
+   * surface as `upgrade`, over `POST /auth/session/upgrade/start` and `POST /auth/session/upgrade`:
+   * no bearer is sent, and the server issues nothing, so no tokens are stored. Never touches the
+   * token session that `upgrade` steps up.
+   *
+   * Use only `enable({ prompt })`, called once, then `elevate(challenge, { kind: 'imperative' })`.
+   * Do not pass `interceptFetch` and do not use `withAuth` or `attachAuth`: each of them would step
+   * up the cookie session on a challenge from an unrelated call.
+   */
+  readonly hostedUpgrade: UpgradeFacade;
+
+  /**
    * Passflow's own API as an interception scope ("domain 1"), resolved ONCE
    * here from `PassflowConfig.url` so no adapter or wrapper ever derives it.
    * `null` when no `url` was configured, which is empty — never a throw, and
@@ -278,6 +290,23 @@ export class Passflow {
       },
       attachInternalSeam: (factory) => this.attachUpgradeSeam(factory),
       onSessionChange: (listener) => this.subscribeToSessionChange(listener),
+    });
+
+    // Second facade with its own controller. No seam on the SDK clients, no session-change hook
+    // and no credential swap: those belong to the token session.
+    this.hostedUpgrade = createUpgradeFacade({
+      startUpgrade: (payload) => this.upgradeApi.startHostedUpgrade(payload),
+      commitRefresh: (upgrade) => this.upgradeApi.commitHostedUpgrade(upgrade),
+      canCommit: () => ({ ok: true }),
+      readSessionPin: () => undefined,
+      readObtainedBar: () => undefined,
+      markSessionInvalid: () => {
+        // A failed hosted commit is about the cookie session; the token session stays as it is.
+      },
+      platform: this.platform,
+      passflowDomain: this.upgradeDomain,
+      ...(config.upgrade?.factors ? { factors: config.upgrade.factors } : {}),
+      ...(config.upgrade?.relyingPartyId ? { relyingPartyId: () => config.upgrade?.relyingPartyId } : {}),
     });
 
     // Check for tokens in query params if configured
