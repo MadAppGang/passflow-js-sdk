@@ -3,7 +3,7 @@
  * Checks the vendored contract corpus against the mirror commit it was copied from.
  *
  * `tests/upgrade/testdata/corpus/` holds byte-for-byte copies of two files from
- * `usepassflow/passflow-go`, and its `SOURCE` file names the mirror commit they came from.
+ * `usepassflow/go`, and its `SOURCE` file names the mirror commit they came from.
  * To update the copies: copy the files from that repository at a commit, write the full
  * commit SHA to `SOURCE`, and run this script.
  *
@@ -21,7 +21,7 @@ import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
-const REPOSITORY = 'usepassflow/passflow-go';
+const REPOSITORY = 'usepassflow/go';
 const MIRROR_CORPUS_PATH = 'auth/testdata/corpus';
 const VENDORED_FILES = ['challenges.json', 'acr-levels.json'];
 const VENDORED_DIR = new URL('../tests/upgrade/testdata/corpus/', import.meta.url);
