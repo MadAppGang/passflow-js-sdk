@@ -23,7 +23,8 @@
         "dev@magus": "latest",
         "bunjs@magus": "latest",
         "terminal@magus": "latest",
-        "browser-use@magus": "latest"
+        "browser-use@magus": "latest",
+        "orchestrator@magus": "latest"
       },
       "createdAt": "2026-10-26T01:16:24.625Z",
       "mcpServers": {
