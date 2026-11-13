@@ -1228,5 +1228,5 @@ const token = await m2m.getToken();
 ## Support
 
 - **Documentation**: [https://docs.passflow.cloud/m2m](https://docs.passflow.cloud/m2m)
-- **GitHub Issues**: [https://github.com/madappgang/passflow-js-sdk/issues](https://github.com/madappgang/passflow-js-sdk/issues)
+- **GitHub Issues**: [https://github.com/usepassflow/passflow-js-sdk/issues](https://github.com/usepassflow/passflow-js-sdk/issues)
 - **Email**: support@passflow.cloud

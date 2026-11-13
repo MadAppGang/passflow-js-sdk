@@ -81,11 +81,11 @@
   ],
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/MadAppGang/passflow-js-sdk/issues"
+    "url": "https://github.com/usepassflow/passflow-js-sdk/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MadAppGang/passflow-js-sdk.git"
+    "url": "git+https://github.com/usepassflow/passflow-js-sdk.git"
   },
   "packageManager": "pnpm@12.16.1"
 }
